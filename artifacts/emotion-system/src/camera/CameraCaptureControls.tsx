@@ -124,6 +124,11 @@ async function captureFullscreenPreview(target: HTMLElement) {
       clonedTarget.style.minHeight = '0';
       clonedTarget.style.maxWidth = 'none';
       clonedTarget.style.aspectRatio = 'auto';
+      clonedTarget.style.boxSizing = 'border-box';
+      clonedTarget.style.position = 'relative';
+      clonedTarget.style.overflow = 'hidden';
+      clonedTarget.style.border = '0';
+      clonedTarget.style.boxShadow = 'none';
 
       const clonedVideo = clonedTarget.querySelector<HTMLVideoElement>('.preview-video');
       if (videoFrame && clonedVideo) {
@@ -200,6 +205,7 @@ export function CameraCaptureControls({ stream }: CameraCaptureControlsProps) {
   const [recording, setRecording] = useState(false);
   const [preparing, setPreparing] = useState(false);
   const [status, setStatus] = useState('');
+  const preparingRef = useRef(false);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const screenStreamRef = useRef<MediaStream | null>(null);
   const photoStreamRef = useRef<MediaStream | null>(null);
@@ -249,15 +255,15 @@ export function CameraCaptureControls({ stream }: CameraCaptureControlsProps) {
       announce('Camera image is not ready yet.');
       return;
     }
-    setPreparing(true);
+    if (preparingRef.current) return;
+    preparingRef.current = true;
+    const fullscreenPreview = getFullscreenPreview();
+    if (!fullscreenPreview) setPreparing(true);
     void (async () => {
       let capturedStream: MediaStream | null = null;
       let capturedVideo: HTMLVideoElement | null = null;
-      let fullscreenCapture = false;
       try {
-        const fullscreenPreview = getFullscreenPreview();
         if (fullscreenPreview) {
-          fullscreenCapture = true;
           const canvas = await captureFullscreenPreview(fullscreenPreview);
           const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
           if (!blob) {
@@ -294,18 +300,22 @@ export function CameraCaptureControls({ stream }: CameraCaptureControlsProps) {
         downloadBlob(blob, `emotion-system_${timestamp()}.png`);
         announce('Screenshot saved locally.');
       } catch (error) {
-        announce(screenCaptureErrorMessage(error));
+        announce(fullscreenPreview
+          ? 'Could not capture the fullscreen preview. Try again.'
+          : screenCaptureErrorMessage(error));
       } finally {
         capturedVideo?.pause();
         if (capturedVideo) capturedVideo.srcObject = null;
         capturedStream?.getTracks().forEach((track) => track.stop());
         if (photoStreamRef.current === capturedStream) photoStreamRef.current = null;
+        preparingRef.current = false;
         if (mountedRef.current) setPreparing(false);
       }
     })();
   }, [announce, stream]);
 
   const toggleRecording = useCallback(() => {
+    if (preparingRef.current) return;
     const currentRecorder = recorderRef.current;
     if (currentRecorder?.state === 'recording') {
       try {
@@ -324,6 +334,7 @@ export function CameraCaptureControls({ stream }: CameraCaptureControlsProps) {
       return;
     }
 
+    preparingRef.current = true;
     setPreparing(true);
     void (async () => {
       let capturedStream: MediaStream | null = null;
@@ -373,6 +384,7 @@ export function CameraCaptureControls({ stream }: CameraCaptureControlsProps) {
         if (screenStreamRef.current === capturedStream) screenStreamRef.current = null;
         announce(screenCaptureErrorMessage(error));
       } finally {
+        preparingRef.current = false;
         if (mountedRef.current) setPreparing(false);
       }
     })();

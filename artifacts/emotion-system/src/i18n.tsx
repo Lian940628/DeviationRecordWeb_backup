@@ -60,6 +60,7 @@ const TRADITIONAL_CHINESE: Record<string, string> = {
   'Screenshot saved locally.': '螢幕截圖已下載至此裝置。',
   'Screen recording started. Stop to save the current screen.': '螢幕錄影已開始；停止後會下載目前畫面。',
   'Screen recording saved locally.': '螢幕錄影已下載至此裝置。',
+  'Could not capture the fullscreen preview. Try again.': '無法擷取全螢幕預覽，請再試一次。',
   'Select this tab to include effects and information panels.': '選擇此分頁，才能保留特效與資訊面板。',
   'Toggle fullscreen preview': '切換全螢幕預覽',
   'Enter fullscreen': '進入全螢幕',
