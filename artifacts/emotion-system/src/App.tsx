@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, Route, Switch } from 'wouter';
 import { ArrowLeft, ArrowUpRight, Camera, ChevronDown, Expand, LockKeyhole, ScanFace, Settings2, ShieldCheck, VideoOff } from 'lucide-react';
 import { useCameraController } from './camera/useCameraController';
@@ -10,6 +10,9 @@ import { releaseCocoSsdModel, usePersonDetection } from './tracking/usePersonDet
 import { releaseFaceLandmarkerWorker } from './tracking/faceLandmarkerWorker';
 import { useFaceExpressions } from './tracking/useFaceExpressions';
 import { useSessionAverageScore } from './tracking/useSessionAverageScore';
+import { BiometricDashboard, BodyScanPanel, ScanEffectOverlay, type ScanEffectSettings } from './dashboard/BiometricDashboard';
+import { useSessionAnalytics } from './dashboard/useSessionAnalytics';
+import { useSystemEventLog } from './dashboard/useSystemEventLog';
 import { VideoArtworkCanvas } from './visualization/VideoArtworkCanvas';
 import { useVisualModes } from './visualization/useVisualModes';
 import { useVisualSettings } from './visualization/useVisualSettings';
@@ -77,6 +80,27 @@ function Experience() {
     faceAnalysis.inferenceSequence,
     faceAnalysis.expressions,
   );
+  const sessionAnalytics = useSessionAnalytics(
+    Boolean(camera.stream),
+    faceAnalysis.inferenceSequence,
+    detection.tracks,
+    faceAnalysis.expressions,
+  );
+  const visibleTracks = useMemo(
+    () => detection.tracks.filter((track) => track.visible),
+    [detection.tracks],
+  );
+  const activeTrackIds = useMemo(
+    () => visibleTracks.map((track) => track.id).sort((a, b) => a - b),
+    [visibleTracks],
+  );
+  const [selectedTrackId, setSelectedTrackId] = useState<number | null>(null);
+  const [scanSettings, setScanSettings] = useState<ScanEffectSettings>({
+    enabled: true,
+    speedSeconds: 8,
+    opacity: 0.12,
+    color: 'cyan',
+  });
   const stageAudio = useStageTransitionAudio(
     Boolean(camera.stream),
     visualModes.visualMode,
@@ -89,6 +113,30 @@ function Experience() {
   const [artworkFps, setArtworkFps] = useState(0);
   const [fullscreenError, setFullscreenError] = useState('');
   const renderingFps = artworkFps || overlayFps;
+  const systemEvents = useSystemEventLog({
+    cameraStatus: camera.status,
+    cameraMessage: camera.message,
+    personModelStatus: detection.modelStatus,
+    personModelMessage: detection.modelMessage,
+    faceModelStatus: faceAnalysis.modelStatus,
+    faceModelMessage: faceAnalysis.modelMessage,
+    personCount: detection.personCount,
+    activeTrackIds,
+    expressions: faceAnalysis.expressions,
+    visualStage: visualModes.visualMode,
+    analysisUpdatedAt: sessionAnalytics.lastUpdatedAt,
+    validSamples: sessionAnalytics.validSamples,
+  });
+
+  useEffect(() => {
+    if (selectedTrackId === null || !activeTrackIds.includes(selectedTrackId)) {
+      setSelectedTrackId(activeTrackIds[0] ?? null);
+    }
+  }, [activeTrackIds, selectedTrackId]);
+
+  const updateScanSettings = (next: Partial<ScanEffectSettings>) => {
+    setScanSettings((previous) => ({ ...previous, ...next }));
+  };
   const startCamera = () => {
     void stageAudio.unlock();
     void camera.startCamera().then((started) => {
@@ -166,6 +214,7 @@ function Experience() {
                 <div className="overlay-generative" />
                 <div className="preview-grain" />
               </div>
+              <ScanEffectOverlay settings={scanSettings} cameraActive={Boolean(camera.stream)} />
               <DetectionOverlay
                 videoRef={camera.videoRef}
                 tracks={detection.tracks}
@@ -189,6 +238,31 @@ function Experience() {
               {camera.status === 'error' && <strong>{t('CAMERA NOT STARTED · ')}</strong>}{t(camera.message)}{fullscreenError && ` ${t(fullscreenError)}`}
             </div>
           </section>
+          <div className="dashboard-layout">
+            <BodyScanPanel
+              tracks={visibleTracks}
+              cameraActive={Boolean(camera.stream)}
+              selectedTrackId={selectedTrackId}
+              onSelectTrack={setSelectedTrackId}
+              scanSettings={scanSettings}
+            />
+            <div className="analysis-column">
+              <BiometricDashboard
+                cameraStatus={camera.status}
+                personModelStatus={detection.modelStatus}
+                faceModelStatus={faceAnalysis.modelStatus}
+                personCount={detection.personCount}
+                activeTrackIds={activeTrackIds}
+                detectionFps={detection.detectionFps}
+                renderingFps={renderingFps}
+                visualStage={visualModes.visualMode}
+                sessionDurationSeconds={sessionAnalytics.durationSeconds}
+                averageScore={averageScore}
+                analytics={sessionAnalytics}
+                systemEvents={systemEvents}
+                scanSettings={scanSettings}
+                onScanSettingsChange={updateScanSettings}
+              />
           <aside className="control-panel" aria-label={t('Experience settings')}>
             <div className="panel-top"><span className="panel-title">{t('Session controls')}</span><span className="panel-number">01 / 03</span></div>
             <button type="button" className="settings-toggle" aria-expanded={settingsOpen} onClick={() => setSettingsOpen((open) => !open)} data-testid="button-toggle-settings">
@@ -230,7 +304,7 @@ function Experience() {
               lastUpdatedAt={averageScore.lastUpdatedAt}
               detectionFps={detection.detectionFps}
               renderingFps={renderingFps}
-              activeTrackIds={detection.activeTrackIds}
+              activeTrackIds={activeTrackIds}
             />
             <VisualModeControls
               className="vmc-experience-controls"
@@ -259,6 +333,8 @@ function Experience() {
               <strong>{t('Your video and face landmarks stay in this browser.')}</strong> {t('Only model files are downloaded; camera frames and facial features are not uploaded or recorded. Expression labels are heuristic estimates, not statements about how someone truly feels.')}
             </div>
           </aside>
+            </div>
+          </div>
         </div>
         <footer className="experience-footer">
           <Link href="/" className="home-link" data-testid="link-return-home"><ArrowLeft size={13} style={{ verticalAlign: '-2px', marginRight: 7 }} /> {t('RETURN HOME')}</Link>

@@ -548,6 +548,65 @@ html[lang="zh-TW"] .app-shell .archive-record strong {
   letter-spacing: 0;
 }
 
+/* Three-column biometric workspace. On small screens the camera stays above
+   the vertically scrollable analytics/settings area. */
+.experience-page .workspace {
+  grid-template-columns: minmax(170px, .36fr) minmax(0, 1fr) minmax(240px, .46fr);
+  grid-template-rows: minmax(0, 1fr);
+  gap: 14px;
+}
+.experience-page .preview-column { grid-column: 2; grid-row: 1; }
+.experience-page .body-scan-panel { grid-column: 1; grid-row: 1; }
+.experience-page .analysis-column { grid-column: 3; grid-row: 1; }
+
+@media (max-width: 900px) {
+  .experience-page .workspace {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: 10px;
+  }
+  .experience-page .preview-column { grid-column: 1; grid-row: 1; }
+  .experience-page .dashboard-layout {
+    display: flex;
+    flex-direction: row;
+    grid-column: 1;
+    grid-row: 2;
+    min-height: 0;
+    overflow: hidden;
+  }
+  .experience-page .body-scan-panel {
+    flex: 0 0 34%;
+    min-width: 180px;
+    grid-column: auto;
+    grid-row: auto;
+  }
+  .experience-page .analysis-column {
+    flex: 1 1 0;
+    min-width: 0;
+    grid-column: auto;
+    grid-row: auto;
+  }
+}
+
+@media (max-width: 600px) {
+  .experience-page .dashboard-layout {
+    flex-direction: column;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  .experience-page .body-scan-panel {
+    flex: 0 0 auto;
+    width: 100%;
+    min-width: 0;
+    height: auto;
+  }
+  .experience-page .analysis-column {
+    flex: 0 0 auto;
+    width: 100%;
+    height: auto;
+  }
+}
+
 .app-shell {
   background:
     radial-gradient(ellipse at 78% 18%, rgba(17, 106, 95, .17), transparent 36%),
