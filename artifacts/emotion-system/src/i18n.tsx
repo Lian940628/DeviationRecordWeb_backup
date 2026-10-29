@@ -7,6 +7,9 @@ const LANGUAGE_STORAGE_KEY = 'emotion-system.language.v1';
 const TRADITIONAL_CHINESE: Record<string, string> = {
   'EMOTION / SYSTEM home': 'EMOTION / SYSTEM 首頁',
   'AN INTERACTIVE ARTWORK · DEVIATION RECORD': '互動藝術作品 · 偏差紀錄',
+  'Main navigation': '主導覽',
+  'LIVE EXPERIENCE': '即時互動',
+  'VIDEO DISTORTION': '影片偏差化',
   'ARCHIVE INDEX': '檔案索引',
   MEMORY: '記憶',
   PERCEPTION: '感知',

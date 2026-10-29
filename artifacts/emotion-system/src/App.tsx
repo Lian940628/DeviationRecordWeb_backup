@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, Route, Switch } from 'wouter';
+import { Link, Route, Switch, useLocation } from 'wouter';
 import { ArrowLeft, ArrowUpRight, Camera, ChevronDown, Expand, LockKeyhole, ScanFace, Settings2, ShieldCheck, VideoOff } from 'lucide-react';
+import VideoDistortion from './pages/VideoDistortion';
 import { useCameraController } from './camera/useCameraController';
 import { DetectionDebugPanel } from './tracking/DetectionDebugPanel';
 import { DetectionOverlay } from './tracking/DetectionOverlay';
@@ -26,11 +27,16 @@ import { SiteInteractionEffects } from './components/SiteInteractionEffects';
 function Header({ minimal = false }: { minimal?: boolean }) {
   const { language, setLanguage } = useAppLanguage();
   const t = useTranslation();
+  const [location] = useLocation();
   return (
     <header className="topbar">
       <Link href="/" className="wordmark" data-testid="link-home-logo" aria-label={t('EMOTION / SYSTEM home')}>
         EMOTION / SYSTEM<span>{t('AN INTERACTIVE ARTWORK · DEVIATION RECORD')}</span>
       </Link>
+      <nav className="site-nav" aria-label={t('Main navigation')} data-testid="nav-main">
+        <Link href="/experience" className={`site-nav-link${location === '/experience' ? ' is-active' : ''}`} data-testid="link-live-experience">{t('LIVE EXPERIENCE')}</Link>
+        <Link href="/video-distortion" className={`site-nav-link${location === '/video-distortion' ? ' is-active' : ''}`} data-testid="link-video-distortion">{t('VIDEO DISTORTION')}</Link>
+      </nav>
       <div className="header-actions">
         <div className="language-switch" role="group" aria-label={t('Language')}>
           <button type="button" aria-pressed={language === 'en'} onClick={() => setLanguage('en')} data-testid="button-language-en">EN</button>
@@ -392,6 +398,15 @@ function NotFound() {
   return <main className="app-shell"><Header /><div className="not-found"><div><div className="eyebrow">{t('Signal not found')}</div><h1>{t('This frame is empty.')}</h1><Link href="/" className="primary-link" data-testid="link-not-found-home">{t('RETURN HOME')} <ArrowUpRight size={14} /></Link></div></div></main>;
 }
 
+function VideoDistortionRoute() {
+  return (
+    <div className="app-shell video-distortion-shell">
+      <Header />
+      <VideoDistortion />
+    </div>
+  );
+}
+
 export default function App() {
   useEffect(() => () => {
     releaseCocoSsdModel();
@@ -403,6 +418,7 @@ export default function App() {
       <Switch>
         <Route path="/" component={Home} />
         <Route path="/experience" component={Experience} />
+        <Route path="/video-distortion" component={VideoDistortionRoute} />
         <Route component={NotFound} />
       </Switch>
     </LanguageProvider>
