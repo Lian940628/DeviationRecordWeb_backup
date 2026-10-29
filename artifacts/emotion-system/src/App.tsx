@@ -1,8 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, Route, Switch } from 'wouter';
 import { ArrowLeft, ArrowUpRight, Camera, ChevronDown, Expand, LockKeyhole, ScanFace, Settings2, ShieldCheck, VideoOff } from 'lucide-react';
 import { useCameraController } from './camera/useCameraController';
 import { SceneCanvas } from './scene/SceneCanvas';
+import { DetectionDebugPanel } from './tracking/DetectionDebugPanel';
+import { DetectionOverlay } from './tracking/DetectionOverlay';
+import { releaseCocoSsdModel, usePersonDetection } from './tracking/usePersonDetection';
 
 function Header() {
   return (
@@ -24,7 +27,7 @@ function Home() {
         <div className="landing-content">
           <div className="eyebrow">An experiment in presence</div>
           <h1 className="hero-title">THE ART OF<br /><span className="line-two">BEING SEEN<span className="period">.</span></span></h1>
-          <p className="hero-intro"><strong>EMOTION / SYSTEM</strong> is a quiet encounter between a person and a machine. Step into the frame. Notice what it means to be present when nothing is being measured.</p>
+          <p className="hero-intro"><strong>EMOTION / SYSTEM</strong> is a quiet encounter between a person and a machine. Step into the frame. Notice what it means to be present without being named.</p>
           <div className="action-row">
             <Link href="/experience" className="primary-link" data-testid="link-start-experience">START EXPERIENCE <ArrowUpRight size={15} strokeWidth={1.5} className="arrow" aria-hidden="true" /></Link>
             <div className="hero-note">Camera access is optional.<br />Your image stays on this device.</div>
@@ -39,7 +42,10 @@ function Home() {
 
 function Experience() {
   const camera = useCameraController();
+  const detection = usePersonDetection(camera.videoRef, Boolean(camera.stream));
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [debugMode, setDebugMode] = useState(false);
+  const [renderingFps, setRenderingFps] = useState(0);
   const [fullscreenError, setFullscreenError] = useState('');
 
   const toggleFullscreen = async () => {
@@ -73,6 +79,13 @@ function Experience() {
                 <div className="overlay-generative" />
                 <div className="preview-grain" />
               </div>
+              <DetectionOverlay
+                videoRef={camera.videoRef}
+                tracks={detection.tracks}
+                running={Boolean(camera.stream)}
+                mirrored={camera.mirrored}
+                onRenderingFps={setRenderingFps}
+              />
             </div>
             <div className="preview-actions">
               <div className="camera-actions">
@@ -106,12 +119,22 @@ function Experience() {
               </div>
               <div className="panel-section" style={{ borderBottom: 0, paddingBottom: 0 }}>
                 <span className="section-label">What this work does</span>
-                <p className="select-note" style={{ margin: 0 }}>Nothing is being analyzed. The quiet visual field is an invitation to be present, not a reading of you.</p>
+                <p className="select-note" style={{ margin: 0 }}>People are detected locally and assigned temporary session IDs. No identity, face, or emotion analysis is performed.</p>
               </div>
             </div>
+            <DetectionDebugPanel
+              debugMode={debugMode}
+              onToggle={() => setDebugMode((enabled) => !enabled)}
+              modelStatus={detection.modelStatus}
+              modelMessage={detection.modelMessage}
+              personCount={detection.personCount}
+              detectionFps={detection.detectionFps}
+              renderingFps={renderingFps}
+              activeTrackIds={detection.activeTrackIds}
+            />
             <div className="privacy-block">
               <div className="privacy-mark"><ShieldCheck size={14} strokeWidth={1.5} /> Private by design</div>
-              <strong>Your video stays in this browser.</strong> This build does not record, upload, store, detect faces, or classify emotions.
+              <strong>Your video stays in this browser.</strong> Person tracking runs locally; nothing is recorded or uploaded. No face or emotion analysis is performed.
             </div>
           </aside>
         </div>
@@ -130,5 +153,6 @@ function NotFound() {
 }
 
 export default function App() {
+  useEffect(() => () => releaseCocoSsdModel(), []);
   return <Switch><Route path="/" component={Home} /><Route path="/experience" component={Experience} /><Route component={NotFound} /></Switch>;
 }

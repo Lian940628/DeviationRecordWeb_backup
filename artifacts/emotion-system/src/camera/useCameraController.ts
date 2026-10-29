@@ -148,9 +148,12 @@ export function useCameraController() {
         setStream(null);
         setStatus('idle');
       }
-      const videoConstraints: MediaTrackConstraints = selectedDevice
-        ? { deviceId: { exact: selectedDevice }, aspectRatio: { ideal: 16 / 9 } }
-        : { aspectRatio: { ideal: 16 / 9 } };
+      const videoConstraints: MediaTrackConstraints = {
+        width: { ideal: 1280 },
+        height: { ideal: 720 },
+        aspectRatio: { ideal: 16 / 9 },
+        ...(selectedDevice ? { deviceId: { exact: selectedDevice } } : {}),
+      };
       const nextStream = await navigator.mediaDevices.getUserMedia({ video: videoConstraints, audio: false });
       if (!mountedRef.current) {
         stopTracks(nextStream);
