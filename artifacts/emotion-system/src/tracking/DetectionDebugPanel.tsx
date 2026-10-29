@@ -209,9 +209,9 @@ export function DetectionDebugPanel({
           <p className="detection-debug-message">
             Heuristic support only, not an emotion probability. HAPPY = .76 × smile + .24 × cheek squint;
             SAD = .55 × frown + .45 × inner brow; ANGRY = .40 × brow down + .25 × eye squint + .22 × mouth press + .13 × nose sneer;
-            SURPRISED = .43 × eye wide + .37 × jaw open + .20 × inner brow; NEUTRAL = 1 − strongest non-neutral cue.
+            SURPRISED = .43 × eye wide + .37 × jaw open + .20 × inner brow; NEUTRAL support = 1 − strongest raw facial-action cue.
             HAPPY/SURPRISED require support ≥ .35; SAD/ANGRY require ≥ .24 plus class-specific cue checks; all require an .08 lead.
-            These are heuristic estimates, not emotion probabilities; uncertain cases are UNKNOWN.
+            Scores use different rules by label and are not directly comparable; uncertain cases are UNKNOWN.
           </p>
           {modelMessage && <p className="detection-debug-message" role="status" data-testid="text-model-message">{modelMessage}</p>}
           {faceModelMessage && <p className="detection-debug-message" role="status" data-testid="text-face-model-message">{faceModelMessage}</p>}

@@ -60,15 +60,27 @@ export function getEmotionSignals(blendshapes: Record<string, number>): EmotionS
     browDown * 0.40 + eyeSquint * 0.25 + mouthPress * 0.22 + noseSneer * 0.13,
   );
   const surprised = clamp(eyeWide * 0.43 + jawOpen * 0.37 + browInnerUp * 0.20);
-  const strongest = Math.max(happy, sad, angry, surprised);
+  const strongestAction = Math.max(
+    smile,
+    cheekSquint,
+    frown,
+    browDown,
+    eyeSquint,
+    mouthPress,
+    eyeWide,
+    noseSneer,
+    browInnerUp,
+    jawOpen,
+  );
 
   return {
     HAPPY: happy,
     SAD: sad,
     ANGRY: angry,
     SURPRISED: surprised,
-    // Neutrality is defined as the absence of strong non-neutral cues.
-    NEUTRAL: 1 - strongest,
+    // Neutral support is based on the strongest raw facial-action cue, not a
+    // complement of the weighted expression score shown for other labels.
+    NEUTRAL: 1 - strongestAction,
   };
 }
 

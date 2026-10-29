@@ -44,9 +44,9 @@ async function getLandmarker(): Promise<FaceLandmarker> {
       },
       runningMode: 'VIDEO',
       numFaces: 5,
-      minFaceDetectionConfidence: 0.55,
-      minFacePresenceConfidence: 0.55,
-      minTrackingConfidence: 0.55,
+       minFaceDetectionConfidence: 0.45,
+       minFacePresenceConfidence: 0.45,
+       minTrackingConfidence: 0.45,
       outputFaceBlendshapes: true,
     });
   })();
@@ -96,12 +96,12 @@ function summarizeFace(
   const poseReliable =
     landmarks.length >= 468 &&
     inFrame &&
-    width >= 0.035 &&
-    height >= 0.035 &&
-    eyeDistance >= 0.015 &&
-    eyeSpanToFaceWidth >= 0.28 &&
-    noseRatio >= 0.24 &&
-    noseRatio <= 0.76;
+    width >= 0.02 &&
+    height >= 0.02 &&
+    eyeDistance >= 0.008 &&
+    eyeSpanToFaceWidth >= 0.22 &&
+    noseRatio >= 0.18 &&
+    noseRatio <= 0.82;
 
   return {
     x: Math.max(0, Math.min(1, minX)),

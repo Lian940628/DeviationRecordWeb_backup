@@ -5,7 +5,7 @@ import { PersonTracker, type PersonObservation } from './personTracker';
 import type { PersonDetectionState } from './types';
 
 const TARGET_DETECTION_INTERVAL_MS = 1000 / 12;
-const MINIMUM_PERSON_SCORE = 0.4;
+const MINIMUM_PERSON_SCORE = 0.35;
 
 let cachedModel: ObjectDetection | null = null;
 let modelPromise: Promise<ObjectDetection> | null = null;
