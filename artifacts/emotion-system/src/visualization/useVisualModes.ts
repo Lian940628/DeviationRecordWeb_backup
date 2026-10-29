@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { PlaybackMode, VisualMode } from '../visual-controls/VisualModeControls';
+import type { PlaybackMode, VisualMode } from '../visual-controls/visualControlsTypes';
+import type { VisualSettings } from './visualSettings';
 
 export const VISUAL_STAGE_ORDER: VisualMode[] = ['normal', 'anomaly', 'particle', 'line'];
 
@@ -11,18 +12,12 @@ const GLITCH_INTO: Record<VisualMode, boolean> = {
   line: false,
 };
 
-export function useVisualModes(running: boolean) {
+export function useVisualModes(running: boolean, settings: VisualSettings) {
   const [playbackMode, setPlaybackMode] = useState<PlaybackMode>('auto');
   const [visualMode, setVisualMode] = useState<VisualMode>('normal');
   const [previousMode, setPreviousMode] = useState<VisualMode>('normal');
   const [transitionKey, setTransitionKey] = useState(0);
   const [transitionGlitch, setTransitionGlitch] = useState(false);
-  const [normalDwellSeconds, setNormalDwellSeconds] = useState(1.4);
-  const [anomalyDwellSeconds, setAnomalyDwellSeconds] = useState(0.7);
-  const [particleDwellSeconds, setParticleDwellSeconds] = useState(0.9);
-  const [lineDwellSeconds, setLineDwellSeconds] = useState(0.8);
-  const [glitchDurationSeconds, setGlitchDurationSeconds] = useState(0.12);
-  const [renderScale, setRenderScale] = useState(0.7);
   const modeRef = useRef(visualMode);
   modeRef.current = visualMode;
 
@@ -42,12 +37,7 @@ export function useVisualModes(running: boolean) {
 
   useEffect(() => {
     if (!running || playbackMode !== 'auto') return;
-    const dwell = {
-      normal: normalDwellSeconds,
-      anomaly: anomalyDwellSeconds,
-      particle: particleDwellSeconds,
-      line: lineDwellSeconds,
-    }[visualMode];
+    const dwell = settings.stages[visualMode].duration;
     const index = VISUAL_STAGE_ORDER.indexOf(visualMode);
     const next = VISUAL_STAGE_ORDER[(index + 1) % VISUAL_STAGE_ORDER.length] ?? 'normal';
     // Glitch plays inside the next stage's dwell, so the cycle length is just the sum of dwells.
@@ -57,10 +47,7 @@ export function useVisualModes(running: boolean) {
     running,
     playbackMode,
     visualMode,
-    normalDwellSeconds,
-    anomalyDwellSeconds,
-    particleDwellSeconds,
-    lineDwellSeconds,
+    settings.stages[visualMode].duration,
     transitionTo,
   ]);
 
@@ -70,19 +57,7 @@ export function useVisualModes(running: boolean) {
     visualMode,
     previousMode,
     transitionKey,
-    transitionDurationSeconds: transitionGlitch ? glitchDurationSeconds : 0,
-    normalDwellSeconds,
-    setNormalDwellSeconds,
-    anomalyDwellSeconds,
-    setAnomalyDwellSeconds,
-    particleDwellSeconds,
-    setParticleDwellSeconds,
-    lineDwellSeconds,
-    setLineDwellSeconds,
-    glitchDurationSeconds,
-    setGlitchDurationSeconds,
-    renderScale,
-    setRenderScale,
+    transitionDurationSeconds: transitionGlitch ? settings.transitions.glitchDurationSeconds : 0,
     chooseMode,
   };
 }

@@ -30,6 +30,19 @@ export const artworkFragmentShader = `
   uniform vec4 uPersonBoxes[MAX_PERSONS];
   uniform float uPersonHappy[MAX_PERSONS];
   uniform float uPersonSeed[MAX_PERSONS];
+  uniform float uGlobal[10];
+  uniform vec4 uNormalSettings;
+  uniform float uNormalScanline;
+  uniform vec4 uAnomalySettings;
+  uniform vec4 uAnomalyPulseSettings;
+  uniform vec3 uAnomalyColor;
+  uniform vec4 uParticleSettings;
+  uniform vec4 uParticleMotionSettings;
+  uniform vec3 uParticleColor;
+  uniform vec4 uLineSettings;
+  uniform vec4 uLineFragmentSettings;
+  uniform float uLineGlow;
+  uniform vec3 uLineColor;
   varying vec2 vUv;
 
   const vec3 DEEP = vec3(0.0118, 0.0431, 0.0824);
@@ -81,7 +94,16 @@ export const artworkFragmentShader = `
 
   // ---------- STAGE 0: NORMAL ----------
   vec3 stageNormal(vec2 uv) {
-    return cam(uv);
+    vec3 color = cam(uv);
+    color = (color - 0.5) * (uNormalSettings.y * 0.01) + 0.5;
+    color *= uNormalSettings.x * 0.01;
+    float gray = dot(color, vec3(0.2126, 0.7152, 0.0722));
+    color = mix(vec3(gray), color, uNormalSettings.z * 0.01);
+    float noiseAmount = uNormalSettings.w * 0.01;
+    float noise = (hash(gl_FragCoord.xy + floor(uTime * 24.0)) - 0.5) * noiseAmount;
+    color += noise;
+    float scan = 1.0 - uNormalScanline * 0.01 * step(0.5, fract(gl_FragCoord.y * 0.5));
+    return color * scan;
   }
 
   // ---------- STAGE 1: ANOMALY ----------
@@ -96,20 +118,22 @@ export const artworkFragmentShader = `
       if (local.x < 0.0 || local.y < 0.0 || local.x > 1.0 || local.y > 1.0) continue;
       float seed = uPersonSeed[i];
       // Asynchronous per-person pulse: ~11 slots/sec, each person on its own schedule.
-      float slot = floor(uTime * 11.0 + seed * 3.7);
+      float slot = floor(uTime * uAnomalyPulseSettings.x + seed * 3.7);
       float pulse = hash(vec2(seed * 13.1, slot));
-      float on = step(0.42, pulse);
+      float flickerPhase = 0.5 + 0.5 * sin(uTime * uAnomalyPulseSettings.y * 6.28318 + seed);
+      float on = step(0.42, pulse) * mix(0.35, 1.0, flickerPhase);
       float flavour = hash(vec2(slot, seed + 7.0));
       // Coarse digital blocks inside the box; most of the body flips when on.
       vec2 cell = floor(local * vec2(3.0 + floor(flavour * 4.0), 5.0 + floor(pulse * 6.0)));
       float blockRand = hash(cell + vec2(seed * 5.0, slot));
-      float blockOn = on * step(0.22, blockRand);
+      float intensity = uAnomalySettings.x * 0.01;
+      float blockOn = on * step(0.38 - 0.16 * min(intensity, 2.0), blockRand);
       if (blockOn < 0.5) continue;
 
       // Pixel displacement and RGB channel offset of real pixels.
-      float shift = (hash(vec2(cell.y, slot + seed)) - 0.5) * 0.035;
-      vec2 suv = uv + vec2(shift, 0.0);
-      float off = 0.006 + flavour * 0.01;
+      float shiftPixels = (hash(vec2(cell.y, slot + seed)) - 0.5) * 2.0 * uAnomalySettings.z * intensity;
+      vec2 suv = uv + vec2(shiftPixels / max(uResolution.x, 1.0), 0.0);
+      float off = uAnomalySettings.y * intensity * (0.35 + flavour * 0.65) / max(uResolution.x, 1.0);
       vec3 split = vec3(cam(suv + vec2(off, 0.0)).r, cam(suv).g, cam(suv - vec2(off, 0.0)).b);
       float l = dot(split, vec3(0.2126, 0.7152, 0.0722));
 
@@ -121,19 +145,22 @@ export const artworkFragmentShader = `
         fx = vec3(inv.r * 0.35, inv.g * 0.95, inv.b * 1.1);
       } else if (kind < 0.68) {
         // Hard posterised teal mapping.
-        float q = floor(l * 4.0 + 0.5) / 4.0;
+        float levels = max(2.0, uAnomalySettings.w);
+        float q = floor(l * levels + 0.5) / levels;
         fx = q < 0.3 ? DEEP + TEAL * 0.25 : (q < 0.6 ? ICE : (q < 0.9 ? CYAN : vec3(0.85, 0.98, 1.0)));
       } else {
         // Posterised RGB with channel split.
-        fx = floor(split * 3.0 + 0.5) / 3.0;
+        float levels = max(2.0, uAnomalySettings.w);
+        fx = floor(split * levels + 0.5) / levels;
         fx = mix(fx, fx.bgr * vec3(0.4, 1.0, 1.1), 0.6);
       }
+      fx = mix(fx, fx * 0.35 + uAnomalyColor * (0.25 + l * 0.3), 0.42);
       // Rare accent blocks: gold for HAPPY, a hot red sliver otherwise.
       float accent = hash(cell + vec2(slot * 0.37, seed));
       if (accent > 0.99) {
         fx = uPersonHappy[i] > 0.5 ? GOLD * (0.55 + l) : vec3(0.82, 0.12, 0.2) * (0.5 + l);
       }
-      color = clamp(fx, 0.0, 1.0);
+      color = mix(color, clamp(fx, 0.0, 1.0), clamp(uAnomalyPulseSettings.z * 0.01 * on, 0.0, 1.0));
     }
     return color;
   }
@@ -141,57 +168,127 @@ export const artworkFragmentShader = `
   // ---------- STAGE 2: PARTICLE ----------
   vec3 stageParticle(vec2 uv) {
     vec2 px = 1.0 / max(uResolution, vec2(1.0));
-    float c = luma(uv);
-    vec2 g = scharr(uv, px * 1.5);
-    float edge = length(g);
-    float around = (luma(uv + vec2(px.x * 3.0, 0.0)) + luma(uv - vec2(px.x * 3.0, 0.0))
-      + luma(uv + vec2(0.0, px.y * 3.0)) + luma(uv - vec2(0.0, px.y * 3.0))) * 0.25;
+    float frameStep = floor(uTime * uParticleMotionSettings.z);
+    vec2 fc = floor(gl_FragCoord.xy / 3.0);
+    float jitter = uParticleMotionSettings.y * 0.01;
+    vec2 jitterUv = vec2(
+      hash(fc + vec2(frameStep, 4.0)),
+      hash(fc + vec2(8.0, frameStep))
+    );
+    vec2 sampleUv = uv + (jitterUv - 0.5) * px * 2.0 * jitter;
+    float c = luma(sampleUv);
+    vec2 g = scharr(sampleUv, px * 1.5);
+    float edge = length(g) * uParticleSettings.w;
+    float around = (luma(sampleUv + vec2(px.x * 3.0, 0.0)) + luma(sampleUv - vec2(px.x * 3.0, 0.0))
+      + luma(sampleUv + vec2(0.0, px.y * 3.0)) + luma(sampleUv - vec2(0.0, px.y * 3.0))) * 0.25;
     float detail = abs(c - around);
-    float density = clamp(pow(c, 2.2) * 0.18 + edge * 1.8 + detail * 2.6 - 0.035, 0.0, 0.65);
+    float potential = clamp(pow(c, 2.2) * 0.18 + edge + detail * 2.6 - uParticleMotionSettings.x, 0.0, 1.0);
+    float density = potential * uParticleSettings.y * 0.01;
 
-    // Irregular, time-jittered specks; no lattice. Step at ~14Hz so it never freezes.
-    float frameStep = floor(uTime * 14.0);
-    vec2 fc = floor(gl_FragCoord.xy);
+    // Each 3px cell has an independent, jittered sample; density gates cells, size changes dot radius.
     float r = hash(fc + vec2(frameStep * 17.0, frameStep * 3.0));
-    // Low-frequency clumping so density is uneven.
     float clump = hash(floor(gl_FragCoord.xy / 9.0) + frameStep * 0.5);
-    float speck = step(r, density * (0.55 + clump * 0.75));
+    float sampleOn = step(r, density * (0.55 + clump * 0.75));
+    vec2 localPixel = mod(gl_FragCoord.xy, 3.0);
+    vec2 particleCenter = 0.5 + (jitterUv - 0.5) * 0.8 * jitter;
+    float radius = max(0.15, uParticleSettings.x * 0.5);
+    float dotMask = 1.0 - smoothstep(radius * 0.7, radius, length(localPixel - particleCenter * 3.0));
 
     float tone = clamp(edge * 3.0 + detail * 2.0, 0.0, 1.0);
-    vec3 hue = mix(TEAL, mix(ICE, CYAN, tone), step(0.3, hash(fc + 91.0)));
-    float bright = 0.24 + c * 0.35 + tone * 0.22;
-    return DEEP * 0.45 + hue * speck * bright;
+    vec3 hue = mix(uParticleColor, mix(ICE, CYAN, tone), step(0.72, hash(fc + 91.0)));
+    float bright = uParticleSettings.z * 0.01 * (0.24 + c * 0.35 + tone * 0.22);
+    float speck = sampleOn * dotMask;
+    float glow = uParticleMotionSettings.w * 0.01 * sampleOn
+      * (1.0 - smoothstep(radius, radius + 1.8, length(localPixel - particleCenter * 3.0)));
+    return DEEP * 0.45 + hue * (speck * bright + glow * bright * 0.35);
   }
 
   // ---------- STAGE 3: LINE ----------
   vec3 stageLine(vec2 uv) {
     vec2 px = 1.0 / max(uResolution, vec2(1.0));
-    float frameStep = floor(uTime * 12.0);
+    float frameStep = floor(uTime * uLineFragmentSettings.y * 0.2);
     // Occasional horizontal band jitter (small, rare).
     float band = floor(gl_FragCoord.y / 14.0);
     float jit = hash(vec2(band, frameStep));
     vec2 juv = uv + vec2(jit > 0.93 ? (jit - 0.965) * 0.02 : 0.0, 0.0);
 
-    vec2 g = scharr(juv, px * 1.2);
+    float lineStep = max(uLineSettings.x, 0.5);
+    vec2 g = scharr(juv, px * lineStep);
     float mag = length(g);
     vec2 dir = mag > 0.0001 ? g / mag : vec2(1.0, 0.0);
     // Non-maximum suppression along gradient for thin lines.
-    float m1 = length(scharr(juv + dir * px * 1.2, px * 1.2));
-    float m2 = length(scharr(juv - dir * px * 1.2, px * 1.2));
+    float m1 = length(scharr(juv + dir * px * lineStep, px * lineStep));
+    float m2 = length(scharr(juv - dir * px * lineStep, px * lineStep));
     float thin = step(m1, mag * 1.02) * step(m2, mag * 1.02);
-    float line = smoothstep(0.05, 0.16, mag) * thin;
-    // Weak inner detail lines kept faint.
-    line = max(line, smoothstep(0.025, 0.05, mag) * thin * 0.28);
-
     // Breaks: drop short segments along irregular cells, re-rolled over time.
+    float threshold = max(0.0001, uLineSettings.z);
+    float line = smoothstep(threshold, threshold * 2.8 + 0.0001, mag) * thin;
+    line = max(line, smoothstep(threshold * 0.5, threshold * 1.1 + 0.0001, mag) * thin * 0.28);
     vec2 segCell = floor(gl_FragCoord.xy / vec2(7.0, 5.0));
-    float keep = step(0.17, hash(segCell + vec2(frameStep * 0.5, 3.0)));
-    float flicker = 0.75 + 0.25 * hash(vec2(frameStep, segCell.x));
+    float keep = step(1.0 - uLineSettings.y * 0.01, hash(segCell + vec2(frameStep * 0.5, 3.0)));
+    keep *= step(uLineFragmentSettings.x * 0.01, hash(segCell + vec2(frameStep * 0.37, 13.0)));
+    float flicker = mix(1.0, 0.55 + 0.45 * hash(vec2(frameStep, segCell.x)), uLineFragmentSettings.y * 0.01);
     line *= keep * flicker;
 
-    vec3 col = mix(ICE, CYAN, clamp(mag * 3.0, 0.0, 1.0));
+    vec3 col = mix(uLineColor, CYAN, clamp(mag * 3.0, 0.0, 1.0));
     float faintScan = 0.97 + 0.03 * step(0.5, fract(gl_FragCoord.y * 0.25));
-    return DEEP * 0.7 + col * line * 0.95 * faintScan;
+    float connection = 0.0;
+    float connectionGlow = 0.0;
+    if (uLineFragmentSettings.w > 0.0 && uBoxCount > 1.0) {
+      vec2 pixel = uv * uResolution;
+      for (int a = 0; a < MAX_PERSONS; a++) {
+        if (float(a) >= uBoxCount) break;
+        vec4 boxA = uPersonBoxes[a];
+        vec2 start = vec2(boxA.x + boxA.z * 0.5, 1.0 - (boxA.y + boxA.w * 0.5)) * uResolution;
+        for (int b = a + 1; b < MAX_PERSONS; b++) {
+          if (float(b) >= uBoxCount) break;
+          vec4 boxB = uPersonBoxes[b];
+          vec2 finish = vec2(boxB.x + boxB.z * 0.5, 1.0 - (boxB.y + boxB.w * 0.5)) * uResolution;
+          vec2 segment = finish - start;
+          float t = clamp(dot(pixel - start, segment) / max(dot(segment, segment), 0.001), 0.0, 1.0);
+          float distanceToLink = length(pixel - (start + segment * t));
+          float halfWidth = uLineFragmentSettings.z * 0.5;
+          connection = max(connection, 1.0 - smoothstep(halfWidth, halfWidth + 1.0, distanceToLink));
+          connectionGlow = max(connectionGlow, exp(-distanceToLink / max(uLineGlow * 5.0, 1.0)));
+        }
+      }
+    }
+    float connectionOpacity = uLineFragmentSettings.w * 0.01;
+    float totalLine = max(line, connection * connectionOpacity);
+    float glow = connectionGlow * uLineGlow * 0.01 * connectionOpacity;
+    return DEEP * 0.7 + col * (totalLine * uLineSettings.w * 0.01 * faintScan + glow);
+  }
+
+  vec3 rgbToHsv(vec3 c) {
+    vec4 K = vec4(0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0);
+    vec4 p = mix(vec4(c.bg, K.wz), vec4(c.gb, K.xy), step(c.b, c.g));
+    vec4 q = mix(vec4(p.xyw, c.r), vec4(c.r, p.yzx), step(p.x, c.r));
+    float d = q.x - min(q.w, q.y);
+    float e = 1.0e-10;
+    return vec3(abs(q.z + (q.w - q.y) / (6.0 * d + e)), d / (q.x + e), q.x);
+  }
+
+  vec3 hsvToRgb(vec3 c) {
+    vec3 p = abs(fract(c.xxx + vec3(0.0, 2.0 / 3.0, 1.0 / 3.0)) * 6.0 - 3.0);
+    return c.z * mix(vec3(1.0), clamp(p - 1.0, 0.0, 1.0), c.y);
+  }
+
+  vec3 applyGlobalSettings(vec3 color) {
+    float inputBlack = uGlobal[6] * 0.01;
+    float inputWhite = max(inputBlack + 0.01, uGlobal[7] * 0.01);
+    color = clamp((color - inputBlack) / (inputWhite - inputBlack), 0.0, 1.0);
+    color *= exp2(uGlobal[4]);
+    color *= uGlobal[1] * 0.01;
+    color = (color - 0.5) * (uGlobal[2] * 0.01) + 0.5;
+    color = pow(max(color, vec3(0.0)), vec3(1.0 / max(uGlobal[3], 0.2)));
+    float gray = dot(color, vec3(0.2126, 0.7152, 0.0722));
+    color = mix(vec3(gray), color, uGlobal[0] * 0.01);
+    vec3 hsv = rgbToHsv(clamp(color, 0.0, 1.0));
+    hsv.x = fract(hsv.x + uGlobal[5] / 360.0);
+    color = hsvToRgb(hsv);
+    float outputBlack = uGlobal[8] * 0.01;
+    float outputWhite = max(outputBlack + 0.01, uGlobal[9] * 0.01);
+    return mix(vec3(outputBlack), vec3(outputWhite), clamp(color, 0.0, 1.0));
   }
 
   vec3 renderStage(float mode, vec2 uv) {
@@ -218,6 +315,6 @@ export const artworkFragmentShader = `
     } else {
       color = renderStage(uMode, vUv);
     }
-    gl_FragColor = vec4(clamp(color, 0.0, 1.0), 1.0);
+    gl_FragColor = vec4(clamp(applyGlobalSettings(color), 0.0, 1.0), 1.0);
   }
 `;

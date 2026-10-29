@@ -3,8 +3,9 @@ import type { RefObject } from 'react';
 import * as THREE from 'three';
 import type { ExpressionReadout } from '../tracking/expressionTypes';
 import type { PersonTrack } from '../tracking/types';
-import type { VisualMode } from '../visual-controls/VisualModeControls';
+import type { VisualMode } from '../visual-controls/visualControlsTypes';
 import { artworkFragmentShader, artworkVertexShader } from './artworkShaders';
+import type { VisualSettings } from './visualSettings';
 
 const MAX_PERSONS = 5;
 const TARGET_FRAME_INTERVAL_MS = 1000 / 30;
@@ -20,6 +21,7 @@ interface VideoArtworkCanvasProps {
   transitionKey: number;
   transitionDurationSeconds: number;
   renderScale: number;
+  settings: VisualSettings;
   onRenderingFps: (fps: number) => void;
 }
 
@@ -36,6 +38,17 @@ function modeValue(mode: VisualMode): number {
     case 'line': return 3;
     default: return 0;
   }
+}
+
+function colorVector(color: string): [number, number, number] {
+  const value = Number.parseInt(color.slice(1), 16);
+  if (!Number.isFinite(value)) return [0.2, 0.8, 0.7];
+  return [((value >> 16) & 255) / 255, ((value >> 8) & 255) / 255, (value & 255) / 255];
+}
+
+function setUniformColor(uniforms: THREE.ShaderMaterial['uniforms'], name: string, color: string) {
+  const [red, green, blue] = colorVector(color);
+  (uniforms[name]?.value as THREE.Vector3).set(red, green, blue);
 }
 
 function setUniformVector(
@@ -58,6 +71,7 @@ export function VideoArtworkCanvas({
   transitionKey,
   transitionDurationSeconds,
   renderScale,
+  settings,
   onRenderingFps,
 }: VideoArtworkCanvasProps) {
   const hostRef = useRef<HTMLDivElement>(null);
@@ -65,6 +79,7 @@ export function VideoArtworkCanvas({
   const expressionsRef = useRef(expressions);
   const mirroredRef = useRef(mirrored);
   const renderScaleRef = useRef(renderScale);
+  const settingsRef = useRef(settings);
   const fpsCallbackRef = useRef(onRenderingFps);
   const uniformsRef = useRef<THREE.ShaderMaterial['uniforms'] | null>(null);
   const resizeCallbackRef = useRef<(() => void) | null>(null);
@@ -76,6 +91,7 @@ export function VideoArtworkCanvas({
   expressionsRef.current = expressions;
   mirroredRef.current = mirrored;
   renderScaleRef.current = renderScale;
+  settingsRef.current = settings;
   fpsCallbackRef.current = onRenderingFps;
 
   useEffect(() => {
@@ -133,6 +149,19 @@ export function VideoArtworkCanvas({
       uPersonBoxes: { value: personBoxes },
       uPersonHappy: { value: personHappy },
       uPersonSeed: { value: personSeed },
+      uGlobal: { value: new Float32Array(10) },
+      uNormalSettings: { value: new THREE.Vector4(100, 100, 100, 0) },
+      uNormalScanline: { value: 0 },
+      uAnomalySettings: { value: new THREE.Vector4(100, 1.6, 3.5, 4) },
+      uAnomalyPulseSettings: { value: new THREE.Vector4(11, 11, 1, 0) },
+      uAnomalyColor: { value: new THREE.Vector3(0.32, 0.83, 0.75) },
+      uParticleSettings: { value: new THREE.Vector4(1.5, 40, 100, 1.8) },
+      uParticleMotionSettings: { value: new THREE.Vector4(0.035, 100, 14, 0) },
+      uParticleColor: { value: new THREE.Vector3(0.32, 0.83, 0.75) },
+      uLineSettings: { value: new THREE.Vector4(1.5, 83, 0.05, 100) },
+      uLineFragmentSettings: { value: new THREE.Vector4(83, 25, 2, 0) },
+      uLineGlow: { value: 0 },
+      uLineColor: { value: new THREE.Vector3(0.26, 0.72, 0.91) },
     };
     uniformsRef.current = uniforms;
 
@@ -234,6 +263,71 @@ export function VideoArtworkCanvas({
         setUniformVector(uniforms, 'uVideoResolution', videoWidth, videoHeight);
       }
       uniforms.uTime.value = now / 1000;
+      const currentSettings = settingsRef.current;
+      const global = currentSettings.global;
+      (uniforms.uGlobal.value as Float32Array).set([
+        global.saturation,
+        global.brightness,
+        global.contrast,
+        global.gamma,
+        global.exposure,
+        global.hueShift,
+        global.inputBlack,
+        global.inputWhite,
+        global.outputBlack,
+        global.outputWhite,
+      ]);
+      const normal = currentSettings.stages.normal;
+      (uniforms.uNormalSettings.value as THREE.Vector4).set(
+        normal.localBrightness,
+        normal.localContrast,
+        normal.localSaturation,
+        normal.digitalNoiseIntensity,
+      );
+      uniforms.uNormalScanline.value = normal.scanlineOpacity;
+      const anomaly = currentSettings.stages.anomaly;
+      (uniforms.uAnomalySettings.value as THREE.Vector4).set(
+        anomaly.intensity,
+        anomaly.colorShiftAmount,
+        anomaly.pixelDisplacement,
+        anomaly.posterizationLevels,
+      );
+      (uniforms.uAnomalyPulseSettings.value as THREE.Vector4).set(
+        anomaly.glitchFrequency,
+        anomaly.flickerSpeed,
+        anomaly.effectOpacity,
+        0,
+      );
+      setUniformColor(uniforms, 'uAnomalyColor', anomaly.anomalyColor);
+      const particle = currentSettings.stages.particle;
+      (uniforms.uParticleSettings.value as THREE.Vector4).set(
+        particle.particleSize,
+        particle.particleDensity,
+        particle.particleBrightness,
+        particle.edgeSensitivity,
+      );
+      (uniforms.uParticleMotionSettings.value as THREE.Vector4).set(
+        particle.luminanceThreshold,
+        particle.particleJitter,
+        particle.particleMovementSpeed,
+        particle.glowIntensity,
+      );
+      setUniformColor(uniforms, 'uParticleColor', particle.particleColor);
+      const line = currentSettings.stages.line;
+      (uniforms.uLineSettings.value as THREE.Vector4).set(
+        line.lineThickness,
+        line.lineDensity,
+        line.edgeThreshold,
+        line.lineBrightness,
+      );
+      (uniforms.uLineFragmentSettings.value as THREE.Vector4).set(
+        line.fragmentationIntensity,
+        line.lineFlicker,
+        line.personConnectionWidth,
+        line.personConnectionOpacity,
+      );
+      uniforms.uLineGlow.value = line.personConnectionGlow;
+      setUniformColor(uniforms, 'uLineColor', line.lineColor);
       updatePeople();
 
       const transition = transitionRef.current;

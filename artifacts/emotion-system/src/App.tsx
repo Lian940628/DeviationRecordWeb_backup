@@ -10,6 +10,7 @@ import { releaseFaceLandmarkerWorker } from './tracking/faceLandmarkerWorker';
 import { useFaceExpressions } from './tracking/useFaceExpressions';
 import { VideoArtworkCanvas } from './visualization/VideoArtworkCanvas';
 import { useVisualModes } from './visualization/useVisualModes';
+import { useVisualSettings } from './visualization/useVisualSettings';
 import { VisualModeControls } from './visual-controls/VisualModeControls';
 
 function Header() {
@@ -49,7 +50,8 @@ function Experience() {
   const camera = useCameraController();
   const detection = usePersonDetection(camera.videoRef, Boolean(camera.stream));
   const faceAnalysis = useFaceExpressions(camera.videoRef, Boolean(camera.stream), detection.tracks);
-  const visualModes = useVisualModes(Boolean(camera.stream));
+  const visualSettings = useVisualSettings();
+  const visualModes = useVisualModes(Boolean(camera.stream), visualSettings.settings);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [debugMode, setDebugMode] = useState(false);
   const [overlayFps, setOverlayFps] = useState(0);
@@ -93,7 +95,8 @@ function Experience() {
                   previousMode={visualModes.previousMode}
                   transitionKey={visualModes.transitionKey}
                   transitionDurationSeconds={visualModes.transitionDurationSeconds}
-                  renderScale={visualModes.renderScale}
+                  renderScale={visualSettings.settings.transitions.renderScale}
+                  settings={visualSettings.settings}
                   onRenderingFps={setArtworkFps}
                 />
               )}
@@ -176,18 +179,19 @@ function Experience() {
               onPlaybackModeChange={visualModes.setPlaybackMode}
               visualMode={visualModes.visualMode}
               onVisualModeChange={visualModes.chooseMode}
-              normalDwellSeconds={visualModes.normalDwellSeconds}
-              onNormalDwellSecondsChange={visualModes.setNormalDwellSeconds}
-              anomalyDwellSeconds={visualModes.anomalyDwellSeconds}
-              onAnomalyDwellSecondsChange={visualModes.setAnomalyDwellSeconds}
-              particleDwellSeconds={visualModes.particleDwellSeconds}
-              onParticleDwellSecondsChange={visualModes.setParticleDwellSeconds}
-              lineDwellSeconds={visualModes.lineDwellSeconds}
-              onLineDwellSecondsChange={visualModes.setLineDwellSeconds}
-              glitchDurationSeconds={visualModes.glitchDurationSeconds}
-              onGlitchDurationSecondsChange={visualModes.setGlitchDurationSeconds}
-              renderScale={visualModes.renderScale}
-              onRenderScaleChange={visualModes.setRenderScale}
+                settings={visualSettings.settings}
+                savedPresets={visualSettings.savedPresets}
+                presetMessage={visualSettings.presetMessage}
+                presetError={visualSettings.presetError}
+                onGlobalSettingChange={visualSettings.onGlobalSettingChange}
+                onTransitionSettingChange={visualSettings.onTransitionSettingChange}
+                onStageSettingChange={visualSettings.onStageSettingChange}
+                onResetImageSettings={visualSettings.onResetImageSettings}
+                onResetStage={visualSettings.onResetStage}
+                onSavePreset={visualSettings.onSavePreset}
+                onLoadPreset={visualSettings.onLoadPreset}
+                onExportPreset={visualSettings.onExportPreset}
+                onImportPreset={visualSettings.onImportPreset}
             />
             <div className="privacy-block">
               <div className="privacy-mark"><ShieldCheck size={14} strokeWidth={1.5} /> Private by design</div>
