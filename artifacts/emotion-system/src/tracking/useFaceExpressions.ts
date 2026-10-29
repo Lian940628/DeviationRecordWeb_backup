@@ -2,10 +2,12 @@ import { useEffect, useRef, useState } from 'react';
 import type { RefObject } from 'react';
 import {
   classifyBlendshapes,
+  getCandidateSupports,
   ExpressionSmoother,
   type ExpressionClassification,
 } from './expressionClassifier';
 import { associateFacesWithTracks } from './faceAssociation';
+import { getHeadRegions } from './faceRegions';
 import { getFaceLandmarkerWorker } from './faceLandmarkerWorker';
 import type {
   BlendshapeSummary,
@@ -75,12 +77,23 @@ function getFrameUnknownReason(
     'NO_BLENDSHAPES',
     'INVALID_BLENDSHAPES',
     'NO_PERSON_MATCH',
+    'FACE_TOO_SMALL',
+    'UNRELIABLE_POSE',
     'LOW_CLASSIFICATION_CONFIDENCE',
     'SMOOTHING_PENDING',
   ];
   return priority.find((reason) =>
     expressions.some((expression) => expression.unknownReason === reason),
   ) ?? 'LOW_CLASSIFICATION_CONFIDENCE';
+}
+
+function faceDebugDetails(face: FaceObservation) {
+  return {
+    faceWidthPx: face.faceWidthPx,
+    faceHeightPx: face.faceHeightPx,
+    analysisSource: face.analysisSource,
+    candidateSupports: getCandidateSupports(face.blendshapes),
+  };
 }
 
 function unknownForTrack(
@@ -227,6 +240,7 @@ export function useFaceExpressions(
             requestId,
             timestamp: lastTimestamp,
             frame,
+            regions: getHeadRegions(tracksRef.current),
           } satisfies FaceWorkerRequest,
           [frame],
         );
@@ -246,7 +260,7 @@ export function useFaceExpressions(
         setState((previous) => ({
           ...previous,
           modelStatus: 'ready',
-          modelMessage: 'MediaPipe Face Landmarker ready · CPU Worker · heuristic expressions',
+          modelMessage: 'MediaPipe Face Landmarker ready · person-head crops · CPU Worker · heuristic expressions',
           unknownReason: 'NO_FACE',
         }));
         schedule(0);
@@ -295,7 +309,7 @@ export function useFaceExpressions(
               smoother.markUnknown(track.id);
               return unknownForTrack(
                 track.id,
-                'LOW_CLASSIFICATION_CONFIDENCE',
+                face.qualityReason ?? 'UNRELIABLE_POSE',
                 face,
                 raw.label,
                 raw.score,
@@ -338,12 +352,13 @@ export function useFaceExpressions(
           const unknownReason = readout?.unknownReason
             ?? blendshapeIssue
             ?? (!face.poseReliable
-              ? 'LOW_CLASSIFICATION_CONFIDENCE'
+              ? face.qualityReason ?? 'UNRELIABLE_POSE'
               : matchedPersonId === null
                 ? 'NO_PERSON_MATCH'
                 : null);
 
           return {
+            ...faceDebugDetails(face),
             faceNumber: index + 1,
             blendshapeCount: face.blendshapeCount,
             invalidBlendshapeCount: face.invalidBlendshapeCount,
@@ -381,6 +396,7 @@ export function useFaceExpressions(
           unknownReason: 'CLASSIFIER_ERROR',
           expressions: failedReadouts,
           faceDiagnostics: message.faces.map((face, index) => ({
+            ...faceDebugDetails(face),
             faceNumber: index + 1,
             blendshapeCount: face.blendshapeCount,
             invalidBlendshapeCount: face.invalidBlendshapeCount,

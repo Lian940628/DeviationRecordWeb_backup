@@ -14,6 +14,8 @@ export type UnknownReason =
   | 'NO_BLENDSHAPES'
   | 'INVALID_BLENDSHAPES'
   | 'NO_PERSON_MATCH'
+  | 'FACE_TOO_SMALL'
+  | 'UNRELIABLE_POSE'
   | 'LOW_CLASSIFICATION_CONFIDENCE'
   | 'RESULT_EXPIRED'
   | 'CLASSIFIER_ERROR'
@@ -42,6 +44,16 @@ export interface FaceDebugRecord {
   blendshapeCount: number;
   invalidBlendshapeCount: number;
   poseReliable: boolean;
+  faceWidthPx: number;
+  faceHeightPx: number;
+  analysisSource: 'PERSON_CROP' | 'FULL_FRAME';
+  candidateSupports: {
+    label: string;
+    score: number;
+    minimum: number;
+    cuesSatisfied: boolean;
+    cues: BlendshapeSummary[];
+  }[];
   topBlendshapes: BlendshapeSummary[];
   rawExpression: ExpressionLabel;
   rawScore: number | null;
@@ -57,6 +69,10 @@ export interface FaceObservation {
   width: number;
   height: number;
   poseReliable: boolean;
+  qualityReason: 'FACE_TOO_SMALL' | 'UNRELIABLE_POSE' | null;
+  faceWidthPx: number;
+  faceHeightPx: number;
+  analysisSource: 'PERSON_CROP' | 'FULL_FRAME';
   blendshapeCount: number;
   invalidBlendshapeCount: number;
   blendshapes: Record<string, number>;
@@ -82,6 +98,14 @@ export interface FaceWorkerFrameMessage {
   requestId: number;
   timestamp: number;
   frame: ImageBitmap;
+  regions: FaceRegion[];
+}
+
+export interface FaceRegion {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
 }
 
 export interface FaceWorkerDisposeMessage {

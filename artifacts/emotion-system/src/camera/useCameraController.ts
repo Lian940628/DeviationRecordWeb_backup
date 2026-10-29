@@ -149,8 +149,11 @@ export function useCameraController() {
         setStatus('idle');
       }
       const videoConstraints: MediaTrackConstraints = {
-        width: { ideal: 1280 },
-        height: { ideal: 720 },
+        // Prefer real source detail for distant faces; ideal constraints still
+        // allow 720p/other resolutions on cameras that cannot supply 1080p.
+        width: { ideal: 1920 },
+        height: { ideal: 1080 },
+        frameRate: { ideal: 30 },
         aspectRatio: { ideal: 16 / 9 },
         ...(selectedDevice ? { deviceId: { exact: selectedDevice } } : {}),
       };
@@ -163,7 +166,8 @@ export function useCameraController() {
       setStream(nextStream);
       setPermissionGranted(true);
       setStatus('live');
-      setMessage('Live preview active. Your video remains local to this browser.');
+      const settings = nextStream.getVideoTracks()[0]?.getSettings();
+      setMessage(`Live preview active · ${settings?.width ?? '—'} × ${settings?.height ?? '—'}. Your video remains local to this browser.`);
       void refreshDevices();
     } catch (error) {
       if (mountedRef.current) {

@@ -192,6 +192,20 @@ export function DetectionDebugPanel({
                     <strong>{face.matchedPersonId === null ? '—' : formatTrackId(face.matchedPersonId)}</strong>
                   </div>
                   <div className="detection-debug-expression-row">
+                    <span>SOURCE FACE SIZE / ANALYSIS</span>
+                    <strong>{face.faceWidthPx} × {face.faceHeightPx} px · {face.analysisSource}</strong>
+                  </div>
+                  {face.candidateSupports.map((candidate) => (
+                    <div className="detection-debug-expression-row" key={candidate.label}>
+                      <span>{candidate.label} SUPPORT / MINIMUM</span>
+                      <strong>
+                        {candidate.score.toFixed(2)} / {candidate.minimum.toFixed(2)} · CUES {candidate.cuesSatisfied ? 'MET' : 'MISSING'}
+                        <br />
+                        {candidate.cues.map((cue) => `${cue.name} ${cue.score.toFixed(2)}`).join(' · ')}
+                      </strong>
+                    </div>
+                  ))}
+                  <div className="detection-debug-expression-row">
                     <span>POSE / UNKNOWN REASON</span>
                     <strong>{face.poseReliable ? 'RELIABLE' : 'LOW'} · {face.unknownReason ?? '—'}</strong>
                   </div>
@@ -208,9 +222,10 @@ export function DetectionDebugPanel({
           )}
           <p className="detection-debug-message">
             Heuristic support only, not an emotion probability. HAPPY = .76 × smile + .24 × cheek squint;
-            SAD = .55 × frown + .45 × inner brow; ANGRY = .40 × brow down + .25 × eye squint + .22 × mouth press + .13 × nose sneer;
+            SAD = .55 × frown + .45 × inner brow; ANGRY = .60 × brow down + .40 × strongest of eye squint, mouth press and nose sneer.
             SURPRISED = .43 × eye wide + .37 × jaw open + .20 × inner brow; NEUTRAL support = 1 − strongest raw facial-action cue.
-            HAPPY/SURPRISED require support ≥ .35; SAD/ANGRY require ≥ .24 plus class-specific cue checks; all require an .08 lead.
+            HAPPY/SURPRISED require support ≥ .35; SAD ≥ .18 with frown + inner brow or strong bilateral frown; ANGRY ≥ .22 with brow down + a second action. All require an .08 lead.
+            NEUTRAL requires all raw action cues ≤ .20. Head crops improve model input scale but do not create missing source detail; faces below 32 × 32 source pixels or unreliable poses remain UNKNOWN.
             Scores use different rules by label and are not directly comparable; uncertain cases are UNKNOWN.
           </p>
           {modelMessage && <p className="detection-debug-message" role="status" data-testid="text-model-message">{modelMessage}</p>}

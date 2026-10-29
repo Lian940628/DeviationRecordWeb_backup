@@ -13,8 +13,14 @@ Define neutral support from the strongest raw facial-action cue, not as a comple
 
 **How to apply:** When changing weights or thresholds, validate representative feature vectors and inspect actual top blendshapes in Debug Mode. Preserve UNKNOWN when competing cues are close or corroboration is missing.
 
-For distant faces, scale the minimum reliable face-mesh geometry to the 720p input size and keep pose/feature corroboration gates; do not lower every detector threshold together.
+For distant faces, judge reliability using native source pixels, not the apparent size after cropping/resizing; keep pose/feature corroboration gates rather than lowering all detector thresholds.
 
-**Why:** The earlier 3.5% frame-width gate excluded face meshes around 45 pixels wide at 1280×720, even when the person detector still found the body.
+**Why:** Full-frame input can lose small faces during model resizing, but enlarging a crop cannot recover missing facial detail.
 
-**How to apply:** When adjusting distance sensitivity, test the actual face pixel width in the debug overlay and preserve UNKNOWN below the mesh's reliable resolution.
+**How to apply:** Separate no-face, small-source-face, pose and classification failures in diagnostics; preserve UNKNOWN when detail is insufficient.
+
+Real-camera acceptance includes SAD/ANGRY and use at approximately 1.5 metres. Deterministic blendshape-vector tests verify rules, not real-world recognition accuracy.
+
+**Why:** The user reported that sad/angry and distant-face recognition still failed after multiple threshold adjustments whose synthetic checks passed.
+
+**How to apply:** Do not claim these cases are resolved from unit tests alone. If they still fail, inspect native face size and measured per-class action cues from the real camera before further tuning.

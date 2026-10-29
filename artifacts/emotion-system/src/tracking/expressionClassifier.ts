@@ -14,8 +14,8 @@ const LABEL_CONFIRMATION_FRAMES = 3;
 const MAX_AMBIGUOUS_FRAMES = 2;
 const MIN_SUPPORT: Record<NonNeutralLabel, number> = {
   HAPPY: 0.35,
-  SAD: 0.24,
-  ANGRY: 0.24,
+  SAD: 0.18,
+  ANGRY: 0.22,
   SURPRISED: 0.35,
 };
 const MIN_CLASS_MARGIN = 0.08;
@@ -56,9 +56,9 @@ export function getEmotionSignals(blendshapes: Record<string, number>): EmotionS
 
   const happy = clamp(smile * 0.76 + cheekSquint * 0.24);
   const sad = clamp(frown * 0.55 + browInnerUp * 0.45);
-  const angry = clamp(
-    browDown * 0.40 + eyeSquint * 0.25 + mouthPress * 0.22 + noseSneer * 0.13,
-  );
+  // Anger-looking faces do not necessarily activate all three secondary
+  // actions. Require brow lowering + one corroborating action instead.
+  const angry = clamp(browDown * 0.60 + Math.max(eyeSquint, mouthPress, noseSneer) * 0.40);
   const surprised = clamp(eyeWide * 0.43 + jawOpen * 0.37 + browInnerUp * 0.20);
   const strongestAction = Math.max(
     smile,
@@ -87,7 +87,12 @@ export function getEmotionSignals(blendshapes: Record<string, number>): EmotionS
 function hasSadCues(blendshapes: Record<string, number>): boolean {
   const frown = averagePair(blendshapes, 'mouthFrownLeft', 'mouthFrownRight');
   const innerBrow = clamp(blendshapes.browInnerUp ?? 0);
-  return (frown >= 0.12 && innerBrow >= 0.12) || frown >= 0.32 || innerBrow >= 0.5;
+  const smile = averagePair(blendshapes, 'mouthSmileLeft', 'mouthSmileRight');
+  const bilateralFrown = Math.min(clamp(blendshapes.mouthFrownLeft), clamp(blendshapes.mouthFrownRight));
+  return smile < 0.25 && (
+    (frown >= 0.10 && innerBrow >= 0.10) ||
+    (bilateralFrown >= 0.35 && averagePair(blendshapes, 'browDownLeft', 'browDownRight') < 0.25)
+  );
 }
 
 function hasAngryCues(blendshapes: Record<string, number>): boolean {
@@ -97,14 +102,37 @@ function hasAngryCues(blendshapes: Record<string, number>): boolean {
     averagePair(blendshapes, 'mouthPressLeft', 'mouthPressRight'),
     averagePair(blendshapes, 'noseSneerLeft', 'noseSneerRight'),
   ];
-  return browDown >= 0.12 && otherCues.some((score) => score >= 0.12);
+  return browDown >= 0.18 && otherCues.some((score) => score >= 0.10);
+}
+
+export function getCandidateSupports(blendshapes: Record<string, number>) {
+  const signals = getEmotionSignals(blendshapes);
+  return (['SAD', 'ANGRY'] as const).map((label) => ({
+    label,
+    score: signals[label],
+    minimum: MIN_SUPPORT[label],
+    cuesSatisfied: label === 'SAD' ? hasSadCues(blendshapes) : hasAngryCues(blendshapes),
+    cues: label === 'SAD'
+      ? [
+        { name: 'frown', score: averagePair(blendshapes, 'mouthFrownLeft', 'mouthFrownRight') },
+        { name: 'inner brow', score: clamp(blendshapes.browInnerUp) },
+      ]
+      : [
+        { name: 'brow down', score: averagePair(blendshapes, 'browDownLeft', 'browDownRight') },
+        { name: 'squint', score: averagePair(blendshapes, 'eyeSquintLeft', 'eyeSquintRight') },
+        { name: 'press', score: averagePair(blendshapes, 'mouthPressLeft', 'mouthPressRight') },
+        { name: 'sneer', score: averagePair(blendshapes, 'noseSneerLeft', 'noseSneerRight') },
+      ],
+  }));
 }
 
 export function classifyBlendshapes(blendshapes: Record<string, number>): ExpressionClassification {
   const signals = getEmotionSignals(blendshapes);
   const strongest = strongestNonNeutral(signals);
 
-  if (strongest.score <= 0.20) {
+  // Weak *weighted* class support does not mean a neutral face: a strong
+  // isolated action can still be ambiguous. Only low raw activity is neutral.
+  if (signals.NEUTRAL >= 0.80) {
     return { label: 'NEUTRAL', score: Math.round(signals.NEUTRAL * 100) / 100 };
   }
 
