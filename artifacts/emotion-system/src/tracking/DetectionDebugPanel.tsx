@@ -225,7 +225,7 @@ export function DetectionDebugPanel({
             SAD = .55 × frown + .45 × inner brow; ANGRY = .60 × brow down + .40 × strongest of eye squint, mouth press and nose sneer.
             SURPRISED = .43 × eye wide + .37 × jaw open + .20 × inner brow; NEUTRAL support = 1 − strongest raw facial-action cue.
             HAPPY/SURPRISED require support ≥ .35; SAD ≥ .18 with frown + inner brow or strong bilateral frown; ANGRY ≥ .22 with brow down + a second action. All require an .08 lead.
-            NEUTRAL requires all raw action cues ≤ .20. Head crops improve model input scale but do not create missing source detail; faces below 32 × 32 source pixels or unreliable poses remain UNKNOWN.
+            Neutral fallback is used when the strongest weighted class support is ≤ .20. Faces below the normalized geometry threshold or with unreliable poses remain UNKNOWN.
             Scores use different rules by label and are not directly comparable; uncertain cases are UNKNOWN.
           </p>
           {modelMessage && <p className="detection-debug-message" role="status" data-testid="text-model-message">{modelMessage}</p>}

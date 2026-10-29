@@ -7,7 +7,6 @@ import {
   type ExpressionClassification,
 } from './expressionClassifier';
 import { associateFacesWithTracks } from './faceAssociation';
-import { getHeadRegions } from './faceRegions';
 import { getFaceLandmarkerWorker } from './faceLandmarkerWorker';
 import type {
   BlendshapeSummary,
@@ -240,7 +239,6 @@ export function useFaceExpressions(
             requestId,
             timestamp: lastTimestamp,
             frame,
-            regions: getHeadRegions(tracksRef.current),
           } satisfies FaceWorkerRequest,
           [frame],
         );
@@ -260,7 +258,7 @@ export function useFaceExpressions(
         setState((previous) => ({
           ...previous,
           modelStatus: 'ready',
-          modelMessage: 'MediaPipe Face Landmarker ready · person-head crops · CPU Worker · heuristic expressions',
+          modelMessage: 'MediaPipe Face Landmarker ready · full-frame VIDEO mode · CPU Worker · heuristic expressions',
           unknownReason: 'NO_FACE',
         }));
         schedule(0);

@@ -11,6 +11,10 @@ Define neutral support from the strongest raw facial-action cue, not as a comple
 
 **Why:** A weighted, moderate smile could be labeled HAPPY while its complementary NEUTRAL score appeared numerically higher, which users could interpret as a contradictory confidence report.
 
+For the NEUTRAL label itself, retain the low weighted-support fallback (≤0.20), but let SAD/ANGRY override it when their class-specific cue pattern and margin pass.
+
+**Why:** Tightening neutral to reject every raw action over 0.20 caused ordinary low-level facial movement to become UNKNOWN.
+
 **How to apply:** When changing weights or thresholds, validate representative feature vectors and inspect actual top blendshapes in Debug Mode. Preserve UNKNOWN when competing cues are close or corroboration is missing.
 
 For distant faces, judge reliability using native source pixels, not the apparent size after cropping/resizing; keep pose/feature corroboration gates rather than lowering all detector thresholds.

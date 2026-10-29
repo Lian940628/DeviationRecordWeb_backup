@@ -46,7 +46,7 @@ export interface FaceDebugRecord {
   poseReliable: boolean;
   faceWidthPx: number;
   faceHeightPx: number;
-  analysisSource: 'PERSON_CROP' | 'FULL_FRAME';
+  analysisSource: 'FULL_FRAME';
   candidateSupports: {
     label: string;
     score: number;
@@ -72,7 +72,7 @@ export interface FaceObservation {
   qualityReason: 'FACE_TOO_SMALL' | 'UNRELIABLE_POSE' | null;
   faceWidthPx: number;
   faceHeightPx: number;
-  analysisSource: 'PERSON_CROP' | 'FULL_FRAME';
+  analysisSource: 'FULL_FRAME';
   blendshapeCount: number;
   invalidBlendshapeCount: number;
   blendshapes: Record<string, number>;

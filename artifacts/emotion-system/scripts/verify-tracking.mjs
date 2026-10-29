@@ -11,9 +11,10 @@ for (const [label, features] of [['SAD', sad], ['ANGRY', angry], ['HAPPY', happy
   assert.equal(classifyBlendshapes(features).label, label);
 }
 assert.equal(classifyBlendshapes({}).label, 'NEUTRAL');
+assert.equal(classifyBlendshapes({ mouthSmileLeft: .25, mouthSmileRight: .25 }).label, 'NEUTRAL');
 assert.equal(classifyBlendshapes({ browDownLeft: .5, browDownRight: .5 }).label, 'UNKNOWN');
 assert.equal(classifyBlendshapes({ browInnerUp: .6 }).label, 'UNKNOWN');
-assert.equal(classifyBlendshapes({ mouthFrownLeft: .5 }).label, 'UNKNOWN');
+assert.equal(classifyBlendshapes({ mouthFrownLeft: .5 }).label, 'NEUTRAL');
 assert.equal(getCandidateSupports(angry).find((item) => item.label === 'ANGRY').cuesSatisfied, true);
 assert.equal(getCandidateSupports({ browDownLeft: .6, browDownRight: .6 })
   .find((item) => item.label === 'ANGRY').cuesSatisfied, false);
@@ -29,4 +30,4 @@ assert.equal(first.label, 'SAD');
 assert.equal(second.label, 'ANGRY');
 assert.equal(smoother.markUnknown(1).label, 'UNKNOWN');
 
-console.log('PASS: expression rules, neutral/ambiguous actions, per-ID smoothing and per-class diagnostics.');
+console.log('PASS: expression labels, neutral fallback, ambiguous cues, per-ID smoothing and per-class diagnostics.');

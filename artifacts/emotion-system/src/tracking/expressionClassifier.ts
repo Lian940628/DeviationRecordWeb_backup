@@ -15,7 +15,7 @@ const MAX_AMBIGUOUS_FRAMES = 2;
 const MIN_SUPPORT: Record<NonNeutralLabel, number> = {
   HAPPY: 0.35,
   SAD: 0.18,
-  ANGRY: 0.22,
+  ANGRY: 0.18,
   SURPRISED: 0.35,
 };
 const MIN_CLASS_MARGIN = 0.08;
@@ -87,12 +87,9 @@ export function getEmotionSignals(blendshapes: Record<string, number>): EmotionS
 function hasSadCues(blendshapes: Record<string, number>): boolean {
   const frown = averagePair(blendshapes, 'mouthFrownLeft', 'mouthFrownRight');
   const innerBrow = clamp(blendshapes.browInnerUp ?? 0);
-  const smile = averagePair(blendshapes, 'mouthSmileLeft', 'mouthSmileRight');
   const bilateralFrown = Math.min(clamp(blendshapes.mouthFrownLeft), clamp(blendshapes.mouthFrownRight));
-  return smile < 0.25 && (
-    (frown >= 0.10 && innerBrow >= 0.10) ||
-    (bilateralFrown >= 0.35 && averagePair(blendshapes, 'browDownLeft', 'browDownRight') < 0.25)
-  );
+  return (frown >= 0.10 && innerBrow >= 0.10) ||
+    (bilateralFrown >= 0.35 && averagePair(blendshapes, 'browDownLeft', 'browDownRight') < 0.25);
 }
 
 function hasAngryCues(blendshapes: Record<string, number>): boolean {
@@ -130,29 +127,24 @@ export function classifyBlendshapes(blendshapes: Record<string, number>): Expres
   const signals = getEmotionSignals(blendshapes);
   const strongest = strongestNonNeutral(signals);
 
-  // Weak *weighted* class support does not mean a neutral face: a strong
-  // isolated action can still be ambiguous. Only low raw activity is neutral.
-  if (signals.NEUTRAL >= 0.80) {
-    return { label: 'NEUTRAL', score: Math.round(signals.NEUTRAL * 100) / 100 };
-  }
-
   const minimumSupport = MIN_SUPPORT[strongest.label as NonNeutralLabel];
   const hasRequiredCues =
     (strongest.label !== 'SAD' || hasSadCues(blendshapes)) &&
     (strongest.label !== 'ANGRY' || hasAngryCues(blendshapes));
 
-  if (
-    strongest.score < minimumSupport ||
-    strongest.margin < MIN_CLASS_MARGIN ||
-    !hasRequiredCues
-  ) {
-    return { label: 'UNKNOWN', score: null };
+  if (strongest.score >= minimumSupport && strongest.margin >= MIN_CLASS_MARGIN && hasRequiredCues) {
+    return {
+      label: strongest.label,
+      score: Math.round(strongest.score * 100) / 100,
+    };
   }
 
-  return {
-    label: strongest.label,
-    score: Math.round(strongest.score * 100) / 100,
-  };
+  // Keep the previously working low-activity neutral path. Only expressions
+  // that pass their explicit cue checks can override this neutral fallback.
+  if (strongest.score <= 0.20) {
+    return { label: 'NEUTRAL', score: Math.round(signals.NEUTRAL * 100) / 100 };
+  }
+  return { label: 'UNKNOWN', score: null };
 }
 
 interface SmoothingMemory {
