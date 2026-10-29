@@ -1,0 +1,45 @@
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Manrope:wght@300;400;500;600;700;800&family=Noto+Serif+HK:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap");
+
+:root {
+  font-family: Manrope, "Noto Serif HK", sans-serif;
+  color: #dff5ee;
+  background: #04100f;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 320px; background: #04100f; }
+
+.extract-shell {
+  min-height: 100vh;
+  padding: clamp(18px, 5vw, 56px);
+  background:
+    radial-gradient(ellipse at 80% 15%, rgba(0, 149, 161, .17), transparent 36%),
+    linear-gradient(145deg, #071916, #030a09 72%);
+}
+
+.extract-heading {
+  display: flex;
+  max-width: 1080px;
+  margin: 0 auto 24px;
+  align-items: end;
+  justify-content: space-between;
+  gap: 20px;
+  border-bottom: 1px solid rgba(91, 224, 214, .2);
+  padding-bottom: 14px;
+  color: #89b8ad;
+  font: 9px/1.6 "IBM Plex Mono", monospace;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+
+.extract-heading strong {
+  display: block;
+  color: #e6fff5;
+  font: 600 17px/1.2 "Space Grotesk", sans-serif;
+  letter-spacing: .02em;
+}
+
+.extract-controls { width: min(100%, 540px); margin-left: auto; }
+
+html:lang(zh-Hant-HK) .extract-shell { font-family: Manrope, "Noto Serif HK", serif; }
+html:lang(zh-Hant-HK) .extract-heading strong { font-family: "Noto Serif HK", serif; }

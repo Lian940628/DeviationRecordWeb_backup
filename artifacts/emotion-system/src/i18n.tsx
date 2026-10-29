@@ -6,15 +6,23 @@ const LANGUAGE_STORAGE_KEY = 'emotion-system.language.v1';
 
 const TRADITIONAL_CHINESE: Record<string, string> = {
   'EMOTION / SYSTEM home': 'EMOTION / SYSTEM 首頁',
-  'AN INTERACTIVE ARTWORK': '互動藝術作品',
+  'AN INTERACTIVE ARTWORK · DEVIATION RECORD': '互動藝術作品 · 偏差紀錄',
+  'ARCHIVE INDEX': '檔案索引',
+  MEMORY: '記憶',
+  PERCEPTION: '感知',
+  PRESENCE: '存在',
+  'A record can drift.': '記錄可能偏移。',
+  'A frame can misread.': '畫面可能誤讀。',
+  'A signal can remain unresolved.': '訊號可以暫不解讀。',
+  'Artwork index': '作品索引',
   'DIGITAL PRESENCE STUDY': '數位存在研究',
-  'An experiment in presence': '存在實驗',
-  'is a quiet encounter between a person and a machine. Step into the frame. Notice what it means to be present without being named.':
-    '是一場人與機器之間安靜的相遇。走進畫面，感受在不被命名的狀態下，存在意味著什麼。',
+  'An experiment in presence': '偏差紀錄 · 存在實驗',
+  'is a quiet encounter between a person and a machine inside a system built for precision. Each of us carries a slight misalignment: memory drift, perceptual error, and emotional noise. Step into the frame and notice what remains unresolved.':
+    '這是一場人與機器之間的安靜相遇，發生在極度精準的系統之中。每個人內在都帶著一點錯位：記憶偏差、感知誤差，以及情緒雜訊。走進畫面，看看哪些訊號仍未被解讀。',
   'THE ART OF': '被看見',
   'BEING SEEN': '的藝術',
-  'EMOTION / SYSTEM is a quiet encounter between a person and a machine. Step into the frame. Notice what it means to be present without being named.':
-    'EMOTION / SYSTEM 是一場人與機器之間安靜的相遇。走進畫面，感受在不被命名的狀態下，存在意味著什麼。',
+  'EMOTION / SYSTEM is a quiet encounter between a person and a machine inside a system built for precision. Each of us carries a slight misalignment: memory drift, perceptual error, and emotional noise. Step into the frame and notice what remains unresolved.':
+    'EMOTION / SYSTEM 是一場人與機器之間的安靜相遇，發生在極度精準的系統之中。每個人內在都帶著一點錯位：記憶偏差、感知誤差，以及情緒雜訊。走進畫面，看看哪些訊號仍未被解讀。',
   'START EXPERIENCE': '開始體驗',
   'Camera access is optional.': '攝影機權限由你決定。',
   'Your image stays on this device.': '你的影像只留在此裝置。',

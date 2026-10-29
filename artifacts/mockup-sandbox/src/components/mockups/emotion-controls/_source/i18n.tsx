@@ -1,0 +1,329 @@
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
+
+export type AppLanguage = 'en' | 'zh';
+
+const LANGUAGE_STORAGE_KEY = 'emotion-system.language.v1';
+
+const TRADITIONAL_CHINESE: Record<string, string> = {
+  'EMOTION / SYSTEM home': 'EMOTION / SYSTEM 首頁',
+  'AN INTERACTIVE ARTWORK': '互動藝術作品',
+  'DIGITAL PRESENCE STUDY': '數位存在研究',
+  'An experiment in presence': '存在實驗',
+  'is a quiet encounter between a person and a machine. Step into the frame. Notice what it means to be present without being named.':
+    '是一場人與機器之間安靜的相遇。走進畫面，感受在不被命名的狀態下，存在意味著什麼。',
+  'THE ART OF': '被看見',
+  'BEING SEEN': '的藝術',
+  'EMOTION / SYSTEM is a quiet encounter between a person and a machine. Step into the frame. Notice what it means to be present without being named.':
+    'EMOTION / SYSTEM 是一場人與機器之間安靜的相遇。走進畫面，感受在不被命名的狀態下，存在意味著什麼。',
+  'START EXPERIENCE': '開始體驗',
+  'Camera access is optional.': '攝影機權限由你決定。',
+  'Your image stays on this device.': '你的影像只留在此裝置。',
+  '01 / PRESENCE BEFORE INTERPRETATION': '01 / 先感受存在，再進行詮釋',
+  'LOCAL INTERACTION · NO RECORDING': '本機互動 · 不錄影',
+  'A WORK ABOUT LOOKING, NOT KNOWING': '關於觀看，而非定義',
+  'The encounter': '相遇',
+  'Camera experience': '攝影機互動體驗',
+  'Live camera preview': '即時攝影機預覽',
+  'SYNCING': '同步中',
+  'Start camera': '啟動攝影機',
+  'Stop camera': '停止攝影機',
+  'Toggle fullscreen preview': '切換全螢幕預覽',
+  'Experience settings': '體驗設定',
+  'Enter the': '進入',
+  'frame.': '畫面。',
+  'A PRIVATE MOMENT': '只屬於你的片刻',
+  'NO IMAGE LEAVES THIS DEVICE': '影像不會離開此裝置',
+  'A space held for you': '為你留出的一方空間',
+  'Start the camera when you are ready.': '準備好後，再啟動攝影機。',
+  'LIVE · LOCAL': '即時 · 本機',
+  'STARTING…': '啟動中…',
+  'START CAMERA': '啟動攝影機',
+  'STOP CAMERA': '停止攝影機',
+  'FULLSCREEN': '全螢幕',
+  'CAMERA NOT STARTED · ': '攝影機尚未啟動 · ',
+  'Session controls': '體驗控制',
+  'SETTINGS': '設定',
+  settings: '設定',
+  '01 NORMAL': '01 一般',
+  '02 ANOMALY': '02 異常',
+  '03 PARTICLE': '03 粒子',
+  '04 LINE': '04 線條',
+  'Frame rate': '畫面更新率',
+  'LIVE ESTIMATE': '即時估算',
+  'AWAITING CAMERA': '等待攝影機',
+  'Camera source': '攝影機來源',
+  'Select camera device': '選擇攝影機裝置',
+  'No camera available': '沒有可用的攝影機',
+  'Camera names appear after access': '授權後顯示攝影機名稱',
+  'Choose a source, then press START CAMERA to apply it.': '選擇來源後，按「啟動攝影機」套用。',
+  'Device names may be hidden until you grant camera access.': '授權攝影機前，裝置名稱可能不會顯示。',
+  'What this work does': '作品如何運作',
+  'People and facial signals are processed locally. Expression labels are heuristic estimates, not readings of a person’s inner emotional state.':
+    '人物與臉部訊號只在本機處理。表情標籤是啟發式估計，不代表對個人內在情緒的判讀。',
+  'Private by design': '隱私優先設計',
+  'Your video and face landmarks stay in this browser.': '你的影像與臉部特徵點只留在此瀏覽器。',
+  'Only model files are downloaded; camera frames and facial features are not uploaded or recorded. Expression labels are heuristic estimates, not statements about how someone truly feels.':
+    '網站只會下載模型檔案，不會上傳或錄製攝影機畫面與臉部特徵。表情標籤是啟發式估計，不代表任何人真實的感受。',
+  'RETURN HOME': '返回首頁',
+  'VIDEO REMAINS LOCAL': '影像只在本機處理',
+  'LOCAL HEURISTIC EXPRESSION ESTIMATES': '本機啟發式表情估計',
+  'Signal not found': '找不到訊號',
+  'This frame is empty.': '此畫面不存在。',
+  Language: '語言',
+  'Normal image': '一般影像',
+  normal: '一般影像',
+  'Untouched camera colour': '未經處理的攝影機色彩',
+  'Person anomaly': '人物異常',
+  anomaly: '人物異常',
+  'Inversion / posterize inside boxes': '人物框內反相／色階分離',
+  'Particle field': '粒子場',
+  particle: '粒子場',
+  'Scene broken into specks': '將場景拆解為微粒',
+  'Line contour': '線條輪廓',
+  line: '線條輪廓',
+  'Scharr edges, broken': 'Scharr 邊緣與碎裂效果',
+  Saturation: '飽和度',
+  Brightness: '亮度',
+  Contrast: '對比',
+  Gamma: '伽瑪',
+  Exposure: '曝光',
+  'Hue shift': '色相偏移',
+  'Input black level': '輸入黑位',
+  'Input white level': '輸入白位',
+  'Output black level': '輸出黑位',
+  'Output white level': '輸出白位',
+  'Local brightness': '局部亮度',
+  'Local contrast': '局部對比',
+  'Local saturation': '局部飽和度',
+  'Digital noise': '數位雜訊',
+  'Scanline opacity': '掃描線不透明度',
+  Intensity: '強度',
+  'Colour channel offset': '色彩通道偏移',
+  'Pixel displacement': '像素位移',
+  'Posterization levels': '色階分離層級',
+  'Glitch frequency': '故障頻率',
+  'Flicker speed': '閃爍速度',
+  'Effect opacity': '效果不透明度',
+  'Anomaly colour': '異常色彩',
+  'Particle size': '粒子大小',
+  'Particle density': '粒子密度',
+  'Particle brightness': '粒子亮度',
+  'Edge sensitivity': '邊緣敏感度',
+  'Luminance threshold': '亮度門檻',
+  'Particle jitter': '粒子抖動',
+  'Movement speed': '移動速度',
+  'Glow intensity': '光暈強度',
+  'Particle colour': '粒子色彩',
+  'Line thickness': '線條粗細',
+  'Line density': '線條密度',
+  'Edge threshold': '邊緣門檻',
+  'Line brightness': '線條亮度',
+  'Line colour': '線條色彩',
+  Fragmentation: '碎裂程度',
+  'Line flicker': '線條閃爍',
+  'Connection width': '連線寬度',
+  'Connection opacity': '連線不透明度',
+  'Connection glow': '連線光暈',
+  'Connection animation speed': '連線動畫速度',
+  'Enable person connections': '啟用人物連線',
+  'Show person IDs': '顯示人物編號',
+  'Visual controls': '視覺控制',
+  Playback: '播放模式',
+  Auto: '自動',
+  Manual: '手動',
+  AUTO: '自動',
+  MANUAL: '手動',
+  'Playback mode': '播放模式',
+  'Auto cycles through all four stages. Selecting a stage switches to manual.': '自動模式會輪播四個階段。選擇單一階段會切換為手動模式。',
+  'Stage transition sound': '階段轉換音效',
+  Unmute: '開啟音效',
+  Mute: '靜音',
+  SILENT: '靜音中',
+  'LOCAL · USER-GESTURE GATED': '本機 · 需由使用者操作啟用',
+  'Master volume': '主音量',
+  'Enable sound for each stage': '各階段音效開關',
+  'Short local tones play when stages change. Audio starts after camera access or UNMUTE.': '階段切換時播放本機短音。授權攝影機或按「開啟音效」後才會播放。',
+  'Image state': '影像狀態',
+  'Visual stage': '視覺階段',
+  'Global image · all stages': '全域影像 · 套用所有階段',
+  'Reset image settings': '重設影像設定',
+  'Stage duration': '階段持續時間',
+  'Editing stage only': '僅編輯此階段',
+  'Render and transition': '渲染與轉場',
+  'Glitch duration': '故障轉場時間',
+  'Internal render scale': '內部渲染比例',
+  'Glitch is a short cut into stages 01 and 03. Lower render scale uses less GPU.': '故障轉場會短暫切入階段 01 與 03。降低渲染比例可減少 GPU 負載。',
+  'Preset library': '預設集',
+  'Saved preset': '已儲存的預設集',
+  'Choose saved preset': '選擇已儲存的預設集',
+  'Choose a preset': '選擇預設集',
+  Load: '載入',
+  'Save current settings': '儲存目前設定',
+  'Preset name': '預設集名稱',
+  Save: '儲存',
+  'Export JSON': '匯出 JSON',
+  'Import JSON': '匯入 JSON',
+  'Debug Mode': '除錯模式',
+  'System readout': '系統讀數',
+  'Person Model Status': '人物模型狀態',
+  'Person Count': '人物數量',
+  'Average Score': '平均分數',
+  'Valid Score Samples': '有效分數樣本',
+  'Last Updated': '上次更新',
+  'Detection FPS': '偵測 FPS',
+  'Rendering FPS': '渲染 FPS',
+  'Active Track IDs': '追蹤中的人物編號',
+  'Face Model Status': '臉部模型狀態',
+  'Face Model Ready': '臉部模型就緒',
+  'Detected Face Count': '偵測到的臉部數量',
+  'Blendshape Count': 'Blendshape 數量',
+  'Inference Time': '推論時間',
+  'Last Successful Face Detection Time': '上次成功偵測臉部',
+  'UNKNOWN Reason': 'UNKNOWN 原因',
+  'PERSON ID:': '人物編號：',
+  'EXPRESSION:': '表情：',
+  'SCORE:': '分數：',
+  'PERSON COUNT': '人物數量',
+  'Per-person result · heuristic support': '各人物結果 · 啟發式支持度',
+  'Detection diagnostics': '偵測診斷',
+  PERSON: '人物',
+  FACE: '臉部',
+  'BLENDSHAPE COUNT': 'Blendshape 數量',
+  'MATCHED PERSON ID': '對應的人物編號',
+  'RAW EXPRESSION': '原始表情',
+  'SMOOTHED EXPRESSION': '平滑後表情',
+  'RELATIVE RULE INDEX · NOT PROBABILITY': '相對規則分數 · 非機率',
+  'BLENDSHAPE COUNT · UNKNOWN REASON': 'Blendshape 數量 · UNKNOWN 原因',
+  'TOP 5 BLENDSHAPES': '前 5 個 Blendshape',
+  'Waiting for a tracked person and a reliable face view.': '等待追蹤到人物及清晰的臉部畫面。',
+  'FRAME DIAGNOSTICS': '畫面診斷',
+  'INVALID': '無效',
+  'SOURCE FACE SIZE / ANALYSIS': '臉部來源尺寸／分析方式',
+  'SUPPORT / MINIMUM': '支持度／最低門檻',
+  'POSE / UNKNOWN REASON': '姿態／UNKNOWN 原因',
+  'CUES': '特徵',
+  MET: '達成',
+  MISSING: '未達成',
+  RELIABLE: '可靠',
+  LOW: '偏低',
+  'Relative display score: ACTIVE = .50 + .50 × class support; NEUTRAL = .50 × neutral support. Thus active expressions score above .50 and NEUTRAL at or below .50; not calibrated probabilities. Raw class support: HAPPY = .76 × smile + .24 × cheek squint; SAD = .55 × frown + .45 × inner brow; ANGRY = .60 × brow down + .40 × strongest of eye squint, mouth press and nose sneer. SURPRISED = .43 × eye wide + .37 × jaw open + .20 × inner brow; NEUTRAL support = 1 − strongest raw facial-action cue. HAPPY ≥ .24; SAD ≥ .12 with frown + inner brow or strong bilateral frown; ANGRY ≥ .14 with brow down + a second action; SURPRISED ≥ .25. Labels require a .04 lead and two confirming frames. Neutral fallback is used when the strongest weighted class support is ≤ .20. Faces below the normalized geometry threshold or with unreliable poses remain UNKNOWN. Scores use different rules by label and are not directly comparable; uncertain cases are UNKNOWN.':
+    '相對顯示分數：ACTIVE = .50 + .50 × 類別支持度；NEUTRAL = .50 × 中性支持度。因此 ACTIVE 表情高於 .50，NEUTRAL 為 .50 以下；這些不是校準後的機率。原始類別支持度：HAPPY = .76 × 微笑 + .24 × 臉頰收縮；SAD = .55 × 嘴角下垂 + .45 × 眉心上抬；ANGRY = .60 × 眉毛下壓 + .40 × 眼睛瞇起、嘴唇緊閉或皺鼻三者中的最高值。SURPRISED = .43 × 睜大眼睛 + .37 × 張嘴 + .20 × 眉心上抬；NEUTRAL 支持度 = 1 − 最強的原始臉部動作特徵。HAPPY ≥ .24；SAD ≥ .12，且需同時有嘴角下垂與眉心上抬，或明顯雙側嘴角下垂；ANGRY ≥ .14，且需眉毛下壓與另一項動作同時出現；SURPRISED ≥ .25。標籤需領先 .04，並連續兩次推論確認。當最高加權類別支持度 ≤ .20 時，回退為 NEUTRAL。臉部幾何尺寸不足或姿態不可靠時仍為 UNKNOWN。各標籤採用不同規則，分數不能直接互相比較；不確定時顯示 UNKNOWN。',
+  'Average Score uses finite displayed expression scores only, once per person per completed face inference. It is a heuristic display average, not a calibrated probability; detection confidence is not included.':
+    '平均分數只使用畫面顯示的有效表情分數；每位人物每次完成臉部推論最多計入一筆。這是啟發式顯示平均值，不是校準機率，也不包含人物偵測信心度。',
+  'Idle': '待機',
+  'Loading': '載入中',
+  'Ready': '就緒',
+  'Error': '錯誤',
+  'YES': '是',
+  'NO': '否',
+  ON: '開啟',
+  OFF: '關閉',
+  'NEVER': '尚未',
+  'AGO': '前',
+  'N/A': '不適用',
+  HAPPY: '開心',
+  SAD: '難過',
+  ANGRY: '生氣',
+  SURPRISED: '驚訝',
+  NEUTRAL: '普通',
+  UNKNOWN: '未知',
+  'Your camera stays in this browser. Nothing is recorded or sent.': '攝影機影像只留在此瀏覽器，不會錄製或傳送。',
+  'Camera access was denied. Allow camera access in your browser or operating-system privacy settings, then try again.': '攝影機權限遭拒。請在瀏覽器或作業系統的隱私設定中允許攝影機，再試一次。',
+  'No available camera was found. Connect a camera and check that it is enabled, then try again.': '找不到可用的攝影機。請連接並確認攝影機已啟用，再試一次。',
+  'The camera could not be read. Another app may be using it; close that app and try again.': '無法讀取攝影機。可能有其他應用程式正在使用，請關閉該程式後再試一次。',
+  'The camera request was interrupted. Check your browser and operating-system camera settings, then try again.': '攝影機要求遭到中斷。請檢查瀏覽器與作業系統的攝影機設定，再試一次。',
+  'This camera does not support the requested settings. Choose another camera or try again.': '此攝影機不支援要求的設定。請選擇其他攝影機或再試一次。',
+  'The camera could not start. Check that your browser supports camera access and that no privacy setting is blocking it.': '無法啟動攝影機。請確認瀏覽器支援攝影機，且隱私設定未封鎖權限。',
+  'Camera access needs a secure page (HTTPS or localhost) and a browser with camera support.': '攝影機需要安全連線（HTTPS 或 localhost），且瀏覽器必須支援攝影機。',
+  'Waiting for camera permission…': '等待攝影機權限…',
+  'Camera stopped. No video was recorded or sent.': '攝影機已停止，影像未被錄製或傳送。',
+  'The live preview is paused. Use the video controls or restart the camera to continue.': '即時預覽已暫停。請使用影片控制項或重新啟動攝影機。',
+  'Fullscreen is unavailable in this browser or page context.': '此瀏覽器或頁面環境不支援全螢幕。',
+  'Live preview active': '即時預覽已啟動',
+  'Your video remains local to this browser.': '影像只會在此瀏覽器本機處理。',
+  'Start the camera to load the local detection model.': '啟動攝影機以載入本機人物偵測模型。',
+  'Start the camera to load the local face model.': '啟動攝影機以載入本機臉部模型。',
+  'Loading COCO-SSD · MobileNet V2…': '正在載入 COCO-SSD · MobileNet V2…',
+  'Loading MediaPipe Face Landmarker · local processing…': '正在載入 MediaPipe Face Landmarker · 本機處理中…',
+  'MediaPipe Face Landmarker ready · full-frame VIDEO mode · CPU Worker · heuristic expressions': 'MediaPipe Face Landmarker 已就緒 · 全畫面 VIDEO 模式 · CPU Worker · 啟發式表情推估',
+  'Face analysis stopped: ModuleFactory not set.': '臉部分析已停止：尚未設定 ModuleFactory。',
+  'Global image settings reset.': '全域影像設定已重設。',
+  'Enter a name for this preset.': '請輸入預設集名稱。',
+  'Choose a saved preset first.': '請先選擇已儲存的預設集。',
+  'Preset JSON exported.': '預設集 JSON 已匯出。',
+  'Could not read this preset file.': '無法讀取此預設集檔案。',
+  'Invalid preset: expected a settings object.': '預設集格式錯誤：找不到設定物件。',
+  'Unsupported preset version.': '不支援此預設集版本。',
+  'Presets could not be saved in this browser.': '無法在此瀏覽器儲存預設集。',
+  'Preset file must be smaller than 1 MB.': '預設集檔案必須小於 1 MB。',
+};
+
+export function translate(language: AppLanguage, english: string): string {
+  if (language !== 'zh') return english;
+  if (TRADITIONAL_CHINESE[english]) return TRADITIONAL_CHINESE[english];
+
+  const saved = english.match(/^Saved “(.+)” in this browser\.$/);
+  if (saved) return `已在此瀏覽器儲存「${saved[1]}」。`;
+  const loaded = english.match(/^Loaded “(.+)”\.$/);
+  if (loaded) return `已載入「${loaded[1]}」。`;
+  const imported = english.match(/^Imported “(.+)”\.$/);
+  if (imported) return `已匯入「${imported[1]}」。`;
+  const resetStage = english.match(/^([A-Z]+) stage reset\.$/);
+  if (resetStage) return `已重設「${translate(language, resetStage[1].toLowerCase())}」階段。`;
+  const personReady = english.match(/^COCO-SSD ready · TensorFlow\.js (.+) backend$/);
+  if (personReady) return `COCO-SSD 已就緒 · TensorFlow.js ${personReady[1]} 後端`;
+  const stoppedDetection = english.match(/^Detection stopped: (.+)$/);
+  if (stoppedDetection) return `人物偵測已停止：${stoppedDetection[1]}`;
+  const loadPersonError = english.match(/^Could not load COCO-SSD\. Check your connection and try starting the camera again\. (.+)$/);
+  if (loadPersonError) return `無法載入 COCO-SSD。請檢查網路連線後重新啟動攝影機。${loadPersonError[1]}`;
+  const faceWorkerError = english.match(/^Could not start face worker: (.+)$/);
+  if (faceWorkerError) return `無法啟動臉部分析 Worker：${faceWorkerError[1]}`;
+  const classifierError = english.match(/^Classifier error: (.+)$/);
+  if (classifierError) return `分類器錯誤：${classifierError[1]}`;
+  const cameraDimensions = english.match(/^Live preview active · (.+)\. Your video remains local to this browser\.$/);
+  if (cameraDimensions) {
+    return `即時預覽已啟動 · ${cameraDimensions[1]}。${translate(language, 'Your video remains local to this browser.')}`;
+  }
+  return english;
+}
+
+interface LanguageContextValue {
+  language: AppLanguage;
+  setLanguage: (language: AppLanguage) => void;
+}
+
+const LanguageContext = createContext<LanguageContextValue | null>(null);
+
+function getInitialLanguage(): AppLanguage {
+  try {
+    return window.localStorage.getItem(LANGUAGE_STORAGE_KEY) === 'zh' ? 'zh' : 'en';
+  } catch {
+    return 'en';
+  }
+}
+
+export function LanguageProvider({ children }: { children: ReactNode }) {
+  const [language, setLanguage] = useState<AppLanguage>(getInitialLanguage);
+
+  useEffect(() => {
+    document.documentElement.lang = language === 'zh' ? 'zh-TW' : 'en';
+    try {
+      window.localStorage.setItem(LANGUAGE_STORAGE_KEY, language);
+    } catch {
+      // Language switching still works for this visit if storage is unavailable.
+    }
+  }, [language]);
+
+  return <LanguageContext.Provider value={{ language, setLanguage }}>{children}</LanguageContext.Provider>;
+}
+
+export function useAppLanguage() {
+  const value = useContext(LanguageContext);
+  if (!value) throw new Error('LanguageProvider is missing.');
+  return value;
+}
+
+export function useTranslation() {
+  const { language } = useAppLanguage();
+  return useCallback((english: string) => translate(language, english), [language]);
+}
