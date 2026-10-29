@@ -1,0 +1,142 @@
+.camera-capture-controls {
+  position: absolute;
+  z-index: 50;
+  right: 15px;
+  bottom: 15px;
+  left: 15px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 7px;
+  pointer-events: none;
+  font-family: var(--app-font-mono, monospace);
+}
+
+.camera-capture-topline {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  pointer-events: auto;
+}
+
+.camera-capture-visibility,
+.camera-capture-toolbar button {
+  display: inline-flex;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid rgba(102, 237, 222, .54);
+  background: rgba(2, 14, 18, .88);
+  color: #d9fff7;
+  cursor: pointer;
+  font: 8px var(--app-font-mono, monospace);
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  transition: background .18s ease, border-color .18s ease, transform .18s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.camera-capture-visibility {
+  min-height: 36px;
+  padding: 0 11px;
+  border-color: rgba(102, 237, 222, .32);
+  color: #a9ddd4;
+}
+
+.camera-capture-visibility:hover,
+.camera-capture-toolbar button:hover {
+  transform: translateY(-1px);
+  border-color: #a4fff2;
+  background: rgba(5, 48, 52, .94);
+}
+
+.camera-capture-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  pointer-events: auto;
+}
+
+.camera-capture-toolbar button {
+  min-width: 138px;
+  padding: 0 13px;
+}
+
+.camera-capture-toolbar button.is-recording {
+  border-color: rgba(255, 114, 112, .8);
+  background: rgba(58, 15, 18, .92);
+  color: #ffe1df;
+}
+
+.camera-capture-toolbar button:focus-visible,
+.camera-capture-visibility:focus-visible {
+  outline: 2px solid #b5fff4;
+  outline-offset: 2px;
+}
+
+.camera-capture-toolbar button:active,
+.camera-capture-visibility:active {
+  transform: scale(.97);
+}
+
+.camera-recording-indicator {
+  display: inline-flex;
+  min-height: 28px;
+  align-items: center;
+  gap: 6px;
+  padding: 0 9px;
+  border: 1px solid rgba(255, 116, 108, .62);
+  background: rgba(30, 8, 10, .9);
+  color: #ffb5ad;
+  font-size: 8px;
+  letter-spacing: .12em;
+  pointer-events: auto;
+}
+
+.camera-recording-indicator i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #ff7772;
+  box-shadow: 0 0 9px rgba(255, 100, 96, .8);
+  animation: capture-rec-pulse 1.1s ease-in-out infinite alternate;
+}
+
+.camera-capture-status {
+  max-width: min(100%, 360px);
+  padding: 7px 9px;
+  border: 1px solid rgba(102, 237, 222, .28);
+  background: rgba(2, 14, 18, .9);
+  color: #c6eee5;
+  font-size: 8px;
+  line-height: 1.5;
+  pointer-events: auto;
+}
+
+@keyframes capture-rec-pulse {
+  to { opacity: .45; }
+}
+
+@media (max-width: 600px) {
+  .camera-capture-controls {
+    right: 8px;
+    bottom: 8px;
+    left: 8px;
+    gap: 5px;
+  }
+
+  .camera-capture-topline { gap: 5px; }
+  .camera-capture-visibility { min-height: 34px; padding-inline: 8px; font-size: 7px; }
+  .camera-capture-toolbar { gap: 5px; }
+  .camera-capture-toolbar button { min-width: 0; min-height: 40px; padding-inline: 9px; font-size: 7px; }
+  .camera-recording-indicator { min-height: 26px; font-size: 7px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .camera-capture-visibility,
+  .camera-capture-toolbar button { transition: none; }
+  .camera-recording-indicator i { animation: none; }
+}

@@ -126,7 +126,7 @@ export default function InteractiveLanding({ header, language = 'en' }: Interact
   }, []);
 
   const handleClick = useCallback((event: ReactPointerEvent<HTMLElement>) => {
-    if (reducedMotion || event.button !== 0) return;
+    if (reducedMotion || event.button !== 0 || event.pointerType === 'touch') return;
     const bounds = event.currentTarget.getBoundingClientRect();
     const id = ++nextSignalId.current;
     const signal = {
@@ -194,12 +194,20 @@ export default function InteractiveLanding({ header, language = 'en' }: Interact
           <div className="ir-landing__text" lang={language === 'zh' ? 'zh-TW' : 'en'}>
             {paragraphs.map((paragraph) => <p key={paragraph}>{paragraph}</p>)}
           </div>
-          <Link className="ir-landing__action" href="/experience" data-testid="link-start-experience">
-            <span>{language === 'zh' ? '開始體驗' : 'START EXPERIENCE'}</span>
-            <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
-              <path d="M4.25 15.75 15.5 4.5M6 4.5h9.5V14" stroke="currentColor" strokeWidth="1.35" />
-            </svg>
-          </Link>
+          <div className="ir-landing__actions">
+            <Link className="ir-landing__action ir-landing__action--live" href="/experience" data-testid="link-home-live-interaction">
+              <span>{language === 'zh' ? '即時互動' : 'LIVE INTERACTION'}</span>
+              <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                <path d="M4.25 15.75 15.5 4.5M6 4.5h9.5V14" stroke="currentColor" strokeWidth="1.35" />
+              </svg>
+            </Link>
+            <Link className="ir-landing__action ir-landing__action--video" href="/video-distortion" data-testid="link-home-video-distortion">
+              <span>{language === 'zh' ? '影片偏差化' : 'VIDEO DISTORTION'}</span>
+              <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                <path d="M4.25 15.75 15.5 4.5M6 4.5h9.5V14" stroke="currentColor" strokeWidth="1.35" />
+              </svg>
+            </Link>
+          </div>
         </div>
         <div className="ir-landing__edge-mark" aria-hidden="true" />
       </section>

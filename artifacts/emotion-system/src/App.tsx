@@ -3,6 +3,7 @@ import { Link, Route, Switch, useLocation } from 'wouter';
 import { ArrowLeft, ArrowUpRight, Camera, ChevronDown, Expand, LockKeyhole, ScanFace, Settings2, ShieldCheck, VideoOff } from 'lucide-react';
 import VideoDistortion from './pages/VideoDistortion';
 import { useCameraController } from './camera/useCameraController';
+import { CameraCaptureControls } from './camera/CameraCaptureControls';
 import { DetectionDebugPanel } from './tracking/DetectionDebugPanel';
 import { DetectionOverlay } from './tracking/DetectionOverlay';
 import { PersonConnectionsOverlay } from './tracking/PersonConnectionsOverlay';
@@ -294,6 +295,11 @@ function Experience() {
                 hudSettings={hudSettings}
                 onHudSettingChange={onHudSettingChange}
               />
+              <CameraCaptureControls
+                stream={camera.stream}
+                videoRef={camera.videoRef}
+                mirrored={camera.mirrored}
+              />
             </div>
             <div className="preview-actions">
               <div className="camera-actions">
@@ -379,7 +385,7 @@ function Experience() {
             />
             <div className="privacy-block">
               <div className="privacy-mark"><ShieldCheck size={14} strokeWidth={1.5} /> {t('Private by design')}</div>
-              <strong>{t('Your video and face landmarks stay in this browser.')}</strong> {t('Only model files are downloaded; camera frames and facial features are not uploaded or recorded. Expression labels are heuristic estimates, not statements about how someone truly feels.')}
+              <strong>{t('Your video and face landmarks stay in this browser.')}</strong> {t('Only model files are downloaded by the site; camera frames and facial features are not uploaded. Photos and recordings are saved to this device only when you choose capture. Expression labels are heuristic estimates, not statements about how someone truly feels.')}
             </div>
           </aside>
         </div>

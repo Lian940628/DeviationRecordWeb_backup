@@ -15,8 +15,42 @@ export function SiteInteractionEffects() {
     let sequence = 0;
     let previous: { x: number; y: number } | null = null;
     let lastFlashAt = 0;
+    const activeTouches = new Map<number, { x: number; y: number; lastFlashAt: number }>();
+    const createFlash = (x: number, y: number, dx: number, dy: number, now: number) => {
+      const flash = {
+        id: ++sequence,
+        x,
+        y,
+        angle: Math.atan2(dy, dx) * (180 / Math.PI),
+      };
+      setFlashes((current) => [...current.slice(-5), flash]);
+      const timer = window.setTimeout(() => {
+        setFlashes((current) => current.filter((item) => item.id !== flash.id));
+        timers.delete(timer);
+      }, 480);
+      timers.add(timer);
+      return now;
+    };
     const move = (event: PointerEvent) => {
-      if (!haloRef.current || reduced.matches || (event.pointerType !== 'mouse' && event.pointerType !== 'pen')) return;
+      if (reduced.matches) return;
+      if (event.pointerType === 'touch') {
+        if (!event.isPrimary || event.buttons === 0) return;
+        const priorTouch = activeTouches.get(event.pointerId);
+        const now = performance.now();
+        if (priorTouch) {
+          const dx = event.clientX - priorTouch.x;
+          const dy = event.clientY - priorTouch.y;
+          if (Math.hypot(dx, dy) > 12 && now - priorTouch.lastFlashAt > 64) {
+            priorTouch.lastFlashAt = createFlash(event.clientX, event.clientY, dx, dy, now);
+          }
+          priorTouch.x = event.clientX;
+          priorTouch.y = event.clientY;
+        } else {
+          activeTouches.set(event.pointerId, { x: event.clientX, y: event.clientY, lastFlashAt: now });
+        }
+        return;
+      }
+      if (!haloRef.current || (event.pointerType !== 'mouse' && event.pointerType !== 'pen')) return;
       haloRef.current.style.transform = `translate3d(${event.clientX}px, ${event.clientY}px, 0) translate(-50%, -50%)`;
       haloRef.current.style.opacity = '.65';
       const now = performance.now();
@@ -24,18 +58,7 @@ export function SiteInteractionEffects() {
         const dx = event.clientX - previous.x;
         const dy = event.clientY - previous.y;
         if (Math.hypot(dx, dy) > 18 && now - lastFlashAt > 30) {
-          const flash = {
-            id: ++sequence,
-            x: previous.x + dx * .42,
-            y: previous.y + dy * .42,
-            angle: Math.atan2(dy, dx) * (180 / Math.PI),
-          };
-          setFlashes((current) => [...current.slice(-9), flash]);
-          const timer = window.setTimeout(() => {
-            setFlashes((current) => current.filter((item) => item.id !== flash.id));
-            timers.delete(timer);
-          }, 480);
-          timers.add(timer);
+          createFlash(previous.x + dx * .42, previous.y + dy * .42, dx, dy, now);
           lastFlashAt = now;
         }
       }
@@ -49,18 +72,26 @@ export function SiteInteractionEffects() {
       if (reduced.matches || event.button !== 0) return;
       const pulse = { id: ++sequence, x: event.clientX, y: event.clientY };
       setPulses((current) => [...current.slice(-3), pulse]);
+      if (event.pointerType === 'touch' && event.isPrimary) {
+        activeTouches.set(event.pointerId, { x: event.clientX, y: event.clientY, lastFlashAt: performance.now() });
+      }
       const timer = window.setTimeout(() => {
         setPulses((current) => current.filter((item) => item.id !== pulse.id));
         timers.delete(timer);
       }, 600);
       timers.add(timer);
     };
+    const endTouch = (event: PointerEvent) => activeTouches.delete(event.pointerId);
     window.addEventListener('pointermove', move, { passive: true });
     window.addEventListener('pointerdown', press, { passive: true });
+    window.addEventListener('pointerup', endTouch, { passive: true });
+    window.addEventListener('pointercancel', endTouch, { passive: true });
     document.documentElement.addEventListener('pointerleave', leave);
     return () => {
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerdown', press);
+      window.removeEventListener('pointerup', endTouch);
+      window.removeEventListener('pointercancel', endTouch);
       document.documentElement.removeEventListener('pointerleave', leave);
       timers.forEach(window.clearTimeout);
     };

@@ -32,7 +32,7 @@ export function useCameraController() {
   const [devices, setDevices] = useState<CameraDevice[]>([]);
   const [selectedDevice, setSelectedDevice] = useState('');
   const [status, setStatus] = useState<CameraStatus>('idle');
-  const [message, setMessage] = useState('Your camera stays in this browser. Nothing is recorded or sent.');
+  const [message, setMessage] = useState('Your camera stays in this browser. Recording starts only when you choose it; nothing is uploaded.');
   const [fps, setFps] = useState(0);
   const [permissionGranted, setPermissionGranted] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
@@ -185,7 +185,7 @@ export function useCameraController() {
     setStream(null);
     setStatus('idle');
     setFps(0);
-    setMessage('Camera stopped. No video was recorded or sent.');
+    setMessage('Camera stopped. Captures stay on this device; nothing was uploaded.');
   }, [stopTracks]);
 
   const selectedLabel = devices.find((device) => device.deviceId === selectedDevice)?.label ?? '';
