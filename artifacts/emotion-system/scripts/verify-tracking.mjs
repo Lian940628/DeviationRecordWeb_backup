@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { classifyBlendshapes, ExpressionSmoother, getCandidateSupports } from '../src/tracking/expressionClassifier.ts';
 import { PersonTracker } from '../src/tracking/personTracker.ts';
-import { samplePersonTracks } from '../src/tracking/videoTrackSamples.ts';
+import { samplePersonTracks, shouldUseAnalyzedPersonTracks } from '../src/tracking/videoTrackSamples.ts';
 
 // Deterministic rule/geometry regression checks, NOT an accuracy benchmark.
 // These feature vectors never enter the live camera application.
@@ -61,5 +61,8 @@ const timedTracks = [
   { time: 0.2, tracks: [{ id: 7, x: 0.3, y: 0.4, width: 0.2, height: 0.5, confidence: 0.9, visible: true }] },
 ];
 assert.ok(Math.abs(samplePersonTracks(timedTracks, 0.1)[0].x - 0.2) < 0.001, 'export tracks interpolate between analyzed frames');
+assert.equal(shouldUseAnalyzedPersonTracks(true, false, false), true, 'paused processed output retains analyzed person boxes');
+assert.equal(shouldUseAnalyzedPersonTracks(true, false, true), false, 'playing output returns to live person tracking');
+assert.equal(shouldUseAnalyzedPersonTracks(true, true, true), true, 'recording uses the analyzed track timeline');
 
 console.log('PASS: expression rules, temporal smoothing, person tracks, and export-time track interpolation.');

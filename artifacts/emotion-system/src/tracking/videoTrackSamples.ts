@@ -4,6 +4,14 @@ function blend(from: number, to: number, amount: number) {
   return from + (to - from) * amount;
 }
 
+export function shouldUseAnalyzedPersonTracks(
+  hasSamples: boolean,
+  isRecording: boolean,
+  isPlaying: boolean,
+): boolean {
+  return hasSamples && (isRecording || !isPlaying);
+}
+
 /** Interpolate pre-analysis tracks at playback time without running AI per frame. */
 export function samplePersonTracks(samples: TimedPersonTracks[], time: number): PersonTrack[] {
   if (!samples.length) return [];

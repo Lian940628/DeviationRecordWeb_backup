@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type ChangeEvent, type DragEv
 import { AlertCircle, Check, Cpu, Download, Expand, FileVideo2, Pause, Play, RotateCcw, Shrink, Trash2, Upload, Users, X } from 'lucide-react';
 import { useAppLanguage } from '../i18n';
 import { usePersonDetection } from '../tracking/usePersonDetection';
-import { samplePersonTracks } from '../tracking/videoTrackSamples';
+import { samplePersonTracks, shouldUseAnalyzedPersonTracks } from '../tracking/videoTrackSamples';
 import type { TimedPersonTracks } from '../tracking/types';
 import { VideoArtworkCanvas } from '../visualization/VideoArtworkCanvas';
 import { useVisualModes } from '../visualization/useVisualModes';
@@ -183,11 +183,18 @@ export default function VideoDistortion() {
     Boolean(source && mode === 'processed' && playing && !exportController.recording),
     true,
   );
-  const displayTracks = exportController.recording && exportTrackSamples.length
+  const useAnalyzedTracks = shouldUseAnalyzedPersonTracks(
+    exportTrackSamples.length > 0,
+    exportController.recording,
+    playing,
+  );
+  const displayTracks = useAnalyzedTracks
     ? samplePersonTracks(exportTrackSamples, currentTime)
     : detection.tracks;
   const visibleTracks = displayTracks.filter((track) => track.visible);
-  const modelStatus = exportController.recording
+  const modelStatus = useAnalyzedTracks
+    ? 'ready'
+    : exportController.recording
     ? exportController.status === 'Analyzing local person tracks…' ? 'loading' : 'ready'
     : detection.modelStatus;
 
@@ -466,7 +473,7 @@ export default function VideoDistortion() {
                   <VideoArtworkCanvas
                     videoRef={videoRef}
                     tracks={displayTracks}
-                    trackSamples={exportController.recording ? exportTrackSamples : []}
+                    trackSamples={useAnalyzedTracks ? exportTrackSamples : []}
                     expressions={EMPTY_EXPRESSIONS}
                     running
                     mirrored={false}
@@ -622,7 +629,7 @@ export default function VideoDistortion() {
                 <span>{t('Model')}</span>
                 <strong className={`vd-model-${modelStatus}`}>{modelStatus === 'idle' ? t('START PLAYBACK TO TRACK') : t(modelStatus.toUpperCase())}</strong>
               </div>
-              {!exportController.recording && detection.modelStatus === 'error' && <p className="vd-detection-error">{detection.modelMessage}</p>}
+              {!useAnalyzedTracks && detection.modelStatus === 'error' && <p className="vd-detection-error">{detection.modelMessage}</p>}
               <div className="vd-detection-stats">
                 <div><Users size={13} /><span>{t('PERSON COUNT')}</span><strong>{visibleTracks.length}</strong></div>
                 <div><span>{t('RENDER FPS')}</span><strong>{renderingFps || '—'}</strong></div>
