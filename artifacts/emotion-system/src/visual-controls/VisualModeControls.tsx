@@ -8,6 +8,7 @@ import {
   type VisualStage,
 } from "../visualization/visualSettings";
 import type { PlaybackMode, VisualModeControlsProps } from "./visualControlsTypes";
+import { useAppLanguage, useTranslation } from "../i18n";
 export type { PlaybackMode, VisualMode } from "./visualControlsTypes";
 import "./VisualModeControls.css";
 
@@ -117,6 +118,8 @@ export function VisualModeControls({
   onTransitionSettingChange, onAudioSettingChange, onAudioUnlock, onResetStage, onSavePreset, onLoadPreset, onExportPreset,
   onImportPreset, className = "",
 }: VisualModeControlsProps) {
+  const { language } = useAppLanguage();
+  const t = useTranslation();
   const [presetName, setPresetName] = useState("");
   const [selectedPreset, setSelectedPreset] = useState("");
   const stageSettings = settings.stages[visualMode];
@@ -134,7 +137,7 @@ export function VisualModeControls({
       <RangeControl
         key={field.key}
         id={`vmc-global-${field.key}`}
-        label={field.label}
+        label={t(field.label)}
         value={settings.global[key]}
         min={range.min}
         max={range.max}
@@ -151,8 +154,8 @@ export function VisualModeControls({
       const id = `vmc-stage-${visualMode}-${field.key}`;
       return (
         <div className="vmc-control vmc-toggle-control" key={field.key} data-testid={`control-${id}`}>
-          <label className="vmc-label" htmlFor={id}>{field.label}</label>
-          <input id={id} type="checkbox" checked={value} aria-label={field.label} data-testid={`toggle-${id}`}
+          <label className="vmc-label" htmlFor={id}>{t(field.label)}</label>
+          <input id={id} type="checkbox" checked={value} aria-label={t(field.label)} data-testid={`toggle-${id}`}
             onChange={(event) => onStageSettingChange(visualMode, field.key, event.currentTarget.checked)} />
         </div>
       );
@@ -161,7 +164,7 @@ export function VisualModeControls({
       const id = `vmc-stage-${visualMode}-${field.key}`;
       return (
         <div className="vmc-control vmc-color-control" key={field.key} data-testid={`control-${id}`}>
-          <label className="vmc-label" htmlFor={id}>{field.label}</label>
+          <label className="vmc-label" htmlFor={id}>{t(field.label)}</label>
           <div className="vmc-color-row">
             <input id={id} type="color" value={value} aria-label={field.label} data-testid={`color-${id}`}
               onChange={(event) => onStageSettingChange(visualMode, field.key, event.currentTarget.value)} />
@@ -175,7 +178,7 @@ export function VisualModeControls({
       <RangeControl
         key={field.key}
         id={`vmc-stage-${visualMode}-${field.key}`}
-        label={field.label}
+        label={t(field.label)}
         value={value}
         min={range.min}
         max={range.max}
@@ -190,24 +193,24 @@ export function VisualModeControls({
   return (
     <section className={`vmc-panel ${className}`.trim()} aria-labelledby="vmc-title">
       <header className="vmc-header">
-        <div><p className="vmc-kicker">EMOTION / SYSTEM</p><h2 className="vmc-title" id="vmc-title">Visual controls</h2></div>
+        <div><p className="vmc-kicker">EMOTION / SYSTEM</p><h2 className="vmc-title" id="vmc-title">{t('Visual controls')}</h2></div>
         <span className="vmc-index" aria-hidden="true">CTRL <i>·</i> 01 / 04</span>
       </header>
 
       <fieldset className="vmc-group">
-        <legend className="vmc-group-title">Playback</legend>
-        <div className="vmc-segmented" role="group" aria-label="Playback mode">
+        <legend className="vmc-group-title">{t('Playback')}</legend>
+        <div className="vmc-segmented" role="group" aria-label={t('Playback mode')}>
           {(["auto", "manual"] as PlaybackMode[]).map((mode) => (
             <button type="button" key={mode} className={`vmc-segment${playbackMode === mode ? " is-active" : ""}`}
               aria-pressed={playbackMode === mode} onClick={() => onPlaybackModeChange(mode)}
-              data-testid={`button-playback-${mode}`}><span className="vmc-state-mark" aria-hidden="true" />{mode}</button>
+              data-testid={`button-playback-${mode}`}><span className="vmc-state-mark" aria-hidden="true" />{t(mode.toUpperCase())}</button>
           ))}
         </div>
-        <p className="vmc-help">Auto cycles through all four stages. Selecting a stage switches to manual.</p>
+        <p className="vmc-help">{t('Auto cycles through all four stages. Selecting a stage switches to manual.')}</p>
       </fieldset>
 
       <fieldset className="vmc-group vmc-audio-group">
-        <legend className="vmc-group-title">Stage transition sound</legend>
+        <legend className="vmc-group-title">{t('Stage transition sound')}</legend>
         <div className="vmc-audio-heading">
           <button type="button" className="vmc-action" aria-pressed={!audio.muted}
             onClick={() => {
@@ -215,35 +218,35 @@ export function VisualModeControls({
               if (!nextMuted) onAudioUnlock();
               onAudioSettingChange("muted", nextMuted);
             }} data-testid="button-audio-mute">
-            {audio.muted ? "Unmute" : "Mute"}
+            {t(audio.muted ? "Unmute" : "Mute")}
           </button>
-          <span className="vmc-audio-status">{audio.muted ? "SILENT" : "LOCAL · USER-GESTURE GATED"}</span>
+          <span className="vmc-audio-status">{t(audio.muted ? "SILENT" : "LOCAL · USER-GESTURE GATED")}</span>
         </div>
-        <RangeControl id="vmc-audio-master-volume" label="Master volume" value={audio.masterVolume}
+        <RangeControl id="vmc-audio-master-volume" label={t("Master volume")} value={audio.masterVolume}
           min={0} max={0.4} step={0.01} unit="×" precision={2}
           onChange={(value) => onAudioSettingChange("masterVolume", value)} />
-        <div className="vmc-audio-stages" role="group" aria-label="Enable sound for each stage">
+        <div className="vmc-audio-stages" role="group" aria-label={t("Enable sound for each stage")}>
           {STAGES.map((item) => (
             <label className="vmc-audio-stage" key={item.mode}>
               <input type="checkbox" checked={audio.enabledStages[item.mode]}
                 onChange={(event) => onAudioSettingChange(item.mode, event.currentTarget.checked)}
                 data-testid={`toggle-stage-sound-${item.mode}`} />
-              <span>{item.index} · {item.name}</span>
+              <span>{item.index} · {t(item.name)}</span>
             </label>
           ))}
         </div>
-        <p className="vmc-help">Short local tones play when stages change. Audio starts after camera access or UNMUTE.</p>
+        <p className="vmc-help">{t('Short local tones play when stages change. Audio starts after camera access or UNMUTE.')}</p>
       </fieldset>
 
       <fieldset className="vmc-group">
-        <legend className="vmc-group-title">Image state</legend>
-        <div className="vmc-mode-list" role="group" aria-label="Visual stage">
+        <legend className="vmc-group-title">{t('Image state')}</legend>
+        <div className="vmc-mode-list" role="group" aria-label={t('Visual stage')}>
           {STAGES.map((item) => (
             <button key={item.mode} type="button" className={`vmc-mode-option${visualMode === item.mode ? " is-active" : ""}`}
               aria-pressed={visualMode === item.mode} onClick={() => onVisualModeChange(item.mode)}
               data-testid={`button-stage-${item.mode}`}>
               <span className={`vmc-mode-glyph ${item.glyph}`} aria-hidden="true" />
-              <span className="vmc-mode-copy"><strong>{item.index} · {item.name}</strong><small>{item.note}</small></span>
+              <span className="vmc-mode-copy"><strong>{item.index} · {t(item.name)}</strong><small>{t(item.note)}</small></span>
               <span className="vmc-check" aria-hidden="true">●</span>
             </button>
           ))}
@@ -251,73 +254,73 @@ export function VisualModeControls({
       </fieldset>
 
       <fieldset className="vmc-group vmc-settings-group">
-        <legend className="vmc-group-title">Global image · all stages</legend>
+        <legend className="vmc-group-title">{t('Global image · all stages')}</legend>
         <div className="vmc-fields">{GLOBAL_FIELDS.map(renderGlobalField)}</div>
         <button type="button" className="vmc-action vmc-reset-image" onClick={onResetImageSettings}
-          data-testid="button-reset-image">Reset image settings</button>
+          data-testid="button-reset-image">{t('Reset image settings')}</button>
       </fieldset>
 
       <fieldset className="vmc-group vmc-settings-group">
-        <legend className="vmc-group-title">{stage.index} · {stage.name} settings</legend>
+        <legend className="vmc-group-title">{stage.index} · {t(stage.name)} {t('settings')}</legend>
         <div className="vmc-stage-banner"><span className={`vmc-mode-glyph ${stage.glyph}`} aria-hidden="true" />
-          <span>Editing stage {stage.index} only</span></div>
+          <span>{language === 'zh' ? `僅編輯 ${stage.index} 階段` : `Editing stage ${stage.index} only`}</span></div>
         <div className="vmc-fields">
-          <RangeControl id={`vmc-stage-${visualMode}-duration`} label="Stage duration" value={stageSettings.duration}
+          <RangeControl id={`vmc-stage-${visualMode}-duration`} label={t("Stage duration")} value={stageSettings.duration}
             min={STAGE_SETTING_RANGES[visualMode].duration.min} max={STAGE_SETTING_RANGES[visualMode].duration.max}
             step={STAGE_SETTING_RANGES[visualMode].duration.step} unit=" s" precision={1}
             onChange={(value) => onStageSettingChange(visualMode, "duration", value)} />
           {STAGE_FIELDS[visualMode].map(renderStageField)}
         </div>
         <button type="button" className="vmc-action" onClick={() => onResetStage(visualMode)}
-          data-testid={`button-reset-stage-${visualMode}`}>Reset {stage.name.toLowerCase()} stage</button>
+          data-testid={`button-reset-stage-${visualMode}`}>{language === "zh" ? `重設「${t(stage.name)}」階段` : `Reset ${stage.name.toLowerCase()} stage`}</button>
       </fieldset>
 
       <fieldset className="vmc-group vmc-settings-group">
-        <legend className="vmc-group-title">Render and transition</legend>
+        <legend className="vmc-group-title">{t("Render and transition")}</legend>
         <div className="vmc-fields">
-          <RangeControl id="vmc-transition-glitch-duration" label="Glitch duration"
+          <RangeControl id="vmc-transition-glitch-duration" label={t("Glitch duration")}
             value={settings.transitions.glitchDurationSeconds}
             min={TRANSITION_SETTING_RANGES.glitchDurationSeconds.min}
             max={TRANSITION_SETTING_RANGES.glitchDurationSeconds.max}
             step={TRANSITION_SETTING_RANGES.glitchDurationSeconds.step} unit=" s" precision={2}
             onChange={(value) => onTransitionSettingChange("glitchDurationSeconds", value)} />
-          <RangeControl id="vmc-render-scale" label="Internal render scale"
+          <RangeControl id="vmc-render-scale" label={t("Internal render scale")}
             value={settings.transitions.renderScale}
             min={TRANSITION_SETTING_RANGES.renderScale.min}
             max={TRANSITION_SETTING_RANGES.renderScale.max}
             step={TRANSITION_SETTING_RANGES.renderScale.step} unit="×" precision={2}
             onChange={(value) => onTransitionSettingChange("renderScale", value)} />
         </div>
-        <p className="vmc-help">Glitch is a short cut into stages 01 and 03. Lower render scale uses less GPU.</p>
+        <p className="vmc-help">{t("Glitch is a short cut into stages 01 and 03. Lower render scale uses less GPU.")}</p>
       </fieldset>
 
       <fieldset className="vmc-group vmc-preset-group">
-        <legend className="vmc-group-title">Preset library</legend>
-        <label className="vmc-label" htmlFor="vmc-preset-select">Saved preset</label>
+        <legend className="vmc-group-title">{t("Preset library")}</legend>
+        <label className="vmc-label" htmlFor="vmc-preset-select">{t("Saved preset")}</label>
         <div className="vmc-preset-row">
           <select id="vmc-preset-select" value={selectedPreset} onChange={(event) => setSelectedPreset(event.currentTarget.value)}
-            data-testid="select-preset" aria-label="Choose saved preset">
-            <option value="">Choose a preset</option>
+            data-testid="select-preset" aria-label={t("Choose saved preset")}>
+            <option value="">{t("Choose a preset")}</option>
             {savedPresets.map((name) => <option key={name} value={name}>{name}</option>)}
           </select>
           <button type="button" className="vmc-action" disabled={!selectedPreset} onClick={() => onLoadPreset(selectedPreset)}
-            data-testid="button-load-preset">Load</button>
+            data-testid="button-load-preset">{t("Load")}</button>
         </div>
-        <label className="vmc-label vmc-save-label" htmlFor="vmc-preset-name">Save current settings</label>
+        <label className="vmc-label vmc-save-label" htmlFor="vmc-preset-name">{t("Save current settings")}</label>
         <div className="vmc-preset-row">
-          <input id="vmc-preset-name" type="text" value={presetName} maxLength={80} placeholder="Preset name"
+          <input id="vmc-preset-name" type="text" value={presetName} maxLength={80} placeholder={t("Preset name")}
             onChange={(event) => setPresetName(event.currentTarget.value)} data-testid="input-preset-name" />
           <button type="button" className="vmc-action" disabled={!presetName.trim()}
-            onClick={() => { onSavePreset(presetName.trim()); setPresetName(""); }} data-testid="button-save-preset">Save</button>
+            onClick={() => { onSavePreset(presetName.trim()); setPresetName(""); }} data-testid="button-save-preset">{t("Save")}</button>
         </div>
         <div className="vmc-preset-actions">
-          <button type="button" className="vmc-action" onClick={onExportPreset} data-testid="button-export-preset">Export JSON</button>
+          <button type="button" className="vmc-action" onClick={onExportPreset} data-testid="button-export-preset">{t("Export JSON")}</button>
           <input id="vmc-import-preset" className="vmc-file-input" type="file" accept="application/json,.json"
             onChange={changeFile} data-testid="input-import-preset" />
-          <label className="vmc-action vmc-file-button" htmlFor="vmc-import-preset" data-testid="button-import-preset">Import JSON</label>
+          <label className="vmc-action vmc-file-button" htmlFor="vmc-import-preset" data-testid="button-import-preset">{t("Import JSON")}</label>
         </div>
-        {presetMessage && <p className="vmc-status" role="status" aria-live="polite" data-testid="status-preset-message">{presetMessage}</p>}
-        {presetError && <p className="vmc-status is-error" role="alert" data-testid="status-preset-error">{presetError}</p>}
+        {presetMessage && <p className="vmc-status" role="status" aria-live="polite" data-testid="status-preset-message">{t(presetMessage)}</p>}
+        {presetError && <p className="vmc-status is-error" role="alert" data-testid="status-preset-error">{t(presetError)}</p>}
       </fieldset>
     </section>
   );

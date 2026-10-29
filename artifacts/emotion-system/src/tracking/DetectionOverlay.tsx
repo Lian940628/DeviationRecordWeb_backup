@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import type { RefObject } from 'react';
 import type { ExpressionReadout } from './expressionTypes';
 import type { PersonTrack } from './types';
+import { useTranslation } from '../i18n';
 
 interface DetectionOverlayProps {
   videoRef: RefObject<HTMLVideoElement | null>;
@@ -47,17 +48,20 @@ export function DetectionOverlay({
   showPersonIds = true,
   onRenderingFps,
 }: DetectionOverlayProps) {
+  const t = useTranslation();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const tracksRef = useRef(tracks);
   const expressionsRef = useRef(expressions);
   const mirroredRef = useRef(mirrored);
   const showPersonIdsRef = useRef(showPersonIds);
   const fpsCallbackRef = useRef(onRenderingFps);
+  const translateRef = useRef(t);
   tracksRef.current = tracks;
   expressionsRef.current = expressions;
   mirroredRef.current = mirrored;
   showPersonIdsRef.current = showPersonIds;
   fpsCallbackRef.current = onRenderingFps;
+  translateRef.current = t;
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -154,10 +158,10 @@ export function DetectionOverlay({
 
         const id = String(Math.max(0, Math.trunc(track.id))).padStart(3, '0');
         const expression = expressionByTrack.get(track.id);
-        const expressionLabel = `EXPRESSION: ${expression?.label ?? 'UNKNOWN'}`;
-        const scoreLabel = `SCORE: ${expression?.score === null || expression?.score === undefined ? '--' : expression.score.toFixed(2)}`;
+        const expressionLabel = `${translateRef.current('EXPRESSION:')} ${translateRef.current(expression?.label ?? 'UNKNOWN')}`;
+        const scoreLabel = `${translateRef.current('SCORE:')} ${expression?.score === null || expression?.score === undefined ? '--' : expression.score.toFixed(2)}`;
         const labels = showPersonIdsRef.current
-          ? [`PERSON ID: ${id}`, expressionLabel, scoreLabel]
+          ? [`${translateRef.current('PERSON ID:')} ${id}`, expressionLabel, scoreLabel]
           : [expressionLabel, scoreLabel];
         const labelWidth = Math.max(...labels.map((label) => context.measureText(label).width));
         const labelHeight = labels.length * 13 + 3;
@@ -183,7 +187,7 @@ export function DetectionOverlay({
         });
       });
 
-      const countLabel = 'PERSON COUNT';
+      const countLabel = translateRef.current('PERSON COUNT');
       const countValue = String(visibleTracks.length).padStart(2, '0');
       const countTextWidth = context.measureText(countLabel).width;
       const countX = Math.max(12, videoOffsetX + 18);

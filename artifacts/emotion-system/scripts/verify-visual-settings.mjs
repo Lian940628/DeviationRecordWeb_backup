@@ -10,12 +10,30 @@ assert.deepEqual(
   Object.values(defaults.stages).map((stage) => stage.duration),
   [1.4, 0.7, 0.9, 0.8],
 );
-assert.equal(defaults.transitions.glitchDurationSeconds, 0.12);
+assert.equal(defaults.transitions.glitchDurationSeconds, 0.18);
 assert.equal(defaults.transitions.renderScale, 0.7);
-assert.equal(defaults.audio.masterVolume, 0.12);
+assert.equal(defaults.global.saturation, 95);
+assert.equal(defaults.global.brightness, 83);
+assert.equal(defaults.global.contrast, 123);
+assert.equal(defaults.global.gamma, 1.23);
+assert.equal(defaults.global.outputWhite, 65);
+assert.equal(defaults.stages.normal.digitalNoiseIntensity, 15);
+assert.equal(defaults.stages.normal.scanlineOpacity, 17);
+assert.equal(defaults.stages.anomaly.intensity, 129);
+assert.equal(defaults.stages.anomaly.anomalyColor, '#339ecc');
+assert.equal(defaults.stages.particle.particleSize, 2.9);
+assert.equal(defaults.stages.particle.particleDensity, 62);
+assert.equal(defaults.stages.particle.luminanceThreshold, 0.26);
+assert.equal(defaults.stages.particle.glowIntensity, 62);
+assert.equal(defaults.stages.line.lineThickness, 2.3);
+assert.equal(defaults.stages.line.edgeThreshold, 0.135);
+assert.equal(defaults.stages.line.lineFlicker, 66);
+assert.equal(defaults.audio.masterVolume, 0.19);
 assert.equal(defaults.audio.muted, false);
 assert.equal(defaults.stages.line.personConnectionsEnabled, true);
-assert.equal(defaults.stages.line.personConnectionOpacity, 42);
+assert.equal(defaults.stages.line.personConnectionWidth, 2.9);
+assert.equal(defaults.stages.line.personConnectionOpacity, 24);
+assert.equal(defaults.stages.line.personConnectionGlow, 100);
 assert.equal(defaults.stages.line.showPersonIds, true);
 
 const altered = normalizeVisualSettings({
