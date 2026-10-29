@@ -1,5 +1,5 @@
 import type { ModelStatus } from './types';
-import type { ExpressionReadout } from './expressionTypes';
+import type { ExpressionReadout, FaceDebugRecord, UnknownReason } from './expressionTypes';
 
 interface DetectionDebugPanelProps {
   debugMode: boolean;
@@ -10,6 +10,9 @@ interface DetectionDebugPanelProps {
   faceModelMessage: string;
   detectedFaces: number;
   inferenceTimeMs: number;
+  lastSuccessfulFaceAt: number | null;
+  unknownReason: UnknownReason | null;
+  faceDiagnostics: FaceDebugRecord[];
   expressions: ExpressionReadout[];
   personCount: number;
   detectionFps: number;
@@ -37,6 +40,9 @@ export function DetectionDebugPanel({
   faceModelMessage,
   detectedFaces,
   inferenceTimeMs,
+  lastSuccessfulFaceAt,
+  unknownReason,
+  faceDiagnostics,
   expressions,
   personCount,
   detectionFps,
@@ -95,32 +101,110 @@ export function DetectionDebugPanel({
               <dd className={`detection-status-text status-${faceModelStatus}`} data-testid="text-face-model-status">{statusLabels[faceModelStatus]}</dd>
             </div>
             <div className="detection-debug-row">
-              <dt>Detected Faces</dt>
+              <dt>Face Model Ready</dt>
+              <dd data-testid="text-face-model-ready">{faceModelStatus === 'ready' ? 'YES' : 'NO'}</dd>
+            </div>
+            <div className="detection-debug-row">
+              <dt>Detected Face Count</dt>
               <dd data-testid="text-detected-face-count">{detectedFaces}</dd>
+            </div>
+            <div className="detection-debug-row">
+              <dt>Blendshape Count</dt>
+              <dd data-testid="text-blendshape-count">
+                {faceDiagnostics.length
+                  ? faceDiagnostics.map((face) => `F${String(face.faceNumber).padStart(2, '0')}:${face.blendshapeCount}`).join(' · ')
+                  : '—'}
+              </dd>
             </div>
             <div className="detection-debug-row">
               <dt>Inference Time</dt>
               <dd data-testid="text-face-inference-time">{Number.isFinite(inferenceTimeMs) ? `${inferenceTimeMs.toFixed(1)} ms` : '—'}</dd>
             </div>
+            <div className="detection-debug-row">
+              <dt>Last Successful Face Detection Time</dt>
+              <dd data-testid="text-last-face-detection-time">
+                {lastSuccessfulFaceAt === null
+                  ? 'NEVER'
+                  : `${new Date(lastSuccessfulFaceAt).toLocaleTimeString()} · ${Math.max(0, (Date.now() - lastSuccessfulFaceAt) / 1000).toFixed(1)}s AGO`}
+              </dd>
+            </div>
+            <div className="detection-debug-row">
+              <dt>UNKNOWN Reason</dt>
+              <dd data-testid="text-face-unknown-reason">{unknownReason ?? '—'}</dd>
+            </div>
           </dl>
-          <div className="detection-debug-expression-heading">Per-person expression · heuristic support</div>
+          <div className="detection-debug-expression-heading">Per-person result · heuristic support</div>
           {expressions.length ? (
             <div className="detection-debug-expression-list">
               {expressions.map((expression) => (
                 <div className="detection-debug-expression" key={expression.trackId}>
                   <div className="detection-debug-expression-row">
-                    <span>PERSON {formatTrackId(expression.trackId)} · EXPRESSION LABEL</span>
+                    <span>PERSON {formatTrackId(expression.trackId)} · MATCHED PERSON ID</span>
+                    <strong>{expression.matchedPersonId === null ? '—' : formatTrackId(expression.matchedPersonId)}</strong>
+                  </div>
+                  <div className="detection-debug-expression-row">
+                    <span>RAW EXPRESSION</span>
+                    <strong>{expression.rawLabel}{expression.rawScore === null ? '' : ` · ${expression.rawScore.toFixed(2)}`}</strong>
+                  </div>
+                  <div className="detection-debug-expression-row">
+                    <span>SMOOTHED EXPRESSION</span>
                     <strong>{expression.label}</strong>
                   </div>
                   <div className="detection-debug-expression-row">
-                    <span>CLASSIFICATION SCORE</span>
+                    <span>CLASSIFICATION SCORE · SUPPORT</span>
                     <strong>{expression.score === null ? '—' : expression.score.toFixed(2)}</strong>
                   </div>
+                  <div className="detection-debug-expression-row">
+                    <span>BLENDSHAPE COUNT · UNKNOWN REASON</span>
+                    <strong>{expression.blendshapeCount} · {expression.unknownReason ?? '—'}</strong>
+                  </div>
+                  {expression.topBlendshapes.length > 0 && (
+                    <div className="detection-debug-expression-row">
+                      <span>TOP 5 BLENDSHAPES</span>
+                      <strong>{expression.topBlendshapes.map((item) => `${item.name} ${item.score.toFixed(2)}`).join(' · ')}</strong>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
           ) : (
             <p className="detection-debug-message">Waiting for a tracked person and a reliable face view.</p>
+          )}
+          {faceDiagnostics.length > 0 && (
+            <div className="detection-debug-expression-list" data-testid="face-frame-diagnostics">
+              {faceDiagnostics.map((face) => (
+                <div className="detection-debug-expression" key={face.faceNumber}>
+                  <div className="detection-debug-expression-heading">FACE {String(face.faceNumber).padStart(2, '0')} · FRAME DIAGNOSTICS</div>
+                  <div className="detection-debug-expression-row">
+                    <span>BLENDSHAPE COUNT</span>
+                    <strong>{face.blendshapeCount} ({face.invalidBlendshapeCount} INVALID)</strong>
+                  </div>
+                  <div className="detection-debug-expression-row">
+                    <span>RAW EXPRESSION</span>
+                    <strong>{face.rawExpression}{face.rawScore === null ? '' : ` · ${face.rawScore.toFixed(2)}`}</strong>
+                  </div>
+                  <div className="detection-debug-expression-row">
+                    <span>SMOOTHED EXPRESSION</span>
+                    <strong>{face.smoothedExpression}</strong>
+                  </div>
+                  <div className="detection-debug-expression-row">
+                    <span>MATCHED PERSON ID</span>
+                    <strong>{face.matchedPersonId === null ? '—' : formatTrackId(face.matchedPersonId)}</strong>
+                  </div>
+                  <div className="detection-debug-expression-row">
+                    <span>POSE / UNKNOWN REASON</span>
+                    <strong>{face.poseReliable ? 'RELIABLE' : 'LOW'} · {face.unknownReason ?? '—'}</strong>
+                  </div>
+                  <div className="detection-debug-expression-row">
+                    <span>TOP 5 BLENDSHAPES</span>
+                    <strong>{face.topBlendshapes.length
+                      ? face.topBlendshapes.map((item) => `${item.name} ${item.score.toFixed(2)}`).join(' · ')
+                      : '—'}
+                    </strong>
+                  </div>
+                </div>
+              ))}
+            </div>
           )}
           <p className="detection-debug-message">
             Heuristic support only, not an emotion probability. HAPPY = .76 × smile + .24 × cheek squint;

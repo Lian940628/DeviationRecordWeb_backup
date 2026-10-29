@@ -186,7 +186,7 @@ button:focus-visible, a:focus-visible, select:focus-visible { outline: 2px solid
 .detection-debug-expression { padding: 8px 9px; border: 1px solid rgba(159, 190, 229, .1); background: rgba(7, 14, 22, .56); }
 .detection-debug-expression-row { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; min-height: 20px; }
 .detection-debug-expression-row span { color: #778c97; font-size: 8px; letter-spacing: .04em; }
-.detection-debug-expression-row strong { color: #b9fff0; font-size: 9px; font-weight: 500; text-align: right; }
+.detection-debug-expression-row strong { max-width: 68%; overflow-wrap: anywhere; color: #b9fff0; font-size: 9px; font-weight: 500; text-align: right; }
 @media (max-width: 600px) {
   .detection-debug-content { padding-right: 11px; padding-left: 11px; }
   .detection-debug-row { gap: 8px; }

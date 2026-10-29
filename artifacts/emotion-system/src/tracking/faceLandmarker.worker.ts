@@ -31,7 +31,11 @@ async function getLandmarker(): Promise<FaceLandmarker> {
 
   const pending = (async () => {
     const vision = await FilesetResolver.forVisionTasks(WASM_BASE_URL);
+    const taskCanvas = typeof OffscreenCanvas === 'function'
+      ? new OffscreenCanvas(1, 1)
+      : undefined;
     return FaceLandmarker.createFromOptions(vision, {
+      canvas: taskCanvas,
       baseOptions: {
         modelAssetPath: FACE_MODEL_URL,
         delegate: 'CPU',

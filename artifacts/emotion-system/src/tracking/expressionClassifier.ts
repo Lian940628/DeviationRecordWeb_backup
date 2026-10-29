@@ -1,4 +1,4 @@
-import type { ExpressionLabel, ExpressionReadout } from './expressionTypes';
+import type { ExpressionLabel } from './expressionTypes';
 
 type EmotionLabel = Exclude<ExpressionLabel, 'UNKNOWN'>;
 type EmotionSignals = Record<EmotionLabel, number>;
@@ -87,8 +87,8 @@ interface SmoothingMemory {
   ambiguousFrames: number;
 }
 
-function unknownReadout(trackId: number): ExpressionReadout {
-  return { trackId, label: 'UNKNOWN', score: null };
+function unknownClassification(): ExpressionClassification {
+  return { label: 'UNKNOWN', score: null };
 }
 
 function scoreForLabel(label: ExpressionLabel, blendshapes: Record<string, number>): number | null {
@@ -112,7 +112,7 @@ export class ExpressionSmoother {
     }
   }
 
-  markUnknown(trackId: number): ExpressionReadout {
+  markUnknown(trackId: number): ExpressionClassification {
     const memory = this.memories.get(trackId);
     if (memory) {
       memory.stableLabel = 'UNKNOWN';
@@ -120,10 +120,10 @@ export class ExpressionSmoother {
       memory.pendingFrames = 0;
       memory.ambiguousFrames = 0;
     }
-    return unknownReadout(trackId);
+    return unknownClassification();
   }
 
-  update(trackId: number, blendshapes: Record<string, number>): ExpressionReadout {
+  update(trackId: number, blendshapes: Record<string, number>): ExpressionClassification {
     let memory = this.memories.get(trackId);
     if (!memory) {
       memory = {
@@ -150,20 +150,19 @@ export class ExpressionSmoother {
       memory.pendingFrames = 0;
       if (memory.stableLabel !== 'UNKNOWN' && memory.ambiguousFrames <= MAX_AMBIGUOUS_FRAMES) {
         return {
-          trackId,
           label: memory.stableLabel,
           score: scoreForLabel(memory.stableLabel, memory.blendshapes),
         };
       }
       memory.stableLabel = 'UNKNOWN';
-      return unknownReadout(trackId);
+      return unknownClassification();
     }
 
     memory.ambiguousFrames = 0;
     if (candidate.label === memory.stableLabel) {
       memory.pendingLabel = null;
       memory.pendingFrames = 0;
-      return { ...candidate, trackId };
+      return candidate;
     }
 
     if (candidate.label === memory.pendingLabel) {
@@ -177,16 +176,15 @@ export class ExpressionSmoother {
       memory.stableLabel = candidate.label;
       memory.pendingLabel = null;
       memory.pendingFrames = 0;
-      return { ...candidate, trackId };
+      return candidate;
     }
 
     if (memory.stableLabel !== 'UNKNOWN') {
       return {
-        trackId,
         label: memory.stableLabel,
         score: scoreForLabel(memory.stableLabel, memory.blendshapes),
       };
     }
-    return unknownReadout(trackId);
+    return unknownClassification();
   }
 }

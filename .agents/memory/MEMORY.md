@@ -1,0 +1,1 @@
+- [MediaPipe worker canvas](mediapipe-worker-canvas.md) — pass an explicit OffscreenCanvas when initializing Tasks Vision in a worker; its fallback may require document.

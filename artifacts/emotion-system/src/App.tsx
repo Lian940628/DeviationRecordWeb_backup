@@ -135,6 +135,9 @@ function Experience() {
               faceModelMessage={faceAnalysis.modelMessage}
               detectedFaces={faceAnalysis.detectedFaces}
               inferenceTimeMs={faceAnalysis.inferenceTimeMs}
+              lastSuccessfulFaceAt={faceAnalysis.lastSuccessfulFaceAt}
+              unknownReason={faceAnalysis.unknownReason}
+              faceDiagnostics={faceAnalysis.faceDiagnostics}
               expressions={faceAnalysis.expressions}
               personCount={detection.personCount}
               detectionFps={detection.detectionFps}

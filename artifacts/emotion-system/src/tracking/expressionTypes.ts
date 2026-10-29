@@ -30,6 +30,7 @@ export interface ExpressionReadout {
   rawLabel: ExpressionLabel;
   /** Weighted blendshape support in [0, 1], not a calibrated emotion probability. */
   score: number | null;
+  rawScore: number | null;
   matchedPersonId: number | null;
   blendshapeCount: number;
   topBlendshapes: BlendshapeSummary[];
@@ -39,8 +40,11 @@ export interface ExpressionReadout {
 export interface FaceDebugRecord {
   faceNumber: number;
   blendshapeCount: number;
+  invalidBlendshapeCount: number;
+  poseReliable: boolean;
   topBlendshapes: BlendshapeSummary[];
   rawExpression: ExpressionLabel;
+  rawScore: number | null;
   smoothedExpression: ExpressionLabel;
   matchedPersonId: number | null;
   score: number | null;
