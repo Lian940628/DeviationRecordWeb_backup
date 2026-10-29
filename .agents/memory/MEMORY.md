@@ -1,1 +1,2 @@
 - [MediaPipe worker canvas](mediapipe-worker-canvas.md) — pass an explicit OffscreenCanvas when initializing Tasks Vision in a worker; its fallback may require document.
+- [MediaPipe module loader](mediapipe-module-worker.md) — ES module workers need the ES module WASM fileset; the classic loader causes “ModuleFactory not set.”

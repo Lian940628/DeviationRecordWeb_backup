@@ -65,7 +65,7 @@ export default defineConfig({
     emptyOutDir: true,
   },
   worker: {
-    format: 'iife',
+    format: 'es',
   },
   server: {
     port,

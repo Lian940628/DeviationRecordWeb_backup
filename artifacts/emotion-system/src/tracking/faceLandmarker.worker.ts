@@ -30,7 +30,9 @@ async function getLandmarker(): Promise<FaceLandmarker> {
   if (loadingLandmarker) return loadingLandmarker;
 
   const pending = (async () => {
-    const vision = await FilesetResolver.forVisionTasks(WASM_BASE_URL);
+    // Module workers cannot publish a classic script's top-level `var ModuleFactory`
+    // to self. Use MediaPipe's ES-module loader, which explicitly sets globalThis.
+    const vision = await FilesetResolver.forVisionTasks(WASM_BASE_URL, true);
     const taskCanvas = typeof OffscreenCanvas === 'function'
       ? new OffscreenCanvas(1, 1)
       : undefined;
