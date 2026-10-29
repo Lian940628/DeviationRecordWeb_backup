@@ -146,3 +146,49 @@
 @media (prefers-reduced-motion: reduce) {
   .vmc-panel *, .vmc-panel *::before, .vmc-panel *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; }
 }
+
+/* Compact submerged signal console */
+.vmc-panel {
+  --vmc-ink: #d9f4e9;
+  --vmc-muted: #83a79d;
+  --vmc-dim: #66877e;
+  --vmc-line: rgba(83, 212, 195, .22);
+  --vmc-blue: #48d5df;
+  --vmc-cyan: #8af7ed;
+  --vmc-teal: #59e8bf;
+  --vmc-gold: #d1f16a;
+  border-color: rgba(83, 212, 195, .3);
+  background:
+    linear-gradient(135deg, rgba(18, 91, 76, .19), transparent 48%),
+    repeating-linear-gradient(0deg, rgba(81, 221, 193, .018) 0 1px, transparent 1px 4px),
+    rgba(4, 17, 15, .94);
+}
+.vmc-kicker { color: #70e8df; }
+.vmc-title { color: #e0fff3; }
+.vmc-index i { color: #d1f16a; }
+.vmc-segmented { border-color: rgba(82, 202, 184, .23); background: rgba(1, 13, 11, .8); }
+.vmc-segment { color: #91afa5; }
+.vmc-segment.is-active { border-color: rgba(89, 232, 191, .45); background: rgba(22, 116, 94, .2); color: #9cf9e8; }
+.vmc-mode-option { border-color: rgba(82, 202, 184, .2); background: rgba(2, 13, 11, .65); color: #a9c6bb; }
+.vmc-mode-option.is-active { border-color: rgba(91, 232, 191, .48); background: rgba(14, 89, 72, .25); color: #e1fff2; }
+.vmc-glyph-frame::after { background: #d1f16a; }
+.vmc-glyph-particle { background:
+  radial-gradient(circle at 22% 30%, #59e8bf 0 .8px, transparent 1.2px),
+  radial-gradient(circle at 61% 18%, #8af7ed 0 .8px, transparent 1.2px),
+  radial-gradient(circle at 74% 66%, #48d5df 0 .8px, transparent 1.2px),
+  radial-gradient(circle at 38% 72%, #8af7ed 0 .8px, transparent 1.2px),
+  radial-gradient(circle at 47% 45%, #59e8bf 0 .8px, transparent 1.2px), #03110f;
+}
+.vmc-glyph-line { background:
+  linear-gradient(35deg, transparent 46%, rgba(138, 247, 237, .85) 46% 52%, transparent 52%),
+  linear-gradient(-60deg, transparent 60%, rgba(72, 213, 223, .7) 60% 65%, transparent 65%), #03110f; }
+.vmc-mode-copy small { color: #82a49a; }
+.vmc-range::-webkit-slider-thumb { border-color: #a4fff0; background: #0a3028; }
+.vmc-range::-moz-range-thumb { border-color: #a4fff0; background: #0a3028; }
+.vmc-action { border-color: rgba(72, 213, 223, .34); background: rgba(18, 100, 82, .16); color: #c0e7da; }
+.vmc-action:hover:not(:disabled) { border-color: rgba(138, 247, 237, .72); background: rgba(25, 135, 108, .24); color: #a5fff0; }
+.vmc-preset-row select, .vmc-preset-row input { border-color: rgba(82, 202, 184, .24); background: rgba(1, 13, 11, .8); color: #cce7dc; }
+.vmc-file-input:focus-visible + .vmc-file-button,
+.vmc-panel button:focus-visible, .vmc-panel input:focus-visible, .vmc-panel select:focus-visible, .vmc-file-button:focus-visible {
+  outline-color: #d1f16a;
+}

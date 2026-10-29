@@ -32,7 +32,7 @@ export function createArtworkScene(canvas: HTMLCanvasElement) {
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
   geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
-  const material = new THREE.PointsMaterial({ color: 0x73b9ff, size: .025, transparent: true, opacity: .75, depthWrite: false, sizeAttenuation: true });
+  const material = new THREE.PointsMaterial({ color: 0x57ead7, size: .025, transparent: true, opacity: .72, depthWrite: false, sizeAttenuation: true });
   const points = new THREE.Points(geometry, material);
   scene.add(points);
   let width = 1;
