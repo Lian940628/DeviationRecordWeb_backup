@@ -2,6 +2,7 @@ import type { ExpressionLabel } from './expressionTypes';
 
 type EmotionLabel = Exclude<ExpressionLabel, 'UNKNOWN'>;
 type EmotionSignals = Record<EmotionLabel, number>;
+type NonNeutralLabel = Exclude<EmotionLabel, 'NEUTRAL'>;
 
 export interface ExpressionClassification {
   label: ExpressionLabel;
@@ -11,6 +12,13 @@ export interface ExpressionClassification {
 const EMA_ALPHA = 0.42;
 const LABEL_CONFIRMATION_FRAMES = 3;
 const MAX_AMBIGUOUS_FRAMES = 2;
+const MIN_SUPPORT: Record<NonNeutralLabel, number> = {
+  HAPPY: 0.35,
+  SAD: 0.24,
+  ANGRY: 0.24,
+  SURPRISED: 0.35,
+};
+const MIN_CLASS_MARGIN = 0.08;
 
 function clamp(value: number): number {
   return Math.min(1, Math.max(0, Number.isFinite(value) ? value : 0));
@@ -42,12 +50,15 @@ export function getEmotionSignals(blendshapes: Record<string, number>): EmotionS
   const eyeSquint = averagePair(blendshapes, 'eyeSquintLeft', 'eyeSquintRight');
   const mouthPress = averagePair(blendshapes, 'mouthPressLeft', 'mouthPressRight');
   const eyeWide = averagePair(blendshapes, 'eyeWideLeft', 'eyeWideRight');
+  const noseSneer = averagePair(blendshapes, 'noseSneerLeft', 'noseSneerRight');
   const browInnerUp = clamp(blendshapes.browInnerUp ?? 0);
   const jawOpen = clamp(blendshapes.jawOpen ?? 0);
 
   const happy = clamp(smile * 0.76 + cheekSquint * 0.24);
-  const sad = clamp(frown * 0.68 + browInnerUp * 0.32);
-  const angry = clamp(browDown * 0.46 + eyeSquint * 0.29 + mouthPress * 0.25);
+  const sad = clamp(frown * 0.55 + browInnerUp * 0.45);
+  const angry = clamp(
+    browDown * 0.40 + eyeSquint * 0.25 + mouthPress * 0.22 + noseSneer * 0.13,
+  );
   const surprised = clamp(eyeWide * 0.43 + jawOpen * 0.37 + browInnerUp * 0.20);
   const strongest = Math.max(happy, sad, angry, surprised);
 
@@ -61,6 +72,22 @@ export function getEmotionSignals(blendshapes: Record<string, number>): EmotionS
   };
 }
 
+function hasSadCues(blendshapes: Record<string, number>): boolean {
+  const frown = averagePair(blendshapes, 'mouthFrownLeft', 'mouthFrownRight');
+  const innerBrow = clamp(blendshapes.browInnerUp ?? 0);
+  return (frown >= 0.12 && innerBrow >= 0.12) || frown >= 0.32 || innerBrow >= 0.5;
+}
+
+function hasAngryCues(blendshapes: Record<string, number>): boolean {
+  const browDown = averagePair(blendshapes, 'browDownLeft', 'browDownRight');
+  const otherCues = [
+    averagePair(blendshapes, 'eyeSquintLeft', 'eyeSquintRight'),
+    averagePair(blendshapes, 'mouthPressLeft', 'mouthPressRight'),
+    averagePair(blendshapes, 'noseSneerLeft', 'noseSneerRight'),
+  ];
+  return browDown >= 0.12 && otherCues.some((score) => score >= 0.12);
+}
+
 export function classifyBlendshapes(blendshapes: Record<string, number>): ExpressionClassification {
   const signals = getEmotionSignals(blendshapes);
   const strongest = strongestNonNeutral(signals);
@@ -69,7 +96,16 @@ export function classifyBlendshapes(blendshapes: Record<string, number>): Expres
     return { label: 'NEUTRAL', score: Math.round(signals.NEUTRAL * 100) / 100 };
   }
 
-  if (strongest.score < 0.35 || strongest.margin < 0.08) {
+  const minimumSupport = MIN_SUPPORT[strongest.label as NonNeutralLabel];
+  const hasRequiredCues =
+    (strongest.label !== 'SAD' || hasSadCues(blendshapes)) &&
+    (strongest.label !== 'ANGRY' || hasAngryCues(blendshapes));
+
+  if (
+    strongest.score < minimumSupport ||
+    strongest.margin < MIN_CLASS_MARGIN ||
+    !hasRequiredCues
+  ) {
     return { label: 'UNKNOWN', score: null };
   }
 
