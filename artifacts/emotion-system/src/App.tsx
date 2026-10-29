@@ -6,6 +6,8 @@ import { SceneCanvas } from './scene/SceneCanvas';
 import { DetectionDebugPanel } from './tracking/DetectionDebugPanel';
 import { DetectionOverlay } from './tracking/DetectionOverlay';
 import { releaseCocoSsdModel, usePersonDetection } from './tracking/usePersonDetection';
+import { releaseFaceLandmarkerWorker } from './tracking/faceLandmarkerWorker';
+import { useFaceExpressions } from './tracking/useFaceExpressions';
 
 function Header() {
   return (
@@ -43,6 +45,7 @@ function Home() {
 function Experience() {
   const camera = useCameraController();
   const detection = usePersonDetection(camera.videoRef, Boolean(camera.stream));
+  const faceAnalysis = useFaceExpressions(camera.videoRef, Boolean(camera.stream), detection.tracks);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [debugMode, setDebugMode] = useState(false);
   const [renderingFps, setRenderingFps] = useState(0);
@@ -82,6 +85,7 @@ function Experience() {
               <DetectionOverlay
                 videoRef={camera.videoRef}
                 tracks={detection.tracks}
+                expressions={faceAnalysis.expressions}
                 running={Boolean(camera.stream)}
                 mirrored={camera.mirrored}
                 onRenderingFps={setRenderingFps}
@@ -119,7 +123,7 @@ function Experience() {
               </div>
               <div className="panel-section" style={{ borderBottom: 0, paddingBottom: 0 }}>
                 <span className="section-label">What this work does</span>
-                <p className="select-note" style={{ margin: 0 }}>People are detected locally and assigned temporary session IDs. No identity, face, or emotion analysis is performed.</p>
+                <p className="select-note" style={{ margin: 0 }}>People and facial signals are processed locally. Expression labels are heuristic estimates, not readings of a person’s inner emotional state.</p>
               </div>
             </div>
             <DetectionDebugPanel
@@ -127,6 +131,11 @@ function Experience() {
               onToggle={() => setDebugMode((enabled) => !enabled)}
               modelStatus={detection.modelStatus}
               modelMessage={detection.modelMessage}
+              faceModelStatus={faceAnalysis.modelStatus}
+              faceModelMessage={faceAnalysis.modelMessage}
+              detectedFaces={faceAnalysis.detectedFaces}
+              inferenceTimeMs={faceAnalysis.inferenceTimeMs}
+              expressions={faceAnalysis.expressions}
               personCount={detection.personCount}
               detectionFps={detection.detectionFps}
               renderingFps={renderingFps}
@@ -134,14 +143,14 @@ function Experience() {
             />
             <div className="privacy-block">
               <div className="privacy-mark"><ShieldCheck size={14} strokeWidth={1.5} /> Private by design</div>
-              <strong>Your video stays in this browser.</strong> Person tracking runs locally; nothing is recorded or uploaded. No face or emotion analysis is performed.
+              <strong>Your video and face landmarks stay in this browser.</strong> Only model files are downloaded; camera frames and facial features are not uploaded or recorded. Expression labels are heuristic estimates, not statements about how someone truly feels.
             </div>
           </aside>
         </div>
         <footer className="experience-footer">
           <Link href="/" className="home-link" data-testid="link-return-home"><ArrowLeft size={13} style={{ verticalAlign: '-2px', marginRight: 7 }} /> RETURN HOME</Link>
           <span><LockKeyhole size={11} style={{ verticalAlign: '-2px', marginRight: 6 }} /> VIDEO REMAINS LOCAL</span>
-          <span><ScanFace size={12} style={{ verticalAlign: '-2px', marginRight: 6 }} /> NO FACE OR EMOTION ANALYSIS</span>
+          <span><ScanFace size={12} style={{ verticalAlign: '-2px', marginRight: 6 }} /> LOCAL HEURISTIC EXPRESSION ESTIMATES</span>
         </footer>
       </main>
     </div>
@@ -153,6 +162,9 @@ function NotFound() {
 }
 
 export default function App() {
-  useEffect(() => () => releaseCocoSsdModel(), []);
+  useEffect(() => () => {
+    releaseCocoSsdModel();
+    releaseFaceLandmarkerWorker();
+  }, []);
   return <Switch><Route path="/" component={Home} /><Route path="/experience" component={Experience} /><Route component={NotFound} /></Switch>;
 }

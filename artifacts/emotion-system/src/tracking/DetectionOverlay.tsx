@@ -1,10 +1,12 @@
 import { useEffect, useRef } from 'react';
 import type { RefObject } from 'react';
+import type { ExpressionReadout } from './expressionTypes';
 import type { PersonTrack } from './types';
 
 interface DetectionOverlayProps {
   videoRef: RefObject<HTMLVideoElement | null>;
   tracks: PersonTrack[];
+  expressions: ExpressionReadout[];
   running: boolean;
   mirrored: boolean;
   onRenderingFps: (fps: number) => void;
@@ -38,15 +40,18 @@ function getGeometry(video: HTMLVideoElement, canvas: HTMLCanvasElement): Overla
 export function DetectionOverlay({
   videoRef,
   tracks,
+  expressions,
   running,
   mirrored,
   onRenderingFps,
 }: DetectionOverlayProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const tracksRef = useRef(tracks);
+  const expressionsRef = useRef(expressions);
   const mirroredRef = useRef(mirrored);
   const fpsCallbackRef = useRef(onRenderingFps);
   tracksRef.current = tracks;
+  expressionsRef.current = expressions;
   mirroredRef.current = mirrored;
   fpsCallbackRef.current = onRenderingFps;
 
@@ -117,6 +122,7 @@ export function DetectionOverlay({
       const videoOffsetX = videoRect.left - parent.left;
       const videoOffsetY = videoRect.top - parent.top;
       const visibleTracks = tracksRef.current.filter((track) => track.visible);
+      const expressionByTrack = new Map(expressionsRef.current.map((item) => [item.trackId, item]));
 
       context.save();
       context.beginPath();
@@ -143,9 +149,12 @@ export function DetectionOverlay({
           || width <= 0 || height <= 0) return;
 
         const id = String(Math.max(0, Math.trunc(track.id))).padStart(3, '0');
-        const label = `PERSON ID: ${id}`;
-        const labelWidth = context.measureText(label).width;
-        const labelHeight = 18;
+        const expression = expressionByTrack.get(track.id);
+        const expressionLabel = `EXPRESSION: ${expression?.label ?? 'UNKNOWN'}`;
+        const scoreLabel = `SCORE: ${expression?.score === null || expression?.score === undefined ? '--' : expression.score.toFixed(2)}`;
+        const labels = [`PERSON ID: ${id}`, expressionLabel, scoreLabel];
+        const labelWidth = Math.max(...labels.map((label) => context.measureText(label).width));
+        const labelHeight = 42;
         const labelX = Math.max(videoOffsetX, Math.min(x, videoOffsetX + videoRect.width - labelWidth - 12));
         const labelY = Math.max(videoOffsetY, y - labelHeight);
 
@@ -159,7 +168,11 @@ export function DetectionOverlay({
         context.strokeStyle = 'rgba(104, 237, 213, 0.58)';
         context.strokeRect(labelX + 0.5, labelY + 0.5, labelWidth + 11, labelHeight - 1);
         context.fillStyle = '#b9fff0';
-        context.fillText(label, labelX + 6, labelY + 4);
+        context.fillText(labels[0] ?? '', labelX + 6, labelY + 4);
+        context.fillStyle = expression?.label === 'UNKNOWN' ? '#a9b8c1' : '#b9fff0';
+        context.fillText(labels[1] ?? '', labelX + 6, labelY + 17);
+        context.fillStyle = '#a6c8c8';
+        context.fillText(labels[2] ?? '', labelX + 6, labelY + 30);
       });
 
       const countLabel = 'PERSON COUNT';

@@ -181,9 +181,16 @@ button:focus-visible, a:focus-visible, select:focus-visible { outline: 2px solid
 .detection-debug-track-row { align-items: flex-start; padding-top: 9px; }
 .detection-debug-track-row dd { max-width: 64%; overflow-wrap: anywhere; color: #9cebd9; }
 .detection-debug-message { margin: 10px 0 0; color: #748995; font: 9px/1.6 var(--app-font-sans); }
+.detection-debug-expression-heading { margin-top: 13px; padding: 10px 0 7px; border-top: 1px solid rgba(159, 190, 229, .12); color: #8197a2; font-size: 8px; letter-spacing: .12em; text-transform: uppercase; }
+.detection-debug-expression-list { display: grid; gap: 7px; }
+.detection-debug-expression { padding: 8px 9px; border: 1px solid rgba(159, 190, 229, .1); background: rgba(7, 14, 22, .56); }
+.detection-debug-expression-row { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; min-height: 20px; }
+.detection-debug-expression-row span { color: #778c97; font-size: 8px; letter-spacing: .04em; }
+.detection-debug-expression-row strong { color: #b9fff0; font-size: 9px; font-weight: 500; text-align: right; }
 @media (max-width: 600px) {
   .detection-debug-content { padding-right: 11px; padding-left: 11px; }
   .detection-debug-row { gap: 8px; }
+  .detection-debug-expression-row { flex-wrap: wrap; }
 }
 @media (prefers-reduced-motion: reduce) {
   .detection-debug-switch, .detection-debug-switch > span { transition: none; }

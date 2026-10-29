@@ -1,10 +1,16 @@
 import type { ModelStatus } from './types';
+import type { ExpressionReadout } from './expressionTypes';
 
 interface DetectionDebugPanelProps {
   debugMode: boolean;
   onToggle: () => void;
   modelStatus: ModelStatus;
   modelMessage: string;
+  faceModelStatus: ModelStatus;
+  faceModelMessage: string;
+  detectedFaces: number;
+  inferenceTimeMs: number;
+  expressions: ExpressionReadout[];
   personCount: number;
   detectionFps: number;
   renderingFps: number;
@@ -27,6 +33,11 @@ export function DetectionDebugPanel({
   onToggle,
   modelStatus,
   modelMessage,
+  faceModelStatus,
+  faceModelMessage,
+  detectedFaces,
+  inferenceTimeMs,
+  expressions,
   personCount,
   detectionFps,
   renderingFps,
@@ -56,7 +67,7 @@ export function DetectionDebugPanel({
           </div>
           <dl className="detection-debug-metrics">
             <div className="detection-debug-row">
-              <dt>Model Status</dt>
+              <dt>Person Model Status</dt>
               <dd className={`detection-status-text status-${modelStatus}`} data-testid="text-model-status">{statusLabels[modelStatus]}</dd>
             </div>
             <div className="detection-debug-row">
@@ -79,8 +90,46 @@ export function DetectionDebugPanel({
                   : '—'}
               </dd>
             </div>
+            <div className="detection-debug-row">
+              <dt>Face Model Status</dt>
+              <dd className={`detection-status-text status-${faceModelStatus}`} data-testid="text-face-model-status">{statusLabels[faceModelStatus]}</dd>
+            </div>
+            <div className="detection-debug-row">
+              <dt>Detected Faces</dt>
+              <dd data-testid="text-detected-face-count">{detectedFaces}</dd>
+            </div>
+            <div className="detection-debug-row">
+              <dt>Inference Time</dt>
+              <dd data-testid="text-face-inference-time">{Number.isFinite(inferenceTimeMs) ? `${inferenceTimeMs.toFixed(1)} ms` : '—'}</dd>
+            </div>
           </dl>
+          <div className="detection-debug-expression-heading">Per-person expression · heuristic support</div>
+          {expressions.length ? (
+            <div className="detection-debug-expression-list">
+              {expressions.map((expression) => (
+                <div className="detection-debug-expression" key={expression.trackId}>
+                  <div className="detection-debug-expression-row">
+                    <span>PERSON {formatTrackId(expression.trackId)} · EXPRESSION LABEL</span>
+                    <strong>{expression.label}</strong>
+                  </div>
+                  <div className="detection-debug-expression-row">
+                    <span>CLASSIFICATION SCORE</span>
+                    <strong>{expression.score === null ? '—' : expression.score.toFixed(2)}</strong>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="detection-debug-message">Waiting for a tracked person and a reliable face view.</p>
+          )}
+          <p className="detection-debug-message">
+            Heuristic support only, not an emotion probability. HAPPY = .76 × smile + .24 × cheek squint;
+            SAD = .68 × frown + .32 × inner brow; ANGRY = .46 × brow down + .29 × eye squint + .25 × mouth press;
+            SURPRISED = .43 × eye wide + .37 × jaw open + .20 × inner brow; NEUTRAL = 1 − strongest non-neutral cue.
+            Non-neutral labels require support ≥ .35 and an .08 lead; uncertain cases are UNKNOWN.
+          </p>
           {modelMessage && <p className="detection-debug-message" role="status" data-testid="text-model-message">{modelMessage}</p>}
+          {faceModelMessage && <p className="detection-debug-message" role="status" data-testid="text-face-model-message">{faceModelMessage}</p>}
         </div>
       )}
     </section>
