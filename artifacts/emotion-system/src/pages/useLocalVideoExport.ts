@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { RefObject } from 'react';
 import { analyzeVideoTrackRange } from '../tracking/usePersonDetection';
+import { expressionDisplayForTrack } from '../tracking/expressionDisplay';
+import type { ExpressionReadout } from '../tracking/expressionTypes';
 import type { TimedPersonTracks } from '../tracking/types';
 import { samplePersonTracks } from '../tracking/videoTrackSamples';
 
@@ -34,13 +36,14 @@ function drawTrackedPeople(
   sourceHeight: number,
   time: number,
   samples: TimedPersonTracks[],
+  expressions: ExpressionReadout[],
 ) {
   if (!samples.length || !sourceWidth || !sourceHeight) return;
   const scaleX = width / sourceWidth;
   const scaleY = height / sourceHeight;
-  const labelHeight = Math.max(22, sourceHeight * 0.027) * scaleY;
-  const labelWidth = Math.max(112, sourceWidth * 0.15) * scaleX;
-  const fontSize = 16 * scaleY;
+  const labelHeight = Math.max(58, sourceHeight * 0.075) * scaleY;
+  const labelWidth = Math.max(285, sourceWidth * 0.28) * scaleX;
+  const fontSize = Math.max(8, 14 * scaleY);
 
   context.save();
   for (const track of samplePersonTracks(samples, time)) {
@@ -48,6 +51,7 @@ function drawTrackedPeople(
     const y = track.y * height;
     const boxWidth = track.width * width;
     const boxHeight = track.height * height;
+    const expression = expressionDisplayForTrack(track.id, expressions);
     context.shadowColor = 'rgba(64, 255, 218, .62)';
     context.shadowBlur = 8;
     context.fillStyle = 'rgba(62, 242, 201, .025)';
@@ -66,11 +70,11 @@ function drawTrackedPeople(
     context.fillStyle = '#c7fff2';
     context.font = `${fontSize}px monospace`;
     context.textBaseline = 'alphabetic';
-    context.fillText(
-      `PERSON ID: ${String(track.id).padStart(3, '0')}`,
-      x + 7 * scaleX,
-      Math.max(15 * scaleY, y - Math.max(7, sourceHeight * 0.008) * scaleY),
-    );
+    const textX = x + 7 * scaleX;
+    const textY = labelY + fontSize + 3 * scaleY;
+    context.fillText(`PERSON ID: ${String(track.id).padStart(3, '0')}`, textX, textY);
+    context.fillText(`EXPRESSION: ${expression.label}`, textX, textY + fontSize + 3 * scaleY);
+    context.fillText(`SCORE: ${expression.score}`, textX, textY + (fontSize + 3 * scaleY) * 2);
   }
   context.restore();
 }
@@ -134,6 +138,7 @@ export function useLocalVideoExport({
   trimEnd,
   onEnableProcessed,
   onTrackSamplesReady,
+  expressionsRef,
 }: {
   videoRef: RefObject<HTMLVideoElement | null>;
   canvasRef: RefObject<HTMLCanvasElement | null>;
@@ -142,6 +147,7 @@ export function useLocalVideoExport({
   trimEnd: number;
   onEnableProcessed: () => void;
   onTrackSamplesReady: (samples: TimedPersonTracks[]) => void;
+  expressionsRef: { current: ExpressionReadout[] };
 }) {
   const [formats, setFormats] = useState<VideoOutputFormat[]>([]);
   const [format, setFormat] = useState('');
@@ -321,6 +327,7 @@ export function useLocalVideoExport({
             video.videoHeight,
             video.currentTime,
             trackSamplesRef.current,
+            expressionsRef.current,
           );
           lastCompositeAt = now;
         }

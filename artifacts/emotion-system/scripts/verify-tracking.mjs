@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { classifyBlendshapes, ExpressionSmoother, getCandidateSupports } from '../src/tracking/expressionClassifier.ts';
+import { expressionDisplayForTrack } from '../src/tracking/expressionDisplay.ts';
 import { PersonTracker } from '../src/tracking/personTracker.ts';
 import { samplePersonTracks, shouldUseAnalyzedPersonTracks } from '../src/tracking/videoTrackSamples.ts';
 
@@ -23,6 +24,16 @@ assert.equal(happyResult.label, 'HAPPY');
 assert.equal(neutralResult.label, 'NEUTRAL');
 assert.ok(happyResult.score > neutralResult.score, 'active HAPPY rule index must exceed NEUTRAL');
 assert.ok(neutralResult.score <= .5, 'NEUTRAL rule index must stay at or below the boundary');
+assert.deepEqual(
+  expressionDisplayForTrack(7, [{ trackId: 7, label: 'HAPPY', score: 0.73 }]),
+  { label: 'HAPPY', score: '0.73' },
+  'the expression overlay uses the matched track label and heuristic score',
+);
+assert.deepEqual(
+  expressionDisplayForTrack(8, []),
+  { label: 'UNKNOWN', score: '—' },
+  'unmatched people never receive fabricated expression scores',
+);
 assert.equal(classifyBlendshapes({}).label, 'NEUTRAL');
 assert.equal(classifyBlendshapes({ mouthSmileLeft: .25, mouthSmileRight: .25 }).label, 'NEUTRAL');
 assert.equal(classifyBlendshapes({ browDownLeft: .5, browDownRight: .5 }).label, 'UNKNOWN');

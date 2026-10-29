@@ -124,6 +124,7 @@ export function useFaceExpressions(
   videoRef: RefObject<HTMLVideoElement | null>,
   enabled: boolean,
   tracks: PersonTrack[],
+  sourceKey?: string,
 ): FaceExpressionState {
   const [state, setState] = useState<FaceExpressionState>(idleFaceState);
   const tracksRef = useRef(tracks);
@@ -157,6 +158,7 @@ export function useFaceExpressions(
     let requestId = 0;
     let pendingRequestId = 0;
     let lastTimestamp = 0;
+    let lastRequestedMediaTime = -1;
     let requestStartedAt = 0;
     let lastWorkerResponseAt = 0;
     let resultExpired = false;
@@ -218,6 +220,12 @@ export function useFaceExpressions(
         return;
       }
 
+      const mediaTime = video.currentTime;
+      if (video.paused && Math.abs(mediaTime - lastRequestedMediaTime) < 0.001) {
+        schedule(250);
+        return;
+      }
+
       if (typeof createImageBitmap !== 'function') {
         setError('This browser does not support local face-frame transfer.');
         return;
@@ -234,6 +242,7 @@ export function useFaceExpressions(
         }
         requestId += 1;
         pendingRequestId = requestId;
+        lastRequestedMediaTime = mediaTime;
         lastTimestamp = Math.max(lastTimestamp + 1, performance.now());
         worker.postMessage(
           {
@@ -466,7 +475,7 @@ export function useFaceExpressions(
       worker.removeEventListener('error', handleWorkerError);
       smoother.reset();
     };
-  }, [enabled, videoRef]);
+  }, [enabled, sourceKey, videoRef]);
 
   return state;
 }

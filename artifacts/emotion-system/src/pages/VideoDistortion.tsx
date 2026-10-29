@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useRef, useState, type ChangeEvent, type DragEvent } from 'react';
-import { AlertCircle, Check, Cpu, Download, Expand, FileVideo2, Pause, Play, RotateCcw, Shrink, Trash2, Upload, Users, X } from 'lucide-react';
+import { AlertCircle, Check, Cpu, Download, Expand, FileVideo2, Pause, Play, RotateCcw, ScanFace, Shrink, Trash2, Upload, Users, X } from 'lucide-react';
 import { useAppLanguage } from '../i18n';
 import { usePersonDetection } from '../tracking/usePersonDetection';
+import { useFaceExpressions } from '../tracking/useFaceExpressions';
+import { expressionDisplayForTrack } from '../tracking/expressionDisplay';
 import { samplePersonTracks, shouldUseAnalyzedPersonTracks } from '../tracking/videoTrackSamples';
+import type { ExpressionReadout } from '../tracking/expressionTypes';
 import type { TimedPersonTracks } from '../tracking/types';
 import { VideoArtworkCanvas } from '../visualization/VideoArtworkCanvas';
 import { useVisualModes } from '../visualization/useVisualModes';
@@ -16,8 +19,6 @@ type VideoSource = {
   file: File;
   url: string;
 };
-
-const EMPTY_EXPRESSIONS: [] = [];
 
 const COPY = {
   'VIDEO / DISTORTION': '影像 / 偏移',
@@ -85,12 +86,28 @@ const COPY = {
   'Apply the live shader system to this local video.': '將即時視覺 Shader 套用至本機影片。',
   'Four local shader stages with tracked person regions.': '四種本機 Shader 效果，並依人物追蹤區域渲染。',
   'PERSON TRACKING': '人物追蹤',
+  'FACIAL EXPRESSION': '臉部表情',
   'Model': '模型',
+  'Face Model': '臉部模型',
   'LOADING': '載入中',
   'READY': '就緒',
   'ERROR': '錯誤',
   'PERSON COUNT': '人物數量',
   'TRACK IDS': '追蹤編號',
+  'DETECTED FACES': '偵測臉孔',
+  'INFERENCE TIME': '推論時間',
+  'EXPRESSION': '表情',
+  'SCORE': '分數',
+  'HAPPY': '開心',
+  'SAD': '難過',
+  'ANGRY': '生氣',
+  'SURPRISED': '驚訝',
+  'NEUTRAL': '普通',
+  'UNKNOWN': '未知',
+  'Heuristic display score · not a probability.': '啟發式顯示分數 · 非機率。',
+  'Expression analysis runs locally on this video.': '表情分析僅在此裝置本機執行。',
+  'Expressions estimate visible facial cues; they do not establish inner emotional states.':
+    '表情標籤僅推估可見臉部特徵，不能代表個人內在情緒狀態。',
   'RENDER FPS': '渲染 FPS',
   'Analyzing local person tracks…': '正在本機分析人物追蹤…',
   'Preparing the processed render…': '正在準備效果輸出…',
@@ -159,6 +176,7 @@ export default function VideoDistortion() {
   const [nativeFullscreen, setNativeFullscreen] = useState(false);
   const [cycleEnabled, setCycleEnabled] = useState(true);
   const [exportTrackSamples, setExportTrackSamples] = useState<TimedPersonTracks[]>([]);
+  const exportExpressionsRef = useRef<ExpressionReadout[]>([]);
   const isFullscreen = cssFullscreen || nativeFullscreen;
   const visualSettings = useVisualSettings();
   const visualModes = useVisualModes(
@@ -177,6 +195,7 @@ export default function VideoDistortion() {
     trimEnd,
     onEnableProcessed: () => setMode('processed'),
     onTrackSamplesReady: setExportTrackSamples,
+    expressionsRef: exportExpressionsRef,
   });
   const detection = usePersonDetection(
     videoRef,
@@ -192,6 +211,13 @@ export default function VideoDistortion() {
     ? samplePersonTracks(exportTrackSamples, currentTime)
     : detection.tracks;
   const visibleTracks = displayTracks.filter((track) => track.visible);
+  const faceAnalysis = useFaceExpressions(
+    videoRef,
+    Boolean(source && mode === 'processed' && (!exportController.recording || playing)),
+    displayTracks,
+    source?.url,
+  );
+  exportExpressionsRef.current = faceAnalysis.expressions;
   const modelStatus = useAnalyzedTracks
     ? 'ready'
     : exportController.recording
@@ -474,7 +500,7 @@ export default function VideoDistortion() {
                     videoRef={videoRef}
                     tracks={displayTracks}
                     trackSamples={useAnalyzedTracks ? exportTrackSamples : []}
-                    expressions={EMPTY_EXPRESSIONS}
+                    expressions={faceAnalysis.expressions}
                     running
                     mirrored={false}
                     mode={visualModes.visualMode}
@@ -503,11 +529,20 @@ export default function VideoDistortion() {
                       const y = track.y * height;
                       const boxWidth = track.width * width;
                       const boxHeight = track.height * height;
+                      const expression = expressionDisplayForTrack(track.id, faceAnalysis.expressions);
+                      const labelHeight = Math.max(58, height * 0.075);
+                      const labelWidth = Math.max(285, width * 0.28);
+                      const textX = x + Math.max(7, width * 0.01);
+                      const labelY = Math.max(0, y - labelHeight);
                       return (
                         <g key={track.id} className="vd-track-mark">
                           <rect x={x} y={y} width={boxWidth} height={boxHeight} />
-                          <rect className="vd-track-label-bg" x={x} y={Math.max(0, y - Math.max(22, height * 0.027))} width={Math.max(112, width * 0.15)} height={Math.max(22, height * 0.027)} />
-                          <text x={x + Math.max(7, width * 0.01)} y={Math.max(15, y - Math.max(7, height * 0.008))}>PERSON ID: {String(track.id).padStart(3, '0')}</text>
+                          <rect className="vd-track-label-bg" x={x} y={labelY} width={labelWidth} height={labelHeight} />
+                          <text x={textX} y={labelY + 17}>
+                            <tspan x={textX}>PERSON ID: {String(track.id).padStart(3, '0')}</tspan>
+                            <tspan x={textX} dy="18">EXPRESSION: {expression.label}</tspan>
+                            <tspan x={textX} dy="18">SCORE: {expression.score}</tspan>
+                          </text>
                         </g>
                       );
                     })}
@@ -642,6 +677,35 @@ export default function VideoDistortion() {
               </div>
               {exportController.recording && <p className="vd-detection-hint">{t('Track data is analyzed locally before export.')}</p>}
               <p className="vd-effect-note">{t('Person tracking starts while the processed clip is playing.')}</p>
+            </section>
+
+            <section className="vd-detection-panel vd-expression-panel">
+              <div className="vd-section-heading"><span>{t('FACIAL EXPRESSION')}</span><span className="vd-section-rule" /></div>
+              <div className="vd-detection-status">
+                <ScanFace size={14} />
+                <span>{t('Face Model')}</span>
+                <strong className={`vd-model-${faceAnalysis.modelStatus}`}>{t(faceAnalysis.modelStatus.toUpperCase())}</strong>
+              </div>
+              {faceAnalysis.modelStatus === 'error' && <p className="vd-detection-error">{faceAnalysis.modelMessage}</p>}
+              <div className="vd-detection-stats">
+                <div><ScanFace size={13} /><span>{t('DETECTED FACES')}</span><strong>{faceAnalysis.detectedFaces}</strong></div>
+                <div><span>{t('INFERENCE TIME')}</span><strong>{faceAnalysis.inferenceTimeMs ? `${faceAnalysis.inferenceTimeMs.toFixed(0)}ms` : '—'}</strong></div>
+              </div>
+              <div className="vd-expression-list">
+                {visibleTracks.map((track) => {
+                  const expression = expressionDisplayForTrack(track.id, faceAnalysis.expressions);
+                  return (
+                    <div className="vd-expression-readout" key={track.id}>
+                      <span>PERSON {String(track.id).padStart(3, '0')}</span>
+                      <strong>{t(expression.label)}</strong>
+                      <small>{t('SCORE')} {expression.score}</small>
+                    </div>
+                  );
+                })}
+              </div>
+              <p className="vd-effect-note">{t('Heuristic display score · not a probability.')}</p>
+              <p className="vd-effect-note">{t('Expressions estimate visible facial cues; they do not establish inner emotional states.')}</p>
+              <p className="vd-effect-note">{t('Expression analysis runs locally on this video.')}</p>
             </section>
 
             <section className="vd-export-panel">
