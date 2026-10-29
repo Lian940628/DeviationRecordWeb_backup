@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { Link } from 'wouter';
 import type { AppLanguage } from '../i18n';
-import bodyScanReference from '../dashboard/body-scan-reference.png';
+import bannerImage from '../dashboard/deviation-record-banner.webp';
 import './interactiveLanding.css';
 
 type InteractiveLandingProps = {
@@ -14,6 +14,15 @@ type Signal = {
   x: number;
   y: number;
 };
+
+type CodeTrace = {
+  id: number;
+  x: number;
+  y: number;
+  text: string;
+};
+
+const CODE_SNIPPETS = ['0xDEVIATION', 'if (signal)', 'drift += 0.018', 'mem://offset', 'while (seen)', 'Δ perception', 'return noise'];
 
 const PARTICLES = [
   { x: 19, y: 18, size: 2, opacity: .38 },
@@ -33,20 +42,20 @@ const PARTICLES = [
 const COPY = {
   zh: [
     '我們生活在極度精準的系統中,但每個人內在卻總帶有一點點錯位——記憶偏差、感知誤差、情緒雜訊。',
-    '作為我們四年來的結晶,這場展覽不是完美的作品輸出,而是每個人偏差訊號的拼貼,一場屬於數位時代的情感樂園。',
-    '在走向畢業、踏入未知的這一刻,選擇用不確定的語言,回應不確定的未來。',
   ],
   en: [
     'We live inside systems of extreme precision, yet each of us carries a slight misalignment: memory drift, perceptual error, emotional noise.',
-    'The culmination of four years, this exhibition is not a perfect output, but a collage of our deviation signals—a feeling-space for the digital age.',
-    'At the threshold of graduation and the unknown, we choose an uncertain language to answer an uncertain future.',
   ],
 } as const;
 
 export default function InteractiveLanding({ header, language = 'en' }: InteractiveLandingProps) {
   const nextSignalId = useRef(0);
+  const nextTraceId = useRef(0);
+  const previousPointer = useRef<{ x: number; y: number } | null>(null);
   const signalTimeouts = useRef<number[]>([]);
+  const traceTimeouts = useRef<number[]>([]);
   const [signals, setSignals] = useState<Signal[]>([]);
+  const [codeTrail, setCodeTrail] = useState<CodeTrace[]>([]);
   const [pointerEnabled, setPointerEnabled] = useState(false);
   const [motionAllowed, setMotionAllowed] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(false);
@@ -65,6 +74,7 @@ export default function InteractiveLanding({ header, language = 'en' }: Interact
       reduced.removeEventListener?.('change', update);
       touchFirst.removeEventListener?.('change', update);
       signalTimeouts.current.forEach(window.clearTimeout);
+      traceTimeouts.current.forEach(window.clearTimeout);
     };
   }, []);
 
@@ -80,6 +90,25 @@ export default function InteractiveLanding({ header, language = 'en' }: Interact
       field.style.setProperty('--ir-parallax-x', `${((x - .5) * 26).toFixed(1)}px`);
       field.style.setProperty('--ir-parallax-y', `${((y - .5) * 18).toFixed(1)}px`);
     }
+    const prior = previousPointer.current;
+    if (!reducedMotion && prior && Math.hypot(event.clientX - prior.x, event.clientY - prior.y) > 34) {
+      const id = ++nextTraceId.current;
+      const stage = event.currentTarget.querySelector('.ir-landing__stage');
+      const stageBounds = stage?.getBoundingClientRect() ?? bounds;
+      const trace = {
+        id,
+        x: prior.x - stageBounds.left,
+        y: prior.y - stageBounds.top,
+        text: CODE_SNIPPETS[(id - 1) % CODE_SNIPPETS.length],
+      };
+      setCodeTrail((current) => [...current.slice(-6), trace]);
+      const timeout = window.setTimeout(() => {
+        setCodeTrail((current) => current.filter((item) => item.id !== id));
+        traceTimeouts.current = traceTimeouts.current.filter((value) => value !== timeout);
+      }, 720);
+      traceTimeouts.current.push(timeout);
+    }
+    previousPointer.current = { x: event.clientX, y: event.clientY };
     setPointerEnabled(true);
     const particles = event.currentTarget.querySelectorAll<HTMLElement>('.ir-landing__particle');
     particles.forEach((particle, index) => {
@@ -89,9 +118,12 @@ export default function InteractiveLanding({ header, language = 'en' }: Interact
       particle.style.setProperty('--drift-x', `${dx.toFixed(1)}px`);
       particle.style.setProperty('--drift-y', `${dy.toFixed(1)}px`);
     });
-  }, [motionAllowed]);
+  }, [motionAllowed, reducedMotion]);
 
-  const handlePointerLeave = useCallback(() => setPointerEnabled(false), []);
+  const handlePointerLeave = useCallback(() => {
+    previousPointer.current = null;
+    setPointerEnabled(false);
+  }, []);
 
   const handleClick = useCallback((event: ReactPointerEvent<HTMLElement>) => {
     if (reducedMotion || event.button !== 0) return;
@@ -123,9 +155,8 @@ export default function InteractiveLanding({ header, language = 'en' }: Interact
       {header ? <div className="ir-landing__header">{header}</div> : null}
       <section className="ir-landing__stage" aria-labelledby="ir-landing-title">
         <div className="ir-landing__field" aria-hidden="true">
-          <div className="ir-landing__body-art">
-            <img src={bodyScanReference} alt="" />
-          </div>
+          <img className="ir-landing__banner" src={bannerImage} alt="" />
+          <div className="ir-landing__banner-shade" />
           <div className="ir-landing__orbit" />
           {PARTICLES.map((particle, index) => (
             <span
@@ -136,7 +167,7 @@ export default function InteractiveLanding({ header, language = 'en' }: Interact
                 '--particle-y': `${particle.y}%`,
                 '--particle-size': `${particle.size}px`,
                 '--particle-opacity': particle.opacity,
-                '--particle-color': index % 4 === 0 ? '#e2a18b' : '#8cfff0',
+                '--particle-color': index % 4 === 0 ? '#d7f45a' : '#24f4de',
               } as CSSProperties}
             />
           ))}
@@ -149,9 +180,16 @@ export default function InteractiveLanding({ header, language = 'en' }: Interact
             style={{ '--signal-x': `${signal.x}%`, '--signal-y': `${signal.y}%` } as CSSProperties}
           />
         ))}
+        <div className="ir-landing__code-trail" aria-hidden="true">
+          {codeTrail.map((trace) => (
+            <span key={trace.id} className="ir-landing__code-fragment" style={{ left: trace.x, top: trace.y }}>
+              {trace.text}
+            </span>
+          ))}
+        </div>
         <div className="ir-landing__content">
           <h1 className="ir-landing__title" id="ir-landing-title">
-            Deviation <span>Record</span>
+            Deviation<span>Record</span>
           </h1>
           <div className="ir-landing__text" lang={language === 'zh' ? 'zh-TW' : 'en'}>
             {paragraphs.map((paragraph) => <p key={paragraph}>{paragraph}</p>)}

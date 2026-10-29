@@ -1,9 +1,9 @@
 .camera-hud-v2 {
-  --hud-cyan: #42b8e8;
-  --hud-teal: #52d4be;
-  --hud-accent: #e8c77a;
-  --hud-primary: #ddf5ff;
-  --hud-secondary: #85afc4;
+  --hud-cyan: #38ead2;
+  --hud-teal: #c8f452;
+  --hud-accent: #d7ee66;
+  --hud-primary: #e9ffe8;
+  --hud-secondary: #91bca8;
   --hud-panel-alpha: .38;
   --hud-scale: 1;
   --hud-glow: .55;
