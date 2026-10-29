@@ -81,6 +81,7 @@
     "@mediapipe/tasks-vision": "1.2.0",
     "@tensorflow-models/coco-ssd": "^2.2.3",
     "@tensorflow/tfjs": "^4.22.0",
+    "html2canvas": "^1.4.1",
     "three": "^0.174.0"
   }
 }

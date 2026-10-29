@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Camera, Circle, Eye, EyeOff, Square } from 'lucide-react';
 import { useTranslation } from '../i18n';
+import { captureArtworkFrame } from '../visualization/artworkCapture';
 import './cameraCaptureControls.css';
 
 interface CameraCaptureControlsProps {
@@ -11,6 +12,13 @@ type DisplayMediaOptionsWithHints = DisplayMediaStreamOptions & {
   preferCurrentTab?: boolean;
   selfBrowserSurface?: 'include' | 'exclude';
 };
+
+let html2canvasPromise: Promise<(typeof import('html2canvas'))['default']> | null = null;
+
+function loadHtml2Canvas() {
+  html2canvasPromise ??= import('html2canvas').then((module) => module.default);
+  return html2canvasPromise;
+}
 
 function requestVisibleTabCapture() {
   if (!navigator.mediaDevices?.getDisplayMedia) {
@@ -25,6 +33,111 @@ function requestVisibleTabCapture() {
     preferCurrentTab: true,
     selfBrowserSurface: 'include',
   } as DisplayMediaOptionsWithHints);
+}
+
+function getFullscreenPreview() {
+  const preview = document.getElementById('camera-preview');
+  const prefixedDocument = document as Document & { webkitFullscreenElement?: Element | null };
+  const isFullscreen = Boolean(preview && (
+    document.fullscreenElement === preview
+    || prefixedDocument.webkitFullscreenElement === preview
+    || preview.closest('.camera-css-fullscreen')
+  ));
+  return isFullscreen ? preview : null;
+}
+
+function snapshotVideoFrame(video: HTMLVideoElement, scale: number) {
+  if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA || !video.videoWidth || !video.videoHeight) return null;
+  const bounds = video.getBoundingClientRect();
+  if (!bounds.width || !bounds.height) return null;
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round(bounds.width * scale));
+  canvas.height = Math.max(1, Math.round(bounds.height * scale));
+  const context = canvas.getContext('2d');
+  if (!context) return null;
+
+  const sourceWidth = video.videoWidth;
+  const sourceHeight = video.videoHeight;
+  const sourceAspect = sourceWidth / sourceHeight;
+  const targetAspect = canvas.width / canvas.height;
+  const objectFit = getComputedStyle(video).objectFit;
+  const background = getComputedStyle(video).backgroundColor;
+  context.fillStyle = background;
+  context.fillRect(0, 0, canvas.width, canvas.height);
+
+  if (objectFit === 'cover') {
+    let sx = 0;
+    let sy = 0;
+    let sw = sourceWidth;
+    let sh = sourceHeight;
+    if (sourceAspect > targetAspect) {
+      sw = sourceHeight * targetAspect;
+      sx = (sourceWidth - sw) / 2;
+    } else {
+      sh = sourceWidth / targetAspect;
+      sy = (sourceHeight - sh) / 2;
+    }
+    context.drawImage(video, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+  } else {
+    const fit = Math.min(canvas.width / sourceWidth, canvas.height / sourceHeight);
+    const width = sourceWidth * fit;
+    const height = sourceHeight * fit;
+    context.drawImage(video, (canvas.width - width) / 2, (canvas.height - height) / 2, width, height);
+  }
+  return canvas;
+}
+
+function cloneCanvas(source: HTMLCanvasElement, sourceElement: HTMLElement, targetDocument: Document) {
+  const copy = targetDocument.createElement('canvas');
+  copy.width = source.width;
+  copy.height = source.height;
+  copy.className = sourceElement.className;
+  copy.style.cssText = sourceElement.getAttribute('style') ?? '';
+  if (sourceElement.getAttribute('aria-hidden')) copy.setAttribute('aria-hidden', 'true');
+  copy.getContext('2d')?.drawImage(source, 0, 0);
+  return copy;
+}
+
+async function captureFullscreenPreview(target: HTMLElement) {
+  const html2canvas = await loadHtml2Canvas();
+  const bounds = target.getBoundingClientRect();
+  const scale = Math.min(window.devicePixelRatio || 1, 1.5);
+  const video = target.querySelector<HTMLVideoElement>('.preview-video');
+  const videoFrame = video ? snapshotVideoFrame(video, scale) : null;
+  const artworkFrame = captureArtworkFrame();
+
+  return html2canvas(target, {
+    backgroundColor: '#03080d',
+    scale,
+    width: Math.ceil(bounds.width),
+    height: Math.ceil(bounds.height),
+    windowWidth: window.innerWidth,
+    windowHeight: window.innerHeight,
+    scrollX: 0,
+    scrollY: 0,
+    logging: false,
+    onclone: (clonedDocument) => {
+      const clonedTarget = clonedDocument.getElementById('camera-preview');
+      if (!clonedTarget) return;
+      clonedTarget.style.width = `${bounds.width}px`;
+      clonedTarget.style.height = `${bounds.height}px`;
+      clonedTarget.style.minHeight = '0';
+      clonedTarget.style.maxWidth = 'none';
+      clonedTarget.style.aspectRatio = 'auto';
+
+      const clonedVideo = clonedTarget.querySelector<HTMLVideoElement>('.preview-video');
+      if (videoFrame && clonedVideo) {
+        clonedVideo.replaceWith(cloneCanvas(videoFrame, clonedVideo, clonedDocument));
+      }
+
+      const clonedArtworkCanvas = clonedTarget.querySelector<HTMLCanvasElement>('.video-artwork-canvas');
+      if (clonedArtworkCanvas && artworkFrame) {
+        clonedArtworkCanvas.replaceWith(cloneCanvas(artworkFrame, clonedArtworkCanvas, clonedDocument));
+      } else if (clonedArtworkCanvas) {
+        clonedArtworkCanvas.remove();
+      }
+    },
+  });
 }
 
 async function waitForVideoFrame(video: HTMLVideoElement) {
@@ -126,6 +239,11 @@ export function CameraCaptureControls({ stream }: CameraCaptureControlsProps) {
     if (!stream) photoStreamRef.current?.getTracks().forEach((track) => track.stop());
   }, [stream]);
 
+  useEffect(() => {
+    if (!stream) return;
+    void loadHtml2Canvas().catch(() => { html2canvasPromise = null; });
+  }, [stream]);
+
   const takePhoto = useCallback(() => {
     if (!stream || !stream.getVideoTracks().some((track) => track.readyState === 'live')) {
       announce('Camera image is not ready yet.');
@@ -135,7 +253,22 @@ export function CameraCaptureControls({ stream }: CameraCaptureControlsProps) {
     void (async () => {
       let capturedStream: MediaStream | null = null;
       let capturedVideo: HTMLVideoElement | null = null;
+      let fullscreenCapture = false;
       try {
+        const fullscreenPreview = getFullscreenPreview();
+        if (fullscreenPreview) {
+          fullscreenCapture = true;
+          const canvas = await captureFullscreenPreview(fullscreenPreview);
+          const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
+          if (!blob) {
+            announce('Could not capture the fullscreen preview. Try again.');
+            return;
+          }
+          downloadBlob(blob, `emotion-system_${timestamp()}.png`);
+          announce('Screenshot saved locally.');
+          return;
+        }
+
         announce('Choose this tab in the browser sharing dialog.');
         capturedStream = await requestVisibleTabCapture();
         photoStreamRef.current = capturedStream;

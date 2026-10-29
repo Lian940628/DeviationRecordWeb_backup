@@ -6,6 +6,7 @@ import type { PersonTrack, TimedPersonTracks } from '../tracking/types';
 import { samplePersonTracks } from '../tracking/videoTrackSamples';
 import type { VisualMode } from '../visual-controls/visualControlsTypes';
 import { artworkFragmentShader, artworkVertexShader } from './artworkShaders';
+import { ARTWORK_CAPTURE_EVENT, type ArtworkCaptureEventDetail } from './artworkCapture';
 import type { VisualSettings } from './visualSettings';
 
 const MAX_PERSONS = 5;
@@ -391,9 +392,30 @@ export function VideoArtworkCanvas({
       renderer.render(scene, camera);
     };
 
+    const captureArtwork = (event: Event) => {
+      const detail = (event as CustomEvent<ArtworkCaptureEventDetail>).detail;
+      try {
+        renderer.render(scene, camera);
+        const source = renderer.domElement;
+        const snapshot = document.createElement('canvas');
+        snapshot.width = source.width;
+        snapshot.height = source.height;
+        const context = snapshot.getContext('2d');
+        if (!context || !source.width || !source.height) {
+          detail.copyFrame(null);
+          return;
+        }
+        context.drawImage(source, 0, 0);
+        detail.copyFrame(snapshot);
+      } catch {
+        detail.copyFrame(null);
+      }
+    };
+    window.addEventListener(ARTWORK_CAPTURE_EVENT, captureArtwork);
     frameId = window.requestAnimationFrame(render);
     return () => {
       window.cancelAnimationFrame(frameId);
+      window.removeEventListener(ARTWORK_CAPTURE_EVENT, captureArtwork);
       resizeObserver?.disconnect();
       window.removeEventListener('resize', resize);
       resizeCallbackRef.current = null;
