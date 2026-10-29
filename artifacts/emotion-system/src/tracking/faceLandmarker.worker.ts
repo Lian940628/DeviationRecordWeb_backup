@@ -36,9 +36,9 @@ async function getLandmarker(): Promise<FaceLandmarker> {
       baseOptions: { modelAssetPath: FACE_MODEL_URL, delegate: 'CPU' },
       runningMode: 'VIDEO',
       numFaces: 5,
-      minFaceDetectionConfidence: 0.45,
-      minFacePresenceConfidence: 0.45,
-      minTrackingConfidence: 0.45,
+      minFaceDetectionConfidence: 0.40,
+      minFacePresenceConfidence: 0.40,
+      minTrackingConfidence: 0.40,
       outputFaceBlendshapes: true,
     });
   })();
@@ -87,13 +87,13 @@ function summarizeFace(
   const inFrame = minX >= -0.015 && minY >= -0.015 && maxX <= 1.015 && maxY <= 1.015;
   const faceWidthPx = Math.round(width * frameWidth);
   const faceHeightPx = Math.round(height * frameHeight);
-  const largeEnough = width >= 0.02 && height >= 0.02 && eyeDistance >= 0.008;
+  const largeEnough = width >= 0.015 && height >= 0.015 && eyeDistance >= 0.005;
   const frontal =
     landmarks.length >= 468 &&
     inFrame &&
-    eyeSpanToFaceWidth >= 0.22 &&
-    noseRatio >= 0.18 &&
-    noseRatio <= 0.82;
+    eyeSpanToFaceWidth >= 0.18 &&
+    noseRatio >= 0.12 &&
+    noseRatio <= 0.88;
   const qualityReason = !largeEnough ? 'FACE_TOO_SMALL' : !frontal ? 'UNRELIABLE_POSE' : null;
 
   return {

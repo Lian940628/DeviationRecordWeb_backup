@@ -151,7 +151,7 @@ export function DetectionDebugPanel({
                     <strong>{expression.label}</strong>
                   </div>
                   <div className="detection-debug-expression-row">
-                    <span>CLASSIFICATION SCORE · SUPPORT</span>
+                    <span>RELATIVE RULE INDEX · NOT PROBABILITY</span>
                     <strong>{expression.score === null ? '—' : expression.score.toFixed(2)}</strong>
                   </div>
                   <div className="detection-debug-expression-row">
@@ -221,10 +221,10 @@ export function DetectionDebugPanel({
             </div>
           )}
           <p className="detection-debug-message">
-            Heuristic support only, not an emotion probability. HAPPY = .76 × smile + .24 × cheek squint;
-            SAD = .55 × frown + .45 × inner brow; ANGRY = .60 × brow down + .40 × strongest of eye squint, mouth press and nose sneer.
+            Relative display score: ACTIVE = .50 + .50 × class support; NEUTRAL = .50 × neutral support. Thus active expressions score above .50 and NEUTRAL at or below .50; not calibrated probabilities.
+            Raw class support: HAPPY = .76 × smile + .24 × cheek squint; SAD = .55 × frown + .45 × inner brow; ANGRY = .60 × brow down + .40 × strongest of eye squint, mouth press and nose sneer.
             SURPRISED = .43 × eye wide + .37 × jaw open + .20 × inner brow; NEUTRAL support = 1 − strongest raw facial-action cue.
-            HAPPY/SURPRISED require support ≥ .35; SAD ≥ .18 with frown + inner brow or strong bilateral frown; ANGRY ≥ .22 with brow down + a second action. All require an .08 lead.
+            HAPPY ≥ .24; SAD ≥ .12 with frown + inner brow or strong bilateral frown; ANGRY ≥ .14 with brow down + a second action; SURPRISED ≥ .25. Labels require a .04 lead and two confirming frames.
             Neutral fallback is used when the strongest weighted class support is ≤ .20. Faces below the normalized geometry threshold or with unreliable poses remain UNKNOWN.
             Scores use different rules by label and are not directly comparable; uncertain cases are UNKNOWN.
           </p>

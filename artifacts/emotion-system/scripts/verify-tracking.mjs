@@ -7,9 +7,20 @@ const sad = { mouthFrownLeft: .25, mouthFrownRight: .25, browInnerUp: .15 };
 const angry = { browDownLeft: .30, browDownRight: .30, mouthPressLeft: .15, mouthPressRight: .15 };
 const happy = { mouthSmileLeft: .8, mouthSmileRight: .8, cheekSquintLeft: .5, cheekSquintRight: .5 };
 const surprised = { eyeWideLeft: .8, eyeWideRight: .8, jawOpen: .7, browInnerUp: .5 };
+const mildSad = { mouthFrownLeft: .18, mouthFrownRight: .18, browInnerUp: .12 };
+const mildAngry = { browDownLeft: .2, browDownRight: .2, mouthPressLeft: .08, mouthPressRight: .08 };
+const mildHappy = { mouthSmileLeft: .4, mouthSmileRight: .4, cheekSquintLeft: .25, cheekSquintRight: .25 };
 for (const [label, features] of [['SAD', sad], ['ANGRY', angry], ['HAPPY', happy], ['SURPRISED', surprised]]) {
   assert.equal(classifyBlendshapes(features).label, label);
 }
+assert.equal(classifyBlendshapes(mildSad).label, 'SAD');
+assert.equal(classifyBlendshapes(mildAngry).label, 'ANGRY');
+const happyResult = classifyBlendshapes(mildHappy);
+const neutralResult = classifyBlendshapes({});
+assert.equal(happyResult.label, 'HAPPY');
+assert.equal(neutralResult.label, 'NEUTRAL');
+assert.ok(happyResult.score > neutralResult.score, 'active HAPPY rule index must exceed NEUTRAL');
+assert.ok(neutralResult.score <= .5, 'NEUTRAL rule index must stay at or below the boundary');
 assert.equal(classifyBlendshapes({}).label, 'NEUTRAL');
 assert.equal(classifyBlendshapes({ mouthSmileLeft: .25, mouthSmileRight: .25 }).label, 'NEUTRAL');
 assert.equal(classifyBlendshapes({ browDownLeft: .5, browDownRight: .5 }).label, 'UNKNOWN');

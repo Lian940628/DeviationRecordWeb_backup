@@ -30,7 +30,7 @@ export interface ExpressionReadout {
   trackId: number;
   label: ExpressionLabel;
   rawLabel: ExpressionLabel;
-  /** Weighted blendshape support in [0, 1], not a calibrated emotion probability. */
+  /** Relative heuristic rule index; 0.50 separates neutral from an active expression. Not a probability. */
   score: number | null;
   rawScore: number | null;
   matchedPersonId: number | null;

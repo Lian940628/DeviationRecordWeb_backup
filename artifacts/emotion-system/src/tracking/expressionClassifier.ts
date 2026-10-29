@@ -9,16 +9,16 @@ export interface ExpressionClassification {
   score: number | null;
 }
 
-const EMA_ALPHA = 0.42;
-const LABEL_CONFIRMATION_FRAMES = 3;
-const MAX_AMBIGUOUS_FRAMES = 2;
+const EMA_ALPHA = 0.55;
+const LABEL_CONFIRMATION_FRAMES = 2;
+const MAX_AMBIGUOUS_FRAMES = 6;
 const MIN_SUPPORT: Record<NonNeutralLabel, number> = {
-  HAPPY: 0.35,
-  SAD: 0.18,
-  ANGRY: 0.18,
-  SURPRISED: 0.35,
+  HAPPY: 0.24,
+  SAD: 0.12,
+  ANGRY: 0.14,
+  SURPRISED: 0.25,
 };
-const MIN_CLASS_MARGIN = 0.08;
+const MIN_CLASS_MARGIN = 0.04;
 
 function clamp(value: number): number {
   return Math.min(1, Math.max(0, Number.isFinite(value) ? value : 0));
@@ -84,12 +84,19 @@ export function getEmotionSignals(blendshapes: Record<string, number>): EmotionS
   };
 }
 
+/** A relative display index with a fixed boundary at 0.50, not a probability. */
+function displayRuleIndex(label: EmotionLabel, signals: EmotionSignals): number {
+  return label === 'NEUTRAL'
+    ? signals.NEUTRAL * 0.5
+    : 0.5 + signals[label] * 0.5;
+}
+
 function hasSadCues(blendshapes: Record<string, number>): boolean {
   const frown = averagePair(blendshapes, 'mouthFrownLeft', 'mouthFrownRight');
   const innerBrow = clamp(blendshapes.browInnerUp ?? 0);
   const bilateralFrown = Math.min(clamp(blendshapes.mouthFrownLeft), clamp(blendshapes.mouthFrownRight));
-  return (frown >= 0.10 && innerBrow >= 0.10) ||
-    (bilateralFrown >= 0.35 && averagePair(blendshapes, 'browDownLeft', 'browDownRight') < 0.25);
+  return (frown >= 0.07 && innerBrow >= 0.07) ||
+    (bilateralFrown >= 0.27 && averagePair(blendshapes, 'browDownLeft', 'browDownRight') < 0.35);
 }
 
 function hasAngryCues(blendshapes: Record<string, number>): boolean {
@@ -99,7 +106,7 @@ function hasAngryCues(blendshapes: Record<string, number>): boolean {
     averagePair(blendshapes, 'mouthPressLeft', 'mouthPressRight'),
     averagePair(blendshapes, 'noseSneerLeft', 'noseSneerRight'),
   ];
-  return browDown >= 0.18 && otherCues.some((score) => score >= 0.10);
+  return browDown >= 0.12 && otherCues.some((score) => score >= 0.06);
 }
 
 export function getCandidateSupports(blendshapes: Record<string, number>) {
@@ -135,14 +142,14 @@ export function classifyBlendshapes(blendshapes: Record<string, number>): Expres
   if (strongest.score >= minimumSupport && strongest.margin >= MIN_CLASS_MARGIN && hasRequiredCues) {
     return {
       label: strongest.label,
-      score: Math.round(strongest.score * 100) / 100,
+      score: Math.round(displayRuleIndex(strongest.label, signals) * 100) / 100,
     };
   }
 
   // Keep the previously working low-activity neutral path. Only expressions
   // that pass their explicit cue checks can override this neutral fallback.
   if (strongest.score <= 0.20) {
-    return { label: 'NEUTRAL', score: Math.round(signals.NEUTRAL * 100) / 100 };
+    return { label: 'NEUTRAL', score: Math.round(displayRuleIndex('NEUTRAL', signals) * 100) / 100 };
   }
   return { label: 'UNKNOWN', score: null };
 }
@@ -162,7 +169,7 @@ function unknownClassification(): ExpressionClassification {
 function scoreForLabel(label: ExpressionLabel, blendshapes: Record<string, number>): number | null {
   if (label === 'UNKNOWN') return null;
   const signals = getEmotionSignals(blendshapes);
-  return Math.round(signals[label] * 100) / 100;
+  return Math.round(displayRuleIndex(label, signals) * 100) / 100;
 }
 
 /** Keeps separate short-lived temporal state for each person-track ID. */
