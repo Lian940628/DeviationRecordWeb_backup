@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict';
 import { classifyBlendshapes, ExpressionSmoother, getCandidateSupports } from '../src/tracking/expressionClassifier.ts';
-import { deduplicateFaces, getHeadRegions, mapCropPoint } from '../src/tracking/faceRegions.ts';
 
 // Deterministic rule/geometry regression checks, NOT an accuracy benchmark.
 // These feature vectors never enter the live camera application.
@@ -30,19 +29,4 @@ assert.equal(first.label, 'SAD');
 assert.equal(second.label, 'ANGRY');
 assert.equal(smoother.markUnknown(1).label, 'UNKNOWN');
 
-const regions = getHeadRegions([
-  { visible: true, x: 0, y: 0, width: .3, height: 1 },
-  { visible: true, x: .8, y: .4, width: .2, height: .6 },
-  { visible: false, x: .3, y: .1, width: .2, height: .8 },
-]);
-assert.equal(regions.length, 2);
-for (const region of regions) {
-  assert.ok(region.x >= 0 && region.y >= 0);
-  assert.ok(region.x + region.width <= 1 && region.y + region.height <= 1);
-}
-const mapped = mapCropPoint({ x: .5, y: .5 }, { x: .2, y: .1, width: .4, height: .3 });
-assert.equal(mapped.x, .4);
-assert.equal(mapped.y, .25);
-const face = { x: .2, y: .1, width: .1, height: .15, poseReliable: true };
-assert.equal(deduplicateFaces([face, { ...face, x: .201 }, { ...face, x: .6 }]).length, 2);
-console.log('PASS: expression rules, neutral/ambiguous actions, per-ID smoothing, crop bounds, coordinate mapping and face deduplication.');
+console.log('PASS: expression rules, neutral/ambiguous actions, per-ID smoothing and per-class diagnostics.');

@@ -149,11 +149,8 @@ export function useCameraController() {
         setStatus('idle');
       }
       const videoConstraints: MediaTrackConstraints = {
-        // Prefer real source detail for distant faces; ideal constraints still
-        // allow 720p/other resolutions on cameras that cannot supply 1080p.
-        width: { ideal: 1920 },
-        height: { ideal: 1080 },
-        frameRate: { ideal: 30 },
+        width: { ideal: 1280 },
+        height: { ideal: 720 },
         aspectRatio: { ideal: 16 / 9 },
         ...(selectedDevice ? { deviceId: { exact: selectedDevice } } : {}),
       };

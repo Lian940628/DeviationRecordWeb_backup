@@ -98,14 +98,6 @@ export interface FaceWorkerFrameMessage {
   requestId: number;
   timestamp: number;
   frame: ImageBitmap;
-  regions: FaceRegion[];
-}
-
-export interface FaceRegion {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
 }
 
 export interface FaceWorkerDisposeMessage {
