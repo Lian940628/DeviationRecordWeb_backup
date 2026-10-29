@@ -141,13 +141,13 @@ export function useVisualSettings() {
   }, [savedPresets]);
 
   const onExportPreset = useCallback(() => {
-    const payload = JSON.stringify({ version: 1, settings }, null, 2);
+    const payload = serializeVisualSettings(settings);
     const url = URL.createObjectURL(new Blob([payload], { type: 'application/json' }));
     const anchor = document.createElement('a');
     anchor.href = url;
     anchor.download = 'emotion-system-preset.json';
     anchor.click();
-    URL.revokeObjectURL(url);
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
     setPresetMessage('Preset JSON exported.');
     setPresetError('');
   }, [settings]);

@@ -269,9 +269,9 @@ export function VisualModeControls({
         </div>
         <div className="vmc-preset-actions">
           <button type="button" className="vmc-action" onClick={onExportPreset} data-testid="button-export-preset">Export JSON</button>
-          <label className="vmc-action vmc-file-button" htmlFor="vmc-import-preset" data-testid="button-import-preset">Import JSON</label>
           <input id="vmc-import-preset" className="vmc-file-input" type="file" accept="application/json,.json"
             onChange={changeFile} data-testid="input-import-preset" />
+          <label className="vmc-action vmc-file-button" htmlFor="vmc-import-preset" data-testid="button-import-preset">Import JSON</label>
         </div>
         {presetMessage && <p className="vmc-status" role="status" aria-live="polite" data-testid="status-preset-message">{presetMessage}</p>}
         {presetError && <p className="vmc-status is-error" role="alert" data-testid="status-preset-error">{presetError}</p>}
