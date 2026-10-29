@@ -599,3 +599,124 @@
 @media (hover: none), (pointer: coarse), (prefers-reduced-motion: reduce) {
   .ir-landing__code-trail { display: none; }
 }
+
+@font-face {
+  font-family: "Azonix";
+  src: url("/fonts/azonix.woff") format("woff");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
+/* Blue-green light from the exhibition banner, with low-motion water shimmer. */
+.ir-landing {
+  --ir-cyan: #42e5dc;
+  --ir-acid: #42e5dc;
+  --ir-rule: rgba(76, 221, 215, .3);
+  background:
+    radial-gradient(ellipse at 78% 32%, rgba(0, 179, 194, .2), transparent 40%),
+    radial-gradient(ellipse at 20% 82%, rgba(16, 107, 114, .2), transparent 48%),
+    linear-gradient(142deg, #031314 0%, #041014 58%, #061b1d 100%);
+  background-size: 160% 160%, 180% 180%, 100% 100%;
+  animation: ir-water-background 28s ease-in-out infinite alternate;
+}
+
+.ir-landing::before {
+  background-image:
+    linear-gradient(rgba(65, 219, 215, .09) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(65, 219, 215, .09) 1px, transparent 1px);
+  animation: ir-grid-drift 42s linear infinite;
+}
+
+.ir-landing::after {
+  background: repeating-linear-gradient(0deg, transparent 0 5px, rgba(55, 221, 221, .11) 6px, transparent 7px 11px);
+  animation: ir-scan-drift 18s linear infinite;
+}
+
+.ir-landing__banner {
+  animation: ir-waterlight 19s ease-in-out infinite alternate;
+  will-change: transform, filter;
+}
+
+.ir-landing__field::before { animation: ir-ring-breathe 13s ease-in-out infinite alternate; }
+.ir-landing__field::after { animation: ir-ring-breathe 17s ease-in-out infinite alternate-reverse; }
+.ir-landing__orbit { border-color: rgba(75, 231, 225, .19); }
+.ir-landing__orbit::before { border-color: rgba(75, 231, 225, .15); }
+.ir-landing__orbit::after { border-color: rgba(65, 184, 202, .18); }
+.ir-landing__particle {
+  --particle-color: #56ead9;
+  box-shadow: 0 0 12px 2px rgba(36, 205, 220, .56);
+  animation: ir-particle-glint 3.8s ease-in-out infinite alternate;
+}
+.ir-landing__signal,
+.ir-landing__signal::before,
+.ir-landing__signal::after { border-color: rgba(75, 237, 222, .58); }
+
+.ir-landing__title {
+  color: rgba(224, 255, 251, .7);
+  font-family: "Azonix", var(--app-font-display), sans-serif;
+  font-size: clamp(32px, 6.6vw, 96px);
+  font-weight: 400;
+  letter-spacing: .045em;
+  line-height: 1.1;
+  text-transform: uppercase;
+  text-shadow: 0 0 28px rgba(39, 215, 222, .32);
+  -webkit-text-stroke: .45px rgba(181, 255, 249, .65);
+}
+
+.ir-landing__title span {
+  color: rgba(76, 218, 219, .58);
+  -webkit-text-stroke: .4px rgba(116, 239, 230, .72);
+}
+
+.ir-landing__action {
+  border-color: rgba(59, 219, 219, .82);
+  background: rgba(2, 45, 52, .58);
+  color: #d8fffa;
+  font-family: "Azonix", var(--app-font-mono), monospace;
+  letter-spacing: .11em;
+}
+.ir-landing__action:hover { border-color: #a1fff5; background: rgba(11, 106, 117, .48); }
+.ir-landing__action svg,
+.ir-landing__edge-mark::before,
+.ir-landing__edge-mark::after,
+.ir-landing__footer span { color: #5be7df; background-color: #5be7df; }
+.ir-landing__edge-mark { border-color: rgba(75, 231, 225, .8); }
+.ir-landing__field::before,
+.ir-landing__field::after { border-color: rgba(57, 217, 220, .23); }
+.ir-landing__code-fragment {
+  border-left-color: rgba(94, 251, 232, .95);
+  background: rgba(2, 18, 23, .78);
+  color: #9afff2;
+  text-shadow: 0 0 12px rgba(37, 217, 224, .9);
+}
+
+@keyframes ir-water-background {
+  from { background-position: 0% 20%, 100% 75%, 50% 50%; }
+  to { background-position: 100% 82%, 0% 25%, 50% 50%; }
+}
+@keyframes ir-grid-drift { to { background-position: 72px 72px, 72px 72px; } }
+@keyframes ir-scan-drift { to { background-position-y: 11px; } }
+@keyframes ir-waterlight {
+  from { transform: scale(1.005) translate3d(-.25%, .15%, 0); filter: saturate(1.12) contrast(1.05) brightness(.78); }
+  to { transform: scale(1.035) translate3d(.25%, -.15%, 0); filter: saturate(1.24) contrast(1.1) brightness(.88); }
+}
+@keyframes ir-ring-breathe { from { opacity: .5; filter: blur(0); } to { opacity: .95; filter: blur(.3px); } }
+@keyframes ir-particle-glint { from { opacity: .32; filter: brightness(.8); } to { opacity: .9; filter: brightness(1.5); } }
+
+@media (max-width: 600px) {
+  .ir-landing__title {
+    font-size: clamp(21px, 6.45vw, 28px);
+    letter-spacing: .025em;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ir-landing,
+  .ir-landing::before,
+  .ir-landing::after,
+  .ir-landing__banner,
+  .ir-landing__field::before,
+  .ir-landing__field::after,
+  .ir-landing__particle { animation: none !important; }
+}

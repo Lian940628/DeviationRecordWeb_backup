@@ -146,7 +146,6 @@ function Experience() {
 
   return (
     <div className="app-shell experience-shell">
-      <SiteInteractionEffects />
       <Header />
       <main className="experience-page">
         <div className="workspace">
@@ -323,5 +322,14 @@ export default function App() {
     releaseCocoSsdModel();
     releaseFaceLandmarkerWorker();
   }, []);
-  return <LanguageProvider><Switch><Route path="/" component={Home} /><Route path="/experience" component={Experience} /><Route component={NotFound} /></Switch></LanguageProvider>;
+  return (
+    <LanguageProvider>
+      <SiteInteractionEffects />
+      <Switch>
+        <Route path="/" component={Home} />
+        <Route path="/experience" component={Experience} />
+        <Route component={NotFound} />
+      </Switch>
+    </LanguageProvider>
+  );
 }

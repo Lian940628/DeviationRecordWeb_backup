@@ -167,7 +167,7 @@ export default function InteractiveLanding({ header, language = 'en' }: Interact
                 '--particle-y': `${particle.y}%`,
                 '--particle-size': `${particle.size}px`,
                 '--particle-opacity': particle.opacity,
-                '--particle-color': index % 4 === 0 ? '#d7f45a' : '#24f4de',
+                 '--particle-color': index % 4 === 0 ? '#65f4dc' : '#24d9e8',
               } as CSSProperties}
             />
           ))}
