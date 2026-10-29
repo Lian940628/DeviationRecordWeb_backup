@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react';
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import type { CameraStatus } from '../camera/useCameraController';
 import type { ExpressionLabel } from '../tracking/expressionTypes';
 import type { ModelStatus, PersonTrack } from '../tracking/types';
@@ -87,6 +87,15 @@ function getChartPath(values: Array<number | null>): string {
   return commands.join(' ');
 }
 
+const BODY_SCAN_FRAGMENTS = [
+  [36, 80, 19, 1, .7], [124, 73, 17, 1, .6], [29, 108, 26, 2, .42],
+  [127, 103, 24, 1, .66], [23, 137, 20, 1, .48], [132, 129, 23, 2, .52],
+  [31, 160, 15, 1, .56], [134, 170, 20, 1, .72], [42, 192, 17, 2, .44],
+  [119, 204, 25, 1, .62], [54, 224, 19, 1, .5], [111, 236, 22, 2, .56],
+  [77, 57, 25, 1, .34], [65, 98, 47, 1, .45], [73, 118, 37, 2, .38],
+  [68, 151, 49, 1, .56], [67, 181, 40, 1, .42], [87, 215, 24, 1, .48],
+] as const;
+
 interface BodyScanPanelProps {
   tracks: PersonTrack[];
   cameraActive: boolean;
@@ -105,6 +114,7 @@ export function BodyScanPanel({
   compact = false,
 }: BodyScanPanelProps) {
   const t = useTranslation();
+  const figureId = `body-figure-${useId().replace(/:/g, '')}`;
   const selectedTrack = tracks.find((track) => track.visible && track.id === selectedTrackId);
   const style = {
     '--scan-duration': `${scanSettings.speedSeconds}s`,
@@ -126,23 +136,66 @@ export function BodyScanPanel({
       </div>
       <div className={`body-schematic${scanSettings.enabled ? ' is-scanning' : ''}`} style={style}>
         <svg viewBox="0 0 180 270" role="img" aria-label={t('Schematic human outline')}>
+          <defs>
+            <linearGradient id={`${figureId}-fill`} x1="0.12" y1="0" x2="0.86" y2="1">
+              <stop offset="0" stopColor="#f3f7f5" />
+              <stop offset=".36" stopColor="#bfced2" />
+              <stop offset=".7" stopColor="#e9f0ef" />
+              <stop offset="1" stopColor="#72858c" />
+            </linearGradient>
+            <pattern id={`${figureId}-pixels`} width="3.5" height="3.5" patternUnits="userSpaceOnUse">
+              <circle cx=".8" cy=".8" r=".65" fill="#f4ffff" opacity=".82" />
+              <circle cx="2.7" cy="2.7" r=".42" fill="#92d6e0" opacity=".75" />
+            </pattern>
+            <filter id={`${figureId}-glow`} x="-35%" y="-15%" width="170%" height="140%">
+              <feGaussianBlur in="SourceAlpha" stdDeviation="2.2" result="blur" />
+              <feFlood floodColor="#9deeff" floodOpacity=".48" result="glow-color" />
+              <feComposite in="glow-color" in2="blur" operator="in" result="glow" />
+              <feMerge>
+                <feMergeNode in="glow" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+            <clipPath id={`${figureId}-silhouette`} clipPathUnits="userSpaceOnUse">
+              <circle cx="90" cy="30" r="12" />
+              <path d="M83 42 L82 48 C75 50 69 53 65 59 L61 79 L66 102 L72 119 L75 145 C78 153 84 158 91 160 C98 158 104 153 107 145 L110 119 L116 102 L121 79 L117 59 C112 53 106 50 99 48 L98 42 Z" />
+              <path d="M68 55 C62 57 58 62 55 70 L48 91 L42 111 L34 133 L30 143 C29 147 32 150 36 150 L41 147 L47 132 L56 114 L65 96 L74 78 L77 65 Z" />
+              <path d="M112 55 C118 57 122 62 125 70 L132 91 L138 111 L146 133 L150 143 C151 147 148 150 144 150 L139 147 L133 132 L124 114 L115 96 L106 78 L103 65 Z" />
+              <path d="M77 144 C71 155 68 169 68 185 L66 211 L62 246 C61 252 64 256 69 257 L77 255 L84 224 L90 194 L95 158 L92 152 Z" />
+              <path d="M94 153 L98 177 L105 198 L112 222 L119 248 C121 253 125 255 130 252 L135 249 L129 221 L125 195 L119 173 C116 162 111 153 105 147 Z" />
+            </clipPath>
+          </defs>
           <g className="body-scan-grid" aria-hidden="true">
             <path d="M10 45H170M10 90H170M10 135H170M10 180H170M10 225H170" />
             <path d="M45 10V260M90 10V260M135 10V260" />
             <circle cx="90" cy="135" r="62" />
-            <circle cx="90" cy="135" r="38" />
           </g>
-          <g className="body-outline">
-            <circle cx="90" cy="34" r="15" />
-            <path d="M81 52 L73 62 L67 99 L73 124 L76 151 L69 187 L65 239 L75 242 L88 197 L90 168 L93 197 L105 242 L115 239 L111 187 L104 151 L107 124 L113 99 L107 62 L99 52 Z" />
-            <path d="M75 65 L52 75 L34 111 L40 116 L61 92 L68 84" />
-            <path d="M105 65 L128 75 L146 111 L140 116 L119 92 L112 84" />
-            <path d="M73 121 L90 128 L107 121 M76 151 L90 157 L104 151" />
-            <path d="M67 239 L64 255 L80 255 L88 197 M115 239 L118 255 L102 255 L93 197" />
+          <g clipPath={`url(#${figureId}-silhouette)`} filter={`url(#${figureId}-glow)`}>
+            <rect x="24" y="12" width="132" height="250" fill={`url(#${figureId}-fill)`} />
+            <rect x="24" y="12" width="132" height="250" fill={`url(#${figureId}-pixels)`} opacity=".56" />
+            <path className="body-figure-highlight" d="M81 53 C69 74 76 99 85 113 L80 153 M102 55 C112 79 99 105 103 129 M76 164 C78 190 75 219 69 248 M106 160 C111 190 121 220 127 247" />
+            <g className="body-figure-glitches">
+              <rect x="27" y="68" width="126" height="1.6" />
+              <rect x="31" y="96" width="119" height="1.2" />
+              <rect x="25" y="124" width="130" height="2" />
+              <rect x="38" y="151" width="105" height="1.4" />
+              <rect x="29" y="179" width="124" height="1.1" />
+              <rect x="41" y="205" width="92" height="1.7" />
+              <rect x="50" y="231" width="79" height="1" />
+            </g>
           </g>
+          <g className="body-scan-fragments" aria-hidden="true">
+            {BODY_SCAN_FRAGMENTS.map(([x, y, width, height, opacity], index) => (
+              <rect key={index} x={x} y={y} width={width} height={height} opacity={opacity} />
+            ))}
+          </g>
+          <path
+            className="body-figure-edge"
+            d="M78 51 C70 53 65 58 63 67 L58 91 L48 115 L35 142 M102 51 C110 53 115 58 117 67 L122 91 L132 115 L145 142 M75 146 C71 161 69 179 68 197 L64 249 M105 146 C111 164 116 184 121 203 L129 248"
+          />
           <g className="body-scan-crosshair" aria-hidden="true">
-            <path d="M90 0V24M90 246V270M0 135H25M155 135H180" />
-            <circle cx="90" cy="135" r="3" />
+            <path d="M90 0V20M90 250V270M0 135H22M158 135H180" />
+            <circle cx="90" cy="135" r="2" />
           </g>
         </svg>
         {scanSettings.enabled && <div className="body-scan-sweep" aria-hidden="true" />}

@@ -212,9 +212,11 @@ export function VideoArtworkCanvas({
         return;
       }
 
-      const scale = Math.max(bounds.width / sourceWidth, bounds.height / sourceHeight);
-      const cropX = (sourceWidth * scale - bounds.width) / 2;
-      const cropY = (sourceHeight * scale - bounds.height) / 2;
+      const scale = Math.min(bounds.width / sourceWidth, bounds.height / sourceHeight);
+      const imageWidth = sourceWidth * scale;
+      const imageHeight = sourceHeight * scale;
+      const padX = (bounds.width - imageWidth) / 2;
+      const padY = (bounds.height - imageHeight) / 2;
       const boxes = uniforms.uPersonBoxes.value as THREE.Vector4[];
       const happyValues = uniforms.uPersonHappy.value as Float32Array;
       const allTracks = tracksRef.current;
@@ -223,11 +225,15 @@ export function VideoArtworkCanvas({
       for (let t = 0; t < allTracks.length && index < MAX_PERSONS; t += 1) {
         const track = allTracks[t];
         if (!track || !track.visible) continue;
-        const width = (track.width * sourceWidth * scale) / bounds.width;
-        const height = (track.height * sourceHeight * scale) / bounds.height;
-        let x = (track.x * sourceWidth * scale - cropX) / bounds.width;
-        const y = (track.y * sourceHeight * scale - cropY) / bounds.height;
-        if (mirroredRef.current) x = 1 - x - width;
+        const sourceTrackWidth = track.width * sourceWidth * scale;
+        const sourceTrackHeight = track.height * sourceHeight * scale;
+        const width = sourceTrackWidth / bounds.width;
+        const height = sourceTrackHeight / bounds.height;
+        let x = (padX + track.x * sourceWidth * scale) / bounds.width;
+        const y = (padY + track.y * sourceHeight * scale) / bounds.height;
+        if (mirroredRef.current) {
+          x = (padX + imageWidth - track.x * sourceWidth * scale - sourceTrackWidth) / bounds.width;
+        }
         boxes[index]?.set(x, y, width, height);
         let happy = 0;
         for (let e = 0; e < expressionList.length; e += 1) {

@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, Route, Switch } from 'wouter';
 import { ArrowLeft, ArrowUpRight, Camera, ChevronDown, Expand, LockKeyhole, ScanFace, Settings2, ShieldCheck, VideoOff } from 'lucide-react';
 import { useCameraController } from './camera/useCameraController';
-import { SceneCanvas } from './scene/SceneCanvas';
 import { DetectionDebugPanel } from './tracking/DetectionDebugPanel';
 import { DetectionOverlay } from './tracking/DetectionOverlay';
 import { PersonConnectionsOverlay } from './tracking/PersonConnectionsOverlay';
@@ -21,8 +20,9 @@ import { useVisualSettings } from './visualization/useVisualSettings';
 import { useStageTransitionAudio } from './visualization/useStageTransitionAudio';
 import { VisualModeControls } from './visual-controls/VisualModeControls';
 import { LanguageProvider, useAppLanguage, useTranslation } from './i18n';
+import InteractiveLanding from './components/InteractiveLanding';
 
-function Header() {
+function Header({ minimal = false }: { minimal?: boolean }) {
   const { language, setLanguage } = useAppLanguage();
   const t = useTranslation();
   return (
@@ -35,39 +35,15 @@ function Header() {
           <button type="button" aria-pressed={language === 'en'} onClick={() => setLanguage('en')} data-testid="button-language-en">EN</button>
           <button type="button" aria-pressed={language === 'zh'} onClick={() => setLanguage('zh')} data-testid="button-language-zh">中文</button>
         </div>
-        <div className="header-right"><span className="header-index"><i className="tiny-dot" /> {t('DIGITAL PRESENCE STUDY')}</span><span>2025 — 26</span></div>
+        {!minimal && <div className="header-right"><span className="header-index"><i className="tiny-dot" /> {t('DIGITAL PRESENCE STUDY')}</span><span>2025 — 26</span></div>}
       </div>
     </header>
   );
 }
 
 function Home() {
-  const t = useTranslation();
-  return (
-    <div className="app-shell">
-      <Header />
-      <main className="landing">
-        <div className="scene-backdrop"><SceneCanvas /></div>
-        <div className="landing-content">
-          <div className="eyebrow">{t('An experiment in presence')}</div>
-          <h1 className="hero-title">{t('THE ART OF')}<br /><span className="line-two">{t('BEING SEEN')}<span className="period">.</span></span></h1>
-          <p className="hero-intro"><strong>EMOTION / SYSTEM</strong> {t('is a quiet encounter between a person and a machine inside a system built for precision. Each of us carries a slight misalignment: memory drift, perceptual error, and emotional noise. Step into the frame and notice what remains unresolved.')}</p>
-          <div className="action-row">
-            <Link href="/experience" className="primary-link" data-testid="link-start-experience">{t('START EXPERIENCE')} <ArrowUpRight size={15} strokeWidth={1.5} className="arrow" aria-hidden="true" /></Link>
-            <div className="hero-note">{t('Camera access is optional.')}<br />{t('Your image stays on this device.')}</div>
-          </div>
-          <div className="archive-strip" aria-label={t('Artwork index')}>
-            <div className="archive-strip-heading"><span>{t('ARCHIVE INDEX')}</span><i aria-hidden="true" /></div>
-            <div className="archive-record"><span>01</span><strong>{t('MEMORY')}</strong><small>{t('A record can drift.')}</small></div>
-            <div className="archive-record"><span>02</span><strong>{t('PERCEPTION')}</strong><small>{t('A frame can misread.')}</small></div>
-            <div className="archive-record"><span>03</span><strong>{t('PRESENCE')}</strong><small>{t('A signal can remain unresolved.')}</small></div>
-          </div>
-        </div>
-        <div className="hero-index">{t('01 / PRESENCE BEFORE INTERPRETATION')}</div>
-        <footer className="landing-footer"><span>{t('LOCAL INTERACTION · NO RECORDING')}</span><span>{t('A WORK ABOUT LOOKING, NOT KNOWING')}</span></footer>
-      </main>
-    </div>
-  );
+  const { language } = useAppLanguage();
+  return <InteractiveLanding header={<Header minimal />} language={language} />;
 }
 
 function Experience() {

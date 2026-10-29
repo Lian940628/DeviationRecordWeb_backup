@@ -717,9 +717,9 @@ html body .experience-shell .experience-page {
   width: calc(100% - 64px);
   height: calc(100dvh - 76px);
   min-height: 0;
-  grid-template-rows: auto minmax(0, 1fr) auto;
-  gap: 12px;
-  padding: 12px 0 10px;
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 8px;
+  padding: 7px 0 8px;
   overflow: hidden;
 }
 
@@ -875,9 +875,9 @@ html body .experience-shell .experience-footer span:nth-child(3) {
   html body .experience-shell .experience-page {
     width: calc(100% - 36px);
     height: calc(100dvh - 70px);
-    grid-template-rows: auto minmax(0, 1fr);
-    gap: 8px;
-    padding: 8px 0;
+    grid-template-rows: minmax(0, 1fr);
+    gap: 0;
+    padding: 4px 0 8px;
   }
 
   html body .experience-shell .experience-heading {
@@ -931,6 +931,19 @@ html body .experience-shell .experience-footer span:nth-child(3) {
   html body .experience-shell .camera-actions { width: auto; }
   html body .experience-shell .primary-button { flex: 0 1 auto; }
   html body .experience-shell .control-panel { padding: 8px; }
+}
+
+html body .experience-shell .preview-video {
+  object-fit: contain;
+  background: #03080d;
+}
+
+html body .ir-landing__header .topbar {
+  width: 100%;
+}
+
+@media (max-width: 900px) {
+  html body .ir-landing__header .topbar { width: 100%; }
 }
 
 /* 偏差紀錄 — field archive / security-console composition */

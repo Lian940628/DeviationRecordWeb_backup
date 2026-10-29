@@ -27,8 +27,8 @@ interface VideoGeometry {
   sourceWidth: number;
   sourceHeight: number;
   scale: number;
-  cropX: number;
-  cropY: number;
+  padX: number;
+  padY: number;
 }
 
 function getGeometry(video: HTMLVideoElement, canvas: HTMLCanvasElement): VideoGeometry | null {
@@ -37,15 +37,15 @@ function getGeometry(video: HTMLVideoElement, canvas: HTMLCanvasElement): VideoG
   const sourceWidth = video.videoWidth;
   const sourceHeight = video.videoHeight;
   if (!parent || !sourceWidth || !sourceHeight || videoRect.width <= 0 || videoRect.height <= 0) return null;
-  const scale = Math.max(videoRect.width / sourceWidth, videoRect.height / sourceHeight);
+  const scale = Math.min(videoRect.width / sourceWidth, videoRect.height / sourceHeight);
   return {
     parent,
     video: videoRect,
     sourceWidth,
     sourceHeight,
     scale,
-    cropX: (sourceWidth * scale - videoRect.width) / 2,
-    cropY: (sourceHeight * scale - videoRect.height) / 2,
+    padX: (videoRect.width - sourceWidth * scale) / 2,
+    padY: (videoRect.height - sourceHeight * scale) / 2,
   };
 }
 
@@ -113,7 +113,7 @@ export function PersonConnectionsOverlay({
 
       const geometry = getGeometry(video, canvas);
       if (!geometry) return;
-      const { parent, video: videoRect, sourceWidth, sourceHeight, scale, cropX, cropY } = geometry;
+      const { parent, video: videoRect, sourceWidth, sourceHeight, scale, padX, padY } = geometry;
       const offsetX = videoRect.left - parent.left;
       const offsetY = videoRect.top - parent.top;
       const visibleTracks = tracksRef.current.filter((track) => track.visible);
@@ -122,11 +122,11 @@ export function PersonConnectionsOverlay({
       if (!edges.length) return;
 
       const centerFor = (track: PersonTrack) => {
-        const sourceCenterX = (track.x + track.width / 2) * sourceWidth * scale - cropX;
-        const sourceCenterY = (track.y + track.height / 2) * sourceHeight * scale - cropY;
+        const sourceCenterX = (track.x + track.width / 2) * sourceWidth * scale;
+        const sourceCenterY = (track.y + track.height / 2) * sourceHeight * scale;
         return {
-          x: offsetX + (mirroredRef.current ? videoRect.width - sourceCenterX : sourceCenterX),
-          y: offsetY + sourceCenterY,
+          x: offsetX + padX + (mirroredRef.current ? sourceWidth * scale - sourceCenterX : sourceCenterX),
+          y: offsetY + padY + sourceCenterY,
         };
       };
 
@@ -143,7 +143,7 @@ export function PersonConnectionsOverlay({
 
       context.save();
       context.beginPath();
-      context.rect(offsetX, offsetY, videoRect.width, videoRect.height);
+      context.rect(offsetX + padX, offsetY + padY, sourceWidth * scale, sourceHeight * scale);
       context.clip();
       context.lineCap = 'round';
       context.lineJoin = 'round';

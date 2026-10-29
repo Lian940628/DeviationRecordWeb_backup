@@ -20,8 +20,8 @@ interface OverlayGeometry {
   sourceWidth: number;
   sourceHeight: number;
   scale: number;
-  cropX: number;
-  cropY: number;
+  padX: number;
+  padY: number;
 }
 
 const TARGET_FRAME_INTERVAL = 1000 / 30;
@@ -33,10 +33,10 @@ function getGeometry(video: HTMLVideoElement, canvas: HTMLCanvasElement): Overla
   const sourceHeight = video.videoHeight;
   if (!parent || !sourceWidth || !sourceHeight || videoRect.width <= 0 || videoRect.height <= 0) return null;
 
-  const scale = Math.max(videoRect.width / sourceWidth, videoRect.height / sourceHeight);
-  const cropX = (sourceWidth * scale - videoRect.width) / 2;
-  const cropY = (sourceHeight * scale - videoRect.height) / 2;
-  return { parent, video: videoRect, sourceWidth, sourceHeight, scale, cropX, cropY };
+  const scale = Math.min(videoRect.width / sourceWidth, videoRect.height / sourceHeight);
+  const padX = (videoRect.width - sourceWidth * scale) / 2;
+  const padY = (videoRect.height - sourceHeight * scale) / 2;
+  return { parent, video: videoRect, sourceWidth, sourceHeight, scale, padX, padY };
 }
 
 export function DetectionOverlay({
@@ -126,7 +126,7 @@ export function DetectionOverlay({
       context.clearRect(0, 0, bounds.width, bounds.height);
       const geometry = getGeometry(video, canvas);
       if (!geometry) return;
-      const { parent, video: videoRect, scale, cropX, cropY } = geometry;
+      const { parent, video: videoRect, sourceWidth, sourceHeight, scale, padX, padY } = geometry;
       const videoOffsetX = videoRect.left - parent.left;
       const videoOffsetY = videoRect.top - parent.top;
       const visibleTracks = tracksRef.current.filter((track) => track.visible);
@@ -134,7 +134,7 @@ export function DetectionOverlay({
 
       context.save();
       context.beginPath();
-      context.rect(videoOffsetX, videoOffsetY, videoRect.width, videoRect.height);
+      context.rect(videoOffsetX + padX, videoOffsetY + padY, sourceWidth * scale, sourceHeight * scale);
       context.clip();
       context.lineWidth = 1;
       context.font = '10px "DM Mono", monospace';
@@ -144,11 +144,13 @@ export function DetectionOverlay({
         const sourceY = track.y * geometry.sourceHeight;
         const sourceWidth = track.width * geometry.sourceWidth;
         const sourceHeight = track.height * geometry.sourceHeight;
-        let x = videoOffsetX + sourceX * scale - cropX;
-        const y = videoOffsetY + sourceY * scale - cropY;
+        let x = videoOffsetX + padX + sourceX * scale;
+        const y = videoOffsetY + padY + sourceY * scale;
         const width = sourceWidth * scale;
         const height = sourceHeight * scale;
-        if (mirroredRef.current) x = videoOffsetX + videoRect.width - (sourceX * scale - cropX) - width;
+        if (mirroredRef.current) {
+          x = videoOffsetX + padX + geometry.sourceWidth * scale - sourceX * scale - width;
+        }
 
         const right = x + width;
         const bottom = y + height;

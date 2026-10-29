@@ -57,20 +57,26 @@ export const artworkFragmentShader = `
     return fract((p3.x + p3.y) * p3.z);
   }
 
-  vec2 coverUv(vec2 uv) {
+  vec2 containUv(vec2 uv) {
     float viewAspect = uResolution.x / max(uResolution.y, 1.0);
     float sourceAspect = uVideoResolution.x / max(uVideoResolution.y, 1.0);
     if (sourceAspect > viewAspect) {
-      uv.x = (uv.x - 0.5) * viewAspect / sourceAspect + 0.5;
+      float visibleHeight = viewAspect / sourceAspect;
+      float padY = (1.0 - visibleHeight) * 0.5;
+      uv.y = (uv.y - padY) / visibleHeight;
     } else {
-      uv.y = (uv.y - 0.5) * sourceAspect / viewAspect + 0.5;
+      float visibleWidth = sourceAspect / viewAspect;
+      float padX = (1.0 - visibleWidth) * 0.5;
+      uv.x = (uv.x - padX) / visibleWidth;
     }
     if (uMirrored > 0.5) uv.x = 1.0 - uv.x;
-    return clamp(uv, 0.001, 0.999);
+    return uv;
   }
 
   vec3 cam(vec2 uv) {
-    return texture2D(uVideo, coverUv(uv)).rgb;
+    vec2 sourceUv = containUv(uv);
+    if (sourceUv.x < 0.0 || sourceUv.x > 1.0 || sourceUv.y < 0.0 || sourceUv.y > 1.0) return DEEP;
+    return texture2D(uVideo, clamp(sourceUv, 0.001, 0.999)).rgb;
   }
 
   float luma(vec2 uv) {

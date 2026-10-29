@@ -312,6 +312,33 @@
   filter: drop-shadow(0 0 4px rgba(66, 184, 232, calc(var(--hud-glow) * .72)));
 }
 
+.hud-v2-body-module .body-figure-highlight {
+  fill: none;
+  stroke: rgba(247, 253, 255, .72);
+  stroke-width: 2;
+  stroke-linecap: round;
+  opacity: .32;
+}
+
+.hud-v2-body-module .body-figure-glitches rect {
+  fill: #f2fdff;
+  opacity: .34;
+  mix-blend-mode: screen;
+}
+
+.hud-v2-body-module .body-scan-fragments rect {
+  fill: #dffaff;
+  filter: drop-shadow(0 0 2px rgba(190, 240, 255, .55));
+}
+
+.hud-v2-body-module .body-figure-edge {
+  fill: none;
+  stroke: rgba(224, 246, 250, .5);
+  stroke-width: .65;
+  stroke-linecap: round;
+  opacity: .28;
+}
+
 .hud-v2-body-module .body-scan-panel--compact .body-scan-grid {
   stroke: rgba(133, 175, 196, .24);
 }
