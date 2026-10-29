@@ -93,6 +93,7 @@ interface BodyScanPanelProps {
   selectedTrackId: number | null;
   onSelectTrack: (id: number) => void;
   scanSettings: ScanEffectSettings;
+  compact?: boolean;
 }
 
 export function BodyScanPanel({
@@ -101,6 +102,7 @@ export function BodyScanPanel({
   selectedTrackId,
   onSelectTrack,
   scanSettings,
+  compact = false,
 }: BodyScanPanelProps) {
   const t = useTranslation();
   const selectedTrack = tracks.find((track) => track.visible && track.id === selectedTrackId);
@@ -111,7 +113,7 @@ export function BodyScanPanel({
   } as CSSProperties;
 
   return (
-    <section className="body-scan-panel biometric-panel" aria-label={t('Body scan')}>
+    <section className={`body-scan-panel biometric-panel${compact ? ' body-scan-panel--compact' : ''}`} aria-label={t('Body scan')}>
       <div className="biometric-panel-heading">
         <span>{t('BODY SCAN')}</span>
         <span className={`scan-state${scanSettings.enabled ? ' is-active' : ''}`}>
@@ -147,26 +149,30 @@ export function BodyScanPanel({
         <span className="schematic-coord top-left">X 0.50 / Y 0.00</span>
         <span className="schematic-coord bottom-right">X 0.50 / Y 1.00</span>
       </div>
-      <label className="dashboard-field-label" htmlFor="body-scan-track">{t('SELECT PERSON ID')}</label>
-      <select
-        id="body-scan-track"
-        className="dashboard-select"
-        value={selectedTrackId ?? ''}
-        onChange={(event) => onSelectTrack(Number(event.currentTarget.value))}
-        disabled={tracks.length === 0}
-        data-testid="select-body-scan-person"
-      >
-        {tracks.length === 0
-          ? <option value="">{t(cameraActive ? 'WAITING FOR SUBJECT' : 'WAITING FOR CAMERA')}</option>
-          : tracks.filter((track) => track.visible).map((track) => (
-            <option value={track.id} key={track.id}>{t('PERSON ID:')} {formatPersonId(track.id)}</option>
-          ))}
-      </select>
-      <dl className="body-scan-metrics">
-        <div><dt>{t('PERSON ID')}</dt><dd>{selectedTrack ? formatPersonId(selectedTrack.id) : '—'}</dd></div>
-        <div><dt>{t('TRACKING STATUS')}</dt><dd className={selectedTrack ? 'is-live' : ''}>{t(selectedTrack ? 'TRACKING' : cameraActive ? 'WAITING FOR SUBJECT' : 'WAITING FOR CAMERA')}</dd></div>
-        <div><dt>{t('DETECTED SUBJECT')}</dt><dd>{selectedTrack ? `${t('PERSON')} ${formatPersonId(selectedTrack.id)}` : t('NO TRACKED SUBJECT')}</dd></div>
-      </dl>
+      {!compact && (
+        <>
+          <label className="dashboard-field-label" htmlFor="body-scan-track">{t('SELECT PERSON ID')}</label>
+          <select
+            id="body-scan-track"
+            className="dashboard-select"
+            value={selectedTrackId ?? ''}
+            onChange={(event) => onSelectTrack(Number(event.currentTarget.value))}
+            disabled={tracks.length === 0}
+            data-testid="select-body-scan-person"
+          >
+            {tracks.length === 0
+              ? <option value="">{t(cameraActive ? 'WAITING FOR SUBJECT' : 'WAITING FOR CAMERA')}</option>
+              : tracks.filter((track) => track.visible).map((track) => (
+                <option value={track.id} key={track.id}>{t('PERSON ID:')} {formatPersonId(track.id)}</option>
+              ))}
+          </select>
+          <dl className="body-scan-metrics">
+            <div><dt>{t('PERSON ID')}</dt><dd>{selectedTrack ? formatPersonId(selectedTrack.id) : '—'}</dd></div>
+            <div><dt>{t('TRACKING STATUS')}</dt><dd className={selectedTrack ? 'is-live' : ''}>{t(selectedTrack ? 'TRACKING' : cameraActive ? 'WAITING FOR SUBJECT' : 'WAITING FOR CAMERA')}</dd></div>
+            <div><dt>{t('DETECTED SUBJECT')}</dt><dd>{selectedTrack ? `${t('PERSON')} ${formatPersonId(selectedTrack.id)}` : t('NO TRACKED SUBJECT')}</dd></div>
+          </dl>
+        </>
+      )}
       <div className="scan-progress-label">
         <span>{t('SCAN PROGRESS · VISUAL CYCLE')}</span>
         <span>{t('SCHEMATIC')}</span>

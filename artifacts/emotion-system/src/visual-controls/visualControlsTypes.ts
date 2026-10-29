@@ -1,4 +1,6 @@
 import type { VisualSettings, VisualStage } from '../visualization/visualSettings';
+import type { HudSettings } from '../dashboard/useHudSettings';
+import type { ScanEffectSettings } from '../dashboard/BiometricDashboard';
 
 export type PlaybackMode = 'auto' | 'manual';
 export type VisualMode = VisualStage;
@@ -9,6 +11,10 @@ export interface VisualModeControlsProps {
   visualMode: VisualMode;
   onVisualModeChange: (mode: VisualMode) => void;
   settings: VisualSettings;
+  hudSettings: HudSettings;
+  onHudSettingChange: (next: Partial<HudSettings>) => void;
+  scanSettings: ScanEffectSettings;
+  onScanSettingsChange: (next: Partial<ScanEffectSettings>) => void;
   savedPresets: string[];
   presetMessage: string;
   presetError: string;

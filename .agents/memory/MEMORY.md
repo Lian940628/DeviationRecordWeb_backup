@@ -2,5 +2,5 @@
 - [MediaPipe module loader](mediapipe-module-worker.md) — ES module workers need the ES module WASM fileset; the classic loader causes “ModuleFactory not set.”
 - [Expression heuristic thresholds](expression-heuristic-sensitivity.md) — tune subtle labels per class and require corroborating cues; rule scores are not calibrated emotion probabilities.
 - [Local visual processing](local-visual-processing.md) — camera, tracking, facial signals, and derived effects must remain in the visitor's browser.
-- [Reference visual fidelity](reference-visual-fidelity.md) — match image structure and abrupt rhythm, not just palette; anomalies must transform real pixels, with distinct dots and contours.
+- [Reference visual fidelity](reference-visual-fidelity.md) — preserve the camera as primary canvas, use the blue glass left HUD, and keep charts tied to real local session data.
 - [WebGL shader portability](webgl-shader-portability.md) — WebGL 1 GLSL nested loops need compile-time bounds; use constant loop indices and guard conditions.

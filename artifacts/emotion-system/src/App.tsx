@@ -10,8 +10,9 @@ import { releaseCocoSsdModel, usePersonDetection } from './tracking/usePersonDet
 import { releaseFaceLandmarkerWorker } from './tracking/faceLandmarkerWorker';
 import { useFaceExpressions } from './tracking/useFaceExpressions';
 import { useSessionAverageScore } from './tracking/useSessionAverageScore';
-import { BiometricDashboard, BodyScanPanel, ScanEffectOverlay, type ScanEffectSettings } from './dashboard/BiometricDashboard';
-import { CameraHudOverlay } from './dashboard/CameraHudOverlay';
+import { ScanEffectOverlay, type ScanEffectSettings } from './dashboard/BiometricDashboard';
+import { CameraHudOverlayV2 } from './dashboard/CameraHudOverlayV2';
+import { useHudSettings } from './dashboard/useHudSettings';
 import { useSessionAnalytics } from './dashboard/useSessionAnalytics';
 import { useSystemEventLog } from './dashboard/useSystemEventLog';
 import { VideoArtworkCanvas } from './visualization/VideoArtworkCanvas';
@@ -75,6 +76,7 @@ function Experience() {
   const detection = usePersonDetection(camera.videoRef, Boolean(camera.stream));
   const faceAnalysis = useFaceExpressions(camera.videoRef, Boolean(camera.stream), detection.tracks);
   const visualSettings = useVisualSettings();
+  const { hudSettings, onHudSettingChange } = useHudSettings();
   const visualModes = useVisualModes(Boolean(camera.stream), visualSettings.settings);
   const averageScore = useSessionAverageScore(
     Boolean(camera.stream),
@@ -219,22 +221,24 @@ function Experience() {
                 showPersonIds={visualSettings.settings.stages.line.showPersonIds}
                 onRenderingFps={setOverlayFps}
               />
-              <CameraHudOverlay
+              <CameraHudOverlayV2
                 cameraStatus={camera.status}
                 personModelStatus={detection.modelStatus}
                 faceModelStatus={faceAnalysis.modelStatus}
                 personCount={detection.personCount}
                 tracks={visibleTracks}
-                expressions={faceAnalysis.expressions}
                 detectionFps={detection.detectionFps}
                 renderingFps={renderingFps}
                 visualStage={visualModes.visualMode}
+                selectedTrackId={selectedTrackId}
+                onSelectTrack={setSelectedTrackId}
                 sessionDurationSeconds={sessionAnalytics.durationSeconds}
                 averageScore={averageScore}
                 analytics={sessionAnalytics}
                 systemEvents={systemEvents}
                 scanSettings={scanSettings}
-                onScanSettingsChange={updateScanSettings}
+                hudSettings={hudSettings}
+                onHudSettingChange={onHudSettingChange}
               />
             </div>
             <div className="preview-actions">
@@ -250,31 +254,6 @@ function Experience() {
               {camera.status === 'error' && <strong>{t('CAMERA NOT STARTED · ')}</strong>}{t(camera.message)}{fullscreenError && ` ${t(fullscreenError)}`}
             </div>
           </section>
-          <div className="dashboard-layout">
-            <BodyScanPanel
-              tracks={visibleTracks}
-              cameraActive={Boolean(camera.stream)}
-              selectedTrackId={selectedTrackId}
-              onSelectTrack={setSelectedTrackId}
-              scanSettings={scanSettings}
-            />
-            <div className="analysis-column">
-              <BiometricDashboard
-                cameraStatus={camera.status}
-                personModelStatus={detection.modelStatus}
-                faceModelStatus={faceAnalysis.modelStatus}
-                personCount={detection.personCount}
-                activeTrackIds={activeTrackIds}
-                detectionFps={detection.detectionFps}
-                renderingFps={renderingFps}
-                visualStage={visualModes.visualMode}
-                sessionDurationSeconds={sessionAnalytics.durationSeconds}
-                averageScore={averageScore}
-                analytics={sessionAnalytics}
-                systemEvents={systemEvents}
-                scanSettings={scanSettings}
-                onScanSettingsChange={updateScanSettings}
-              />
           <aside className="control-panel" aria-label={t('Experience settings')}>
             <div className="panel-top"><span className="panel-title">{t('Session controls')}</span><span className="panel-number">01 / 03</span></div>
             <button type="button" className="settings-toggle" aria-expanded={settingsOpen} onClick={() => setSettingsOpen((open) => !open)} data-testid="button-toggle-settings">
@@ -325,6 +304,10 @@ function Experience() {
               visualMode={visualModes.visualMode}
               onVisualModeChange={visualModes.chooseMode}
                 settings={visualSettings.settings}
+                hudSettings={hudSettings}
+                onHudSettingChange={onHudSettingChange}
+                scanSettings={scanSettings}
+                onScanSettingsChange={updateScanSettings}
                 savedPresets={visualSettings.savedPresets}
                 presetMessage={visualSettings.presetMessage}
                 presetError={visualSettings.presetError}
@@ -345,8 +328,6 @@ function Experience() {
               <strong>{t('Your video and face landmarks stay in this browser.')}</strong> {t('Only model files are downloaded; camera frames and facial features are not uploaded or recorded. Expression labels are heuristic estimates, not statements about how someone truly feels.')}
             </div>
           </aside>
-            </div>
-          </div>
         </div>
         <footer className="experience-footer">
           <Link href="/" className="home-link" data-testid="link-return-home"><ArrowLeft size={13} style={{ verticalAlign: '-2px', marginRight: 7 }} /> {t('RETURN HOME')}</Link>

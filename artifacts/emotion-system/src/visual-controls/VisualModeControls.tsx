@@ -113,7 +113,8 @@ function RangeControl({
 }
 
 export function VisualModeControls({
-  playbackMode, onPlaybackModeChange, visualMode, onVisualModeChange, settings, savedPresets,
+  playbackMode, onPlaybackModeChange, visualMode, onVisualModeChange, settings, hudSettings,
+  onHudSettingChange, scanSettings, onScanSettingsChange, savedPresets,
   presetMessage, presetError, onGlobalSettingChange, onStageSettingChange, onResetImageSettings,
   onTransitionSettingChange, onAudioSettingChange, onAudioUnlock, onResetStage, onSavePreset, onLoadPreset, onExportPreset,
   onImportPreset, className = "",
@@ -207,6 +208,116 @@ export function VisualModeControls({
           ))}
         </div>
         <p className="vmc-help">{t('Auto cycles through all four stages. Selecting a stage switches to manual.')}</p>
+      </fieldset>
+
+      <fieldset className="vmc-group vmc-hud-settings">
+        <legend className="vmc-group-title">{t('HUD interface')}</legend>
+        <div className="vmc-hud-toggles">
+          {([
+            ['visible', 'HUD SHOW / HIDE'],
+            ['bodyScanEnabled', 'BODY SCAN ON / OFF'],
+            ['chartAnimationEnabled', 'CHART ANIMATION'],
+            ['showSystemDetails', 'SHOW SYSTEM DETAILS'],
+          ] as const).map(([key, label]) => (
+            <label className="vmc-hud-toggle" key={key}>
+              <span>{t(label)}</span>
+              <input
+                type="checkbox"
+                checked={hudSettings[key]}
+                onChange={(event) => onHudSettingChange({ [key]: event.currentTarget.checked })}
+                aria-label={t(label)}
+                data-testid={`toggle-hud-${key}`}
+              />
+            </label>
+          ))}
+        </div>
+        <div className="vmc-fields">
+          <RangeControl
+            id="vmc-hud-opacity"
+            label={t('HUD OPACITY')}
+            value={hudSettings.opacity * 100}
+            min={16}
+            max={72}
+            step={2}
+            unit="%"
+            precision={0}
+            onChange={(value) => onHudSettingChange({ opacity: value / 100 })}
+          />
+          <RangeControl
+            id="vmc-hud-scale"
+            label={t('HUD SCALE')}
+            value={hudSettings.scale}
+            min={0.78}
+            max={1.18}
+            step={0.02}
+            unit="×"
+            precision={2}
+            onChange={(value) => onHudSettingChange({ scale: value })}
+          />
+          <RangeControl
+            id="vmc-hud-glow"
+            label={t('HUD GLOW INTENSITY')}
+            value={hudSettings.glowIntensity * 100}
+            min={0}
+            max={100}
+            step={5}
+            unit="%"
+            precision={0}
+            onChange={(value) => onHudSettingChange({ glowIntensity: value / 100 })}
+          />
+        </div>
+      </fieldset>
+
+      <fieldset className="vmc-group vmc-settings-group">
+        <legend className="vmc-group-title">{t('Camera scan overlay')}</legend>
+        <div className="vmc-hud-scan-toggle">
+          <span>{t('SCAN EFFECT')}</span>
+          <button
+            type="button"
+            className={`vmc-action${scanSettings.enabled ? ' is-enabled' : ''}`}
+            aria-pressed={scanSettings.enabled}
+            onClick={() => onScanSettingsChange({ enabled: !scanSettings.enabled })}
+            data-testid="toggle-camera-scan-overlay"
+          >
+            {t(scanSettings.enabled ? 'ON' : 'OFF')}
+          </button>
+        </div>
+        <div className="vmc-fields">
+          <RangeControl
+            id="vmc-camera-scan-speed"
+            label={t('SCAN SPEED')}
+            value={scanSettings.speedSeconds}
+            min={4}
+            max={16}
+            step={1}
+            unit=" s"
+            precision={0}
+            onChange={(value) => onScanSettingsChange({ speedSeconds: value })}
+          />
+          <RangeControl
+            id="vmc-camera-scan-opacity"
+            label={t('SCAN OPACITY')}
+            value={scanSettings.opacity * 100}
+            min={4}
+            max={24}
+            step={1}
+            unit="%"
+            precision={0}
+            onChange={(value) => onScanSettingsChange({ opacity: value / 100 })}
+          />
+          <label className="vmc-label" htmlFor="vmc-camera-scan-color">{t('SCAN COLOR')}</label>
+          <select
+            id="vmc-camera-scan-color"
+            className="vmc-select"
+            value={scanSettings.color}
+            onChange={(event) => onScanSettingsChange({ color: event.currentTarget.value as typeof scanSettings.color })}
+            data-testid="select-camera-scan-color"
+          >
+            <option value="cyan">{t('Signal blue')}</option>
+            <option value="teal">{t('Signal teal')}</option>
+            <option value="white">{t('Signal white')}</option>
+          </select>
+        </div>
       </fieldset>
 
       <fieldset className="vmc-group vmc-audio-group">

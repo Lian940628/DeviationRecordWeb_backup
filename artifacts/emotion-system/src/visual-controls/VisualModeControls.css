@@ -133,6 +133,84 @@
 .vmc-file-input:focus-visible + .vmc-file-button { outline: 2px solid var(--vmc-gold); outline-offset: 3px; }
 .vmc-status { margin: 0; color: var(--vmc-teal); font-size: 9px; line-height: 1.5; overflow-wrap: anywhere; }
 .vmc-status.is-error { color: #e6a0a5; }
+
+html body .vmc-panel {
+  --vmc-teal: #52d4be;
+  --vmc-blue: #42b8e8;
+  --vmc-cyan: #85afc4;
+  --vmc-gold: #e8c77a;
+  --vmc-line: rgba(66, 184, 232, .22);
+  --vmc-ink: #ddf5ff;
+  --vmc-muted: #85afc4;
+  border-color: rgba(66, 184, 232, .34);
+  background:
+    linear-gradient(145deg, rgba(66, 184, 232, .065), transparent 55%),
+    rgba(4, 18, 32, .64);
+  box-shadow: 0 0 20px rgba(66, 184, 232, .08), inset 0 0 28px rgba(66, 184, 232, .025);
+}
+
+html body .vmc-panel::before { border-color: rgba(66, 184, 232, .18); }
+
+.vmc-hud-toggles {
+  display: grid;
+  gap: 5px;
+  margin: 4px 0 12px;
+}
+
+.vmc-hud-toggle {
+  display: flex;
+  min-height: 28px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 5px 7px;
+  border: 1px solid rgba(66, 184, 232, .18);
+  background: rgba(4, 18, 32, .28);
+  color: var(--vmc-ink);
+  font-size: 7px;
+  letter-spacing: .07em;
+}
+
+.vmc-hud-toggle input {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  accent-color: #42b8e8;
+  cursor: pointer;
+}
+
+.vmc-hud-scan-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 2px 0 10px;
+  color: var(--vmc-muted);
+  font-size: 7px;
+}
+
+.vmc-hud-scan-toggle .vmc-action.is-enabled {
+  border-color: rgba(82, 212, 190, .7);
+  color: #9be8db;
+}
+
+.vmc-select {
+  width: 100%;
+  min-height: 28px;
+  padding: 5px 7px;
+  border: 1px solid rgba(66, 184, 232, .28);
+  border-radius: 0;
+  background: rgba(4, 18, 32, .6);
+  color: var(--vmc-ink);
+  font: 7px var(--app-font-mono), monospace;
+}
+
+.vmc-select:focus-visible,
+.vmc-hud-toggle input:focus-visible,
+.vmc-hud-scan-toggle .vmc-action:focus-visible {
+  outline: 1px solid #42b8e8;
+  outline-offset: 2px;
+}
 .vmc-panel button:focus-visible, .vmc-panel input:focus-visible, .vmc-panel select:focus-visible, .vmc-file-button:focus-visible { outline: 2px solid var(--vmc-gold); outline-offset: 3px; }
 @container visual-controls (min-width: 520px) {
   .vmc-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 17px; }
