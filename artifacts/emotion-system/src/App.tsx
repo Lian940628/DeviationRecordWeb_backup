@@ -8,6 +8,9 @@ import { DetectionOverlay } from './tracking/DetectionOverlay';
 import { releaseCocoSsdModel, usePersonDetection } from './tracking/usePersonDetection';
 import { releaseFaceLandmarkerWorker } from './tracking/faceLandmarkerWorker';
 import { useFaceExpressions } from './tracking/useFaceExpressions';
+import { VideoArtworkCanvas } from './visualization/VideoArtworkCanvas';
+import { useVisualModes } from './visualization/useVisualModes';
+import { VisualModeControls } from './visual-controls/VisualModeControls';
 
 function Header() {
   return (
@@ -46,10 +49,13 @@ function Experience() {
   const camera = useCameraController();
   const detection = usePersonDetection(camera.videoRef, Boolean(camera.stream));
   const faceAnalysis = useFaceExpressions(camera.videoRef, Boolean(camera.stream), detection.tracks);
+  const visualModes = useVisualModes(Boolean(camera.stream));
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [debugMode, setDebugMode] = useState(false);
-  const [renderingFps, setRenderingFps] = useState(0);
+  const [overlayFps, setOverlayFps] = useState(0);
+  const [artworkFps, setArtworkFps] = useState(0);
   const [fullscreenError, setFullscreenError] = useState('');
+  const renderingFps = artworkFps || overlayFps;
 
   const toggleFullscreen = async () => {
     const frame = document.getElementById('camera-preview');
@@ -76,7 +82,27 @@ function Experience() {
             <div id="camera-preview" className="preview-frame" data-testid="camera-preview">
               {camera.stream && <video ref={camera.videoRef} className={`preview-video${camera.mirrored ? ' mirrored' : ''}`} autoPlay playsInline muted aria-label="Live camera preview" data-testid="video-live-preview" />}
               {!camera.stream && <div className="preview-empty" data-testid="status-camera-idle"><div className="aperture"><span className="aperture-center" /></div><div className="preview-message">A space held for you</div><div className="preview-hint">Start the camera when you are ready.</div></div>}
-              {camera.stream && <div className="preview-hud"><span className="hud-live"><i className="tiny-dot" /> LIVE · LOCAL</span><span>{camera.fps > 0 ? `${camera.fps} FPS` : 'SYNCING'}</span></div>}
+              {camera.stream && (
+                <VideoArtworkCanvas
+                  videoRef={camera.videoRef}
+                  tracks={detection.tracks}
+                  expressions={faceAnalysis.expressions}
+                  running={Boolean(camera.stream)}
+                  mirrored={camera.mirrored}
+                  mode={visualModes.visualMode}
+                  previousMode={visualModes.previousMode}
+                  transitionKey={visualModes.transitionKey}
+                  transitionDurationSeconds={visualModes.glitchDurationSeconds}
+                  renderScale={visualModes.renderScale}
+                  onRenderingFps={setArtworkFps}
+                />
+              )}
+              {camera.stream && (
+                <div className="preview-hud">
+                  <span className="hud-live"><i className="tiny-dot" /> LIVE · LOCAL</span>
+                  <span>{visualModes.visualMode === 'scan' ? 'DIGITAL SCAN' : 'AI SURVEILLANCE'} · {camera.fps > 0 ? `${camera.fps} FPS` : 'SYNCING'}</span>
+                </div>
+              )}
               <div className="preview-overlay" aria-hidden="true">
                 <div className="overlay-detection" />
                 <div className="overlay-generative" />
@@ -88,7 +114,7 @@ function Experience() {
                 expressions={faceAnalysis.expressions}
                 running={Boolean(camera.stream)}
                 mirrored={camera.mirrored}
-                onRenderingFps={setRenderingFps}
+                onRenderingFps={setOverlayFps}
               />
             </div>
             <div className="preview-actions">
@@ -143,6 +169,21 @@ function Experience() {
               detectionFps={detection.detectionFps}
               renderingFps={renderingFps}
               activeTrackIds={detection.activeTrackIds}
+            />
+            <VisualModeControls
+              className="vmc-experience-controls"
+              playbackMode={visualModes.playbackMode}
+              onPlaybackModeChange={visualModes.setPlaybackMode}
+              visualMode={visualModes.visualMode}
+              onVisualModeChange={visualModes.chooseMode}
+              originalDwellSeconds={visualModes.originalDwellSeconds}
+              onOriginalDwellSecondsChange={visualModes.setOriginalDwellSeconds}
+              scanDwellSeconds={visualModes.scanDwellSeconds}
+              onScanDwellSecondsChange={visualModes.setScanDwellSeconds}
+              glitchDurationSeconds={visualModes.glitchDurationSeconds}
+              onGlitchDurationSecondsChange={visualModes.setGlitchDurationSeconds}
+              renderScale={visualModes.renderScale}
+              onRenderScaleChange={visualModes.setRenderScale}
             />
             <div className="privacy-block">
               <div className="privacy-mark"><ShieldCheck size={14} strokeWidth={1.5} /> Private by design</div>
