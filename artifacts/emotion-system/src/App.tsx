@@ -92,7 +92,7 @@ function Experience() {
                   mode={visualModes.visualMode}
                   previousMode={visualModes.previousMode}
                   transitionKey={visualModes.transitionKey}
-                  transitionDurationSeconds={visualModes.glitchDurationSeconds}
+                  transitionDurationSeconds={visualModes.transitionDurationSeconds}
                   renderScale={visualModes.renderScale}
                   onRenderingFps={setArtworkFps}
                 />
@@ -100,7 +100,7 @@ function Experience() {
               {camera.stream && (
                 <div className="preview-hud">
                   <span className="hud-live"><i className="tiny-dot" /> LIVE · LOCAL</span>
-                  <span>{visualModes.visualMode === 'scan' ? 'DIGITAL SCAN' : 'AI SURVEILLANCE'} · {camera.fps > 0 ? `${camera.fps} FPS` : 'SYNCING'}</span>
+                  <span>{({ normal: '01 NORMAL', anomaly: '02 ANOMALY', particle: '03 PARTICLE', line: '04 LINE' } as const)[visualModes.visualMode]} · {camera.fps > 0 ? `${camera.fps} FPS` : 'SYNCING'}</span>
                 </div>
               )}
               <div className="preview-overlay" aria-hidden="true">
@@ -176,10 +176,14 @@ function Experience() {
               onPlaybackModeChange={visualModes.setPlaybackMode}
               visualMode={visualModes.visualMode}
               onVisualModeChange={visualModes.chooseMode}
-              originalDwellSeconds={visualModes.originalDwellSeconds}
-              onOriginalDwellSecondsChange={visualModes.setOriginalDwellSeconds}
-              scanDwellSeconds={visualModes.scanDwellSeconds}
-              onScanDwellSecondsChange={visualModes.setScanDwellSeconds}
+              normalDwellSeconds={visualModes.normalDwellSeconds}
+              onNormalDwellSecondsChange={visualModes.setNormalDwellSeconds}
+              anomalyDwellSeconds={visualModes.anomalyDwellSeconds}
+              onAnomalyDwellSecondsChange={visualModes.setAnomalyDwellSeconds}
+              particleDwellSeconds={visualModes.particleDwellSeconds}
+              onParticleDwellSecondsChange={visualModes.setParticleDwellSeconds}
+              lineDwellSeconds={visualModes.lineDwellSeconds}
+              onLineDwellSecondsChange={visualModes.setLineDwellSeconds}
               glitchDurationSeconds={visualModes.glitchDurationSeconds}
               onGlitchDurationSecondsChange={visualModes.setGlitchDurationSeconds}
               renderScale={visualModes.renderScale}

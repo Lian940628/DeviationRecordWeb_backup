@@ -397,3 +397,29 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+.vmc-glyph-anomaly {
+  border-color: rgba(125, 220, 244, 0.5);
+  background:
+    linear-gradient(90deg, transparent 0 30%, rgba(82, 212, 190, 0.8) 30% 62%, transparent 62%) 0 3px / 100% 5px no-repeat,
+    linear-gradient(90deg, rgba(66, 184, 232, 0.75) 0 45%, transparent 45%) 0 10px / 100% 4px no-repeat;
+}
+
+.vmc-glyph-particle {
+  border-color: rgba(82, 212, 190, 0.4);
+  background:
+    radial-gradient(circle at 22% 30%, var(--vmc-teal, #52d4be) 0 0.8px, transparent 1.2px),
+    radial-gradient(circle at 61% 18%, #7ddcf4 0 0.8px, transparent 1.2px),
+    radial-gradient(circle at 74% 66%, #42b8e8 0 0.8px, transparent 1.2px),
+    radial-gradient(circle at 38% 72%, #7ddcf4 0 0.8px, transparent 1.2px),
+    radial-gradient(circle at 47% 45%, #52d4be 0 0.8px, transparent 1.2px),
+    #030b15;
+}
+
+.vmc-glyph-line {
+  border-color: rgba(66, 184, 232, 0.45);
+  background:
+    linear-gradient(35deg, transparent 46%, rgba(125, 220, 244, 0.85) 46% 52%, transparent 52%),
+    linear-gradient(-60deg, transparent 60%, rgba(66, 184, 232, 0.7) 60% 65%, transparent 65%),
+    #030b15;
+}

@@ -30,7 +30,12 @@ interface TransitionState {
 }
 
 function modeValue(mode: VisualMode): number {
-  return mode === 'scan' ? 1 : 0;
+  switch (mode) {
+    case 'anomaly': return 1;
+    case 'particle': return 2;
+    case 'line': return 3;
+    default: return 0;
+  }
 }
 
 function setUniformVector(
@@ -113,6 +118,8 @@ export function VideoArtworkCanvas({
 
     const personBoxes = Array.from({ length: MAX_PERSONS }, () => new THREE.Vector4());
     const personHappy = new Float32Array(MAX_PERSONS);
+    const personSeed = new Float32Array(MAX_PERSONS);
+    const drawingSize = new THREE.Vector2();
     const uniforms: THREE.ShaderMaterial['uniforms'] = {
       uVideo: { value: videoTexture },
       uResolution: { value: new THREE.Vector2(1, 1) },
@@ -125,6 +132,7 @@ export function VideoArtworkCanvas({
       uBoxCount: { value: 0 },
       uPersonBoxes: { value: personBoxes },
       uPersonHappy: { value: personHappy },
+      uPersonSeed: { value: personSeed },
     };
     uniformsRef.current = uniforms;
 
@@ -153,9 +161,8 @@ export function VideoArtworkCanvas({
       const pixelRatio = Math.min(2, (window.devicePixelRatio || 1) * renderScaleRef.current);
       renderer.setPixelRatio(Math.max(0.35, pixelRatio));
       renderer.setSize(bounds.width, bounds.height, false);
-      const resolution = new THREE.Vector2();
-      renderer.getDrawingBufferSize(resolution);
-      setUniformVector(uniforms, 'uResolution', resolution.x, resolution.y);
+      renderer.getDrawingBufferSize(drawingSize);
+      setUniformVector(uniforms, 'uResolution', drawingSize.x, drawingSize.y);
     };
     resizeCallbackRef.current = resize;
 
@@ -167,8 +174,6 @@ export function VideoArtworkCanvas({
     window.addEventListener('resize', resize);
 
     const updatePeople = () => {
-      const visibleTracks = tracksRef.current.filter((track) => track.visible).slice(0, MAX_PERSONS);
-      const expressionByTrack = new Map(expressionsRef.current.map((item) => [item.trackId, item]));
       uniforms.uMirrored.value = mirroredRef.current ? 1 : 0;
       const sourceWidth = video.videoWidth;
       const sourceHeight = video.videoHeight;
@@ -183,16 +188,30 @@ export function VideoArtworkCanvas({
       const cropY = (sourceHeight * scale - bounds.height) / 2;
       const boxes = uniforms.uPersonBoxes.value as THREE.Vector4[];
       const happyValues = uniforms.uPersonHappy.value as Float32Array;
-      visibleTracks.forEach((track, index) => {
+      const allTracks = tracksRef.current;
+      const expressionList = expressionsRef.current;
+      let index = 0;
+      for (let t = 0; t < allTracks.length && index < MAX_PERSONS; t += 1) {
+        const track = allTracks[t];
+        if (!track || !track.visible) continue;
         const width = (track.width * sourceWidth * scale) / bounds.width;
         const height = (track.height * sourceHeight * scale) / bounds.height;
         let x = (track.x * sourceWidth * scale - cropX) / bounds.width;
         const y = (track.y * sourceHeight * scale - cropY) / bounds.height;
         if (mirroredRef.current) x = 1 - x - width;
         boxes[index]?.set(x, y, width, height);
-        happyValues[index] = expressionByTrack.get(track.id)?.label === 'HAPPY' ? 1 : 0;
-      });
-      uniforms.uBoxCount.value = visibleTracks.length;
+        let happy = 0;
+        for (let e = 0; e < expressionList.length; e += 1) {
+          if (expressionList[e]?.trackId === track.id) {
+            happy = expressionList[e]?.label === 'HAPPY' ? 1 : 0;
+            break;
+          }
+        }
+        happyValues[index] = happy;
+        personSeed[index] = (track.id * 7.31) % 97;
+        index += 1;
+      }
+      uniforms.uBoxCount.value = index;
       uniforms.uMirrored.value = mirroredRef.current ? 1 : 0;
     };
 
@@ -250,13 +269,17 @@ export function VideoArtworkCanvas({
     const uniforms = uniformsRef.current;
     if (!uniforms) return;
     uniforms.uMode.value = modeValue(mode);
-    if (transitionKey !== lastTransitionKeyRef.current) {
+    if (transitionKey !== lastTransitionKeyRef.current && transitionDurationSeconds <= 0) {
+      transitionRef.current = null;
+      uniforms.uTransitionProgress.value = -1;
+      lastTransitionKeyRef.current = transitionKey;
+    } else if (transitionKey !== lastTransitionKeyRef.current) {
       uniforms.uFromMode.value = modeValue(previousMode);
       uniforms.uTransitionProgress.value = 0;
       transitionRef.current = {
         key: transitionKey,
         startTime: performance.now(),
-        durationMs: Math.max(150, Math.min(350, transitionDurationSeconds * 1000)),
+        durationMs: Math.max(80, Math.min(200, transitionDurationSeconds * 1000)),
       };
       lastTransitionKeyRef.current = transitionKey;
     }

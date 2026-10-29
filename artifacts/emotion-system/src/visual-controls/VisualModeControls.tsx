@@ -2,17 +2,28 @@ import type { ChangeEvent, CSSProperties } from "react";
 import "./VisualModeControls.css";
 
 export type PlaybackMode = "auto" | "manual";
-export type VisualMode = "surveillance" | "scan";
+export type VisualMode = "normal" | "anomaly" | "particle" | "line";
+
+const STAGES: { mode: VisualMode; index: string; name: string; note: string; glyph: string }[] = [
+  { mode: "normal", index: "01", name: "Normal image", note: "Untouched camera colour", glyph: "vmc-glyph-frame" },
+  { mode: "anomaly", index: "02", name: "Person anomaly", note: "Inversion / posterize inside boxes", glyph: "vmc-glyph-anomaly" },
+  { mode: "particle", index: "03", name: "Particle field", note: "Scene broken into specks", glyph: "vmc-glyph-particle" },
+  { mode: "line", index: "04", name: "Line contour", note: "Scharr edges, broken", glyph: "vmc-glyph-line" },
+];
 
 export interface VisualModeControlsProps {
   playbackMode: PlaybackMode;
   onPlaybackModeChange: (mode: PlaybackMode) => void;
   visualMode: VisualMode;
   onVisualModeChange: (mode: VisualMode) => void;
-  originalDwellSeconds: number;
-  onOriginalDwellSecondsChange: (seconds: number) => void;
-  scanDwellSeconds: number;
-  onScanDwellSecondsChange: (seconds: number) => void;
+  normalDwellSeconds: number;
+  onNormalDwellSecondsChange: (seconds: number) => void;
+  anomalyDwellSeconds: number;
+  onAnomalyDwellSecondsChange: (seconds: number) => void;
+  particleDwellSeconds: number;
+  onParticleDwellSecondsChange: (seconds: number) => void;
+  lineDwellSeconds: number;
+  onLineDwellSecondsChange: (seconds: number) => void;
   glitchDurationSeconds: number;
   onGlitchDurationSecondsChange: (seconds: number) => void;
   renderScale: number;
@@ -85,10 +96,14 @@ export function VisualModeControls({
   onPlaybackModeChange,
   visualMode,
   onVisualModeChange,
-  originalDwellSeconds,
-  onOriginalDwellSecondsChange,
-  scanDwellSeconds,
-  onScanDwellSecondsChange,
+  normalDwellSeconds,
+  onNormalDwellSecondsChange,
+  anomalyDwellSeconds,
+  onAnomalyDwellSecondsChange,
+  particleDwellSeconds,
+  onParticleDwellSecondsChange,
+  lineDwellSeconds,
+  onLineDwellSecondsChange,
   glitchDurationSeconds,
   onGlitchDurationSecondsChange,
   renderScale,
@@ -127,77 +142,92 @@ export function VisualModeControls({
             Manual
           </button>
         </div>
-        <p className="vmc-help">Auto alternates on the configured dwell times.</p>
+        <p className="vmc-help">Auto cycles 01 → 02 → 03 → 04 with hard cuts. Picking a stage switches to manual.</p>
       </fieldset>
 
       <fieldset className="vmc-group">
         <legend className="vmc-group-title">Image state</legend>
-        <div className="vmc-mode-list" role="group" aria-label="Visual mode">
-          <button
-            type="button"
-            className={`vmc-mode-option${visualMode === "surveillance" ? " is-active" : ""}`}
-            aria-pressed={visualMode === "surveillance"}
-            onClick={() => onVisualModeChange("surveillance")}
-          >
-            <span className="vmc-mode-glyph vmc-glyph-frame" aria-hidden="true" />
-            <span className="vmc-mode-copy">
-              <strong>AI Surveillance</strong>
-              <small>Camera image + person-linked marks</small>
-            </span>
-            <span className="vmc-check" aria-hidden="true">●</span>
-          </button>
-          <button
-            type="button"
-            className={`vmc-mode-option${visualMode === "scan" ? " is-active" : ""}`}
-            aria-pressed={visualMode === "scan"}
-            onClick={() => onVisualModeChange("scan")}
-          >
-            <span className="vmc-mode-glyph vmc-glyph-scan" aria-hidden="true" />
-            <span className="vmc-mode-copy">
-              <strong>Digital Scan</strong>
-              <small>All-scene edge and detail pass</small>
-            </span>
-            <span className="vmc-check" aria-hidden="true">●</span>
-          </button>
+        <div className="vmc-mode-list" role="group" aria-label="Visual stage">
+          {STAGES.map((stage) => (
+            <button
+              key={stage.mode}
+              type="button"
+              className={`vmc-mode-option${visualMode === stage.mode ? " is-active" : ""}`}
+              aria-pressed={visualMode === stage.mode}
+              onClick={() => onVisualModeChange(stage.mode)}
+              data-testid={`button-stage-${stage.mode}`}
+            >
+              <span className={`vmc-mode-glyph ${stage.glyph}`} aria-hidden="true" />
+              <span className="vmc-mode-copy">
+                <strong>{stage.index} · {stage.name}</strong>
+                <small>{stage.note}</small>
+              </span>
+              <span className="vmc-check" aria-hidden="true">●</span>
+            </button>
+          ))}
         </div>
       </fieldset>
 
       <fieldset className="vmc-group vmc-timing">
         <legend className="vmc-group-title">Cycle timing</legend>
         <RangeControl
-          id="vmc-original-dwell"
-          label="Surveillance dwell"
-          value={originalDwellSeconds}
-          min={1}
-          max={8}
-          step={0.25}
+          id="vmc-normal-dwell"
+          label="01 Normal dwell"
+          value={normalDwellSeconds}
+          min={0.2}
+          max={4}
+          step={0.05}
           unit="s"
           precision={2}
-          hint="Time before scan state"
-          onChange={onOriginalDwellSecondsChange}
+          hint="Raw camera"
+          onChange={onNormalDwellSecondsChange}
         />
         <RangeControl
-          id="vmc-scan-dwell"
-          label="Scan dwell"
-          value={scanDwellSeconds}
-          min={1}
-          max={8}
-          step={0.25}
+          id="vmc-anomaly-dwell"
+          label="02 Anomaly dwell"
+          value={anomalyDwellSeconds}
+          min={0.2}
+          max={4}
+          step={0.05}
           unit="s"
           precision={2}
-          hint="Time before return"
-          onChange={onScanDwellSecondsChange}
+          hint="Person pulses"
+          onChange={onAnomalyDwellSecondsChange}
+        />
+        <RangeControl
+          id="vmc-particle-dwell"
+          label="03 Particle dwell"
+          value={particleDwellSeconds}
+          min={0.2}
+          max={4}
+          step={0.05}
+          unit="s"
+          precision={2}
+          hint="Speck field"
+          onChange={onParticleDwellSecondsChange}
+        />
+        <RangeControl
+          id="vmc-line-dwell"
+          label="04 Line dwell"
+          value={lineDwellSeconds}
+          min={0.2}
+          max={4}
+          step={0.05}
+          unit="s"
+          precision={2}
+          hint="Contours"
+          onChange={onLineDwellSecondsChange}
         />
         <RangeControl
           id="vmc-glitch-duration"
           label="Glitch duration"
           value={glitchDurationSeconds}
-          min={0.15}
-          max={0.35}
+          min={0.08}
+          max={0.2}
           step={0.01}
           unit="s"
           precision={2}
-          hint="Abrupt transition"
+          hint="Inside dwell, into 01 and 03"
           onChange={onGlitchDurationSecondsChange}
         />
       </fieldset>
