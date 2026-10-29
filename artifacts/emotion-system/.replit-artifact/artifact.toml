@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "EMOTION / SYSTEM"
+description = "An interactive browser-based media art experience. Visitors can start their camera intentionally, view the live feed locally, choose camera devices, enter fullscreen, and explore a foundation ready for future generative visuals."
+version = "1.0.0"
+id = "artifacts/emotion-system"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 25432
+
+[services.development]
+run = "pnpm --filter @workspace/emotion-system run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/emotion-system", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/emotion-system/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "25432"
+BASE_PATH = "/"
