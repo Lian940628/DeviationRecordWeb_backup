@@ -1,12 +1,68 @@
-import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Camera, Circle, Eye, EyeOff, Square } from 'lucide-react';
 import { useTranslation } from '../i18n';
 import './cameraCaptureControls.css';
 
 interface CameraCaptureControlsProps {
   stream: MediaStream | null;
-  videoRef: RefObject<HTMLVideoElement | null>;
-  mirrored: boolean;
+}
+
+type DisplayMediaOptionsWithHints = DisplayMediaStreamOptions & {
+  preferCurrentTab?: boolean;
+  selfBrowserSurface?: 'include' | 'exclude';
+};
+
+function requestVisibleTabCapture() {
+  if (!navigator.mediaDevices?.getDisplayMedia) {
+    throw new DOMException('Screen capture is unavailable.', 'NotSupportedError');
+  }
+  return navigator.mediaDevices.getDisplayMedia({
+    video: {
+      displaySurface: 'browser',
+      frameRate: { ideal: 30, max: 30 },
+    },
+    audio: false,
+    preferCurrentTab: true,
+    selfBrowserSurface: 'include',
+  } as DisplayMediaOptionsWithHints);
+}
+
+async function waitForVideoFrame(video: HTMLVideoElement) {
+  await video.play();
+  if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) return;
+
+  await new Promise<void>((resolve, reject) => {
+    const timeout = window.setTimeout(() => {
+      cleanup();
+      reject(new Error('Timed out waiting for the captured screen.'));
+    }, 8000);
+    const cleanup = () => {
+      window.clearTimeout(timeout);
+      video.removeEventListener('loadeddata', onLoaded);
+      video.removeEventListener('error', onError);
+    };
+    const onLoaded = () => {
+      cleanup();
+      resolve();
+    };
+    const onError = () => {
+      cleanup();
+      reject(new Error('Could not read the captured screen.'));
+    };
+    video.addEventListener('loadeddata', onLoaded, { once: true });
+    video.addEventListener('error', onError, { once: true });
+  });
+}
+
+function screenCaptureErrorMessage(error: unknown) {
+  const name = error instanceof DOMException ? error.name : '';
+  if (name === 'NotSupportedError' || name === 'TypeError') {
+    return 'Screen capture is unavailable in this browser.';
+  }
+  if (name === 'NotAllowedError' || name === 'AbortError') {
+    return 'Screen capture was blocked or cancelled. Try opening this page in a new tab and select this tab.';
+  }
+  return 'Could not capture the screen. Try selecting this browser tab.';
 }
 
 function downloadBlob(blob: Blob, filename: string) {
@@ -25,12 +81,15 @@ function timestamp() {
   return new Date().toISOString().replace(/[:.]/g, '-').replace(/Z$/, '');
 }
 
-export function CameraCaptureControls({ stream, videoRef, mirrored }: CameraCaptureControlsProps) {
+export function CameraCaptureControls({ stream }: CameraCaptureControlsProps) {
   const t = useTranslation();
   const [controlsVisible, setControlsVisible] = useState(true);
   const [recording, setRecording] = useState(false);
+  const [preparing, setPreparing] = useState(false);
   const [status, setStatus] = useState('');
   const recorderRef = useRef<MediaRecorder | null>(null);
+  const screenStreamRef = useRef<MediaStream | null>(null);
+  const photoStreamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const statusTimerRef = useRef<number | null>(null);
   const mountedRef = useRef(false);
@@ -53,7 +112,10 @@ export function CameraCaptureControls({ stream, videoRef, mirrored }: CameraCapt
       const recorder = recorderRef.current;
       if (recorder?.state === 'recording') {
         try { recorder.stop(); } catch { /* The recorder may already be stopping. */ }
+      } else {
+        screenStreamRef.current?.getTracks().forEach((track) => track.stop());
       }
+      photoStreamRef.current?.getTracks().forEach((track) => track.stop());
     };
   }, []);
 
@@ -61,36 +123,54 @@ export function CameraCaptureControls({ stream, videoRef, mirrored }: CameraCapt
     if (!stream && recorderRef.current?.state === 'recording') {
       try { recorderRef.current.stop(); } catch { /* Camera shutdown can stop the recorder first. */ }
     }
+    if (!stream) photoStreamRef.current?.getTracks().forEach((track) => track.stop());
   }, [stream]);
 
   const takePhoto = useCallback(() => {
-    const video = videoRef.current;
-    if (!stream || !video || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA || !video.videoWidth || !video.videoHeight) {
+    if (!stream || !stream.getVideoTracks().some((track) => track.readyState === 'live')) {
       announce('Camera image is not ready yet.');
       return;
     }
-    const canvas = document.createElement('canvas');
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    const context = canvas.getContext('2d');
-    if (!context) {
-      announce('Photo capture is not supported in this browser.');
-      return;
-    }
-    if (mirrored) {
-      context.translate(canvas.width, 0);
-      context.scale(-1, 1);
-    }
-    context.drawImage(video, 0, 0, canvas.width, canvas.height);
-    canvas.toBlob((blob) => {
-      if (!blob) {
-        announce('Could not capture a photo from this camera.');
-        return;
+    setPreparing(true);
+    void (async () => {
+      let capturedStream: MediaStream | null = null;
+      let capturedVideo: HTMLVideoElement | null = null;
+      try {
+        announce('Choose this tab in the browser sharing dialog.');
+        capturedStream = await requestVisibleTabCapture();
+        photoStreamRef.current = capturedStream;
+        capturedVideo = document.createElement('video');
+        capturedVideo.muted = true;
+        capturedVideo.playsInline = true;
+        capturedVideo.srcObject = capturedStream;
+        await waitForVideoFrame(capturedVideo);
+        if (!capturedVideo.videoWidth || !capturedVideo.videoHeight) {
+          throw new Error('The captured screen has no image dimensions.');
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = capturedVideo.videoWidth;
+        canvas.height = capturedVideo.videoHeight;
+        const context = canvas.getContext('2d');
+        if (!context) throw new Error('Canvas is unavailable.');
+        context.drawImage(capturedVideo, 0, 0, canvas.width, canvas.height);
+        const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
+        if (!blob) {
+          announce('Could not capture the screen. Try selecting this browser tab.');
+          return;
+        }
+        downloadBlob(blob, `emotion-system_${timestamp()}.png`);
+        announce('Screenshot saved locally.');
+      } catch (error) {
+        announce(screenCaptureErrorMessage(error));
+      } finally {
+        capturedVideo?.pause();
+        if (capturedVideo) capturedVideo.srcObject = null;
+        capturedStream?.getTracks().forEach((track) => track.stop());
+        if (photoStreamRef.current === capturedStream) photoStreamRef.current = null;
+        if (mountedRef.current) setPreparing(false);
       }
-      downloadBlob(blob, `emotion-system_${timestamp()}.png`);
-      announce('Photo saved locally.');
-    }, 'image/png');
-  }, [announce, mirrored, stream, videoRef]);
+    })();
+  }, [announce, stream]);
 
   const toggleRecording = useCallback(() => {
     const currentRecorder = recorderRef.current;
@@ -102,51 +182,67 @@ export function CameraCaptureControls({ stream, videoRef, mirrored }: CameraCapt
       }
       return;
     }
-    if (!stream || typeof MediaRecorder === 'undefined') {
-      announce('This browser does not support video recording.');
-      return;
-    }
-    if (!stream.getVideoTracks().some((track) => track.readyState === 'live')) {
+    if (!stream || !stream.getVideoTracks().some((track) => track.readyState === 'live')) {
       announce('Camera image is not ready yet.');
       return;
     }
-
-    try {
-      const mimeType = [
-        'video/webm;codecs=vp9',
-        'video/webm;codecs=vp8',
-        'video/webm',
-        'video/mp4;codecs=avc1.42E01E',
-        'video/mp4',
-      ].find((type) => MediaRecorder.isTypeSupported?.(type));
-      const recorder = mimeType
-        ? new MediaRecorder(stream, { mimeType })
-        : new MediaRecorder(stream);
-      chunksRef.current = [];
-      recorder.ondataavailable = (event) => {
-        if (event.data.size > 0) chunksRef.current.push(event.data);
-      };
-      recorder.onerror = () => announce('Recording failed. Try again.');
-      recorder.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: recorder.mimeType || 'video/webm' });
-        chunksRef.current = [];
-        if (blob.size > 0) {
-          const extension = blob.type.includes('mp4') ? 'mp4' : 'webm';
-          downloadBlob(blob, `emotion-system_${timestamp()}.${extension}`);
-          announce('Recording saved locally.');
-        } else {
-          announce('Recording failed. Try again.');
-        }
-        if (mountedRef.current) setRecording(false);
-        if (recorderRef.current === recorder) recorderRef.current = null;
-      };
-      recorderRef.current = recorder;
-      recorder.start(250);
-      setRecording(true);
-      announce('Recording started. Use STOP RECORDING to finish.');
-    } catch {
+    if (typeof MediaRecorder === 'undefined') {
       announce('This browser does not support video recording.');
+      return;
     }
+
+    setPreparing(true);
+    void (async () => {
+      let capturedStream: MediaStream | null = null;
+      try {
+        announce('Choose this tab in the browser sharing dialog.');
+        capturedStream = await requestVisibleTabCapture();
+        screenStreamRef.current = capturedStream;
+        const mimeType = [
+          'video/webm;codecs=vp9',
+          'video/webm;codecs=vp8',
+          'video/webm',
+          'video/mp4;codecs=avc1.42E01E',
+          'video/mp4',
+        ].find((type) => MediaRecorder.isTypeSupported?.(type));
+        const recorder = mimeType
+          ? new MediaRecorder(capturedStream, { mimeType })
+          : new MediaRecorder(capturedStream);
+        chunksRef.current = [];
+        recorder.ondataavailable = (event) => {
+          if (event.data.size > 0) chunksRef.current.push(event.data);
+        };
+        recorder.onerror = () => announce('Recording failed. Try again.');
+        recorder.onstop = () => {
+          const blob = new Blob(chunksRef.current, { type: recorder.mimeType || 'video/webm' });
+          chunksRef.current = [];
+          screenStreamRef.current?.getTracks().forEach((track) => track.stop());
+          screenStreamRef.current = null;
+          if (blob.size > 0) {
+            const extension = blob.type.includes('mp4') ? 'mp4' : 'webm';
+            downloadBlob(blob, `emotion-system_${timestamp()}.${extension}`);
+            announce('Screen recording saved locally.');
+          } else {
+            announce('Recording failed. Try again.');
+          }
+          if (mountedRef.current) setRecording(false);
+          if (recorderRef.current === recorder) recorderRef.current = null;
+        };
+        capturedStream.getVideoTracks()[0]?.addEventListener('ended', () => {
+          if (recorder.state === 'recording') recorder.stop();
+        }, { once: true });
+        recorderRef.current = recorder;
+        recorder.start(250);
+        setRecording(true);
+        announce('Screen recording started. Stop to save the current screen.');
+      } catch (error) {
+        capturedStream?.getTracks().forEach((track) => track.stop());
+        if (screenStreamRef.current === capturedStream) screenStreamRef.current = null;
+        announce(screenCaptureErrorMessage(error));
+      } finally {
+        if (mountedRef.current) setPreparing(false);
+      }
+    })();
   }, [announce, stream]);
 
   if (!stream) return null;
@@ -170,13 +266,14 @@ export function CameraCaptureControls({ stream, videoRef, mirrored }: CameraCapt
 
       {controlsVisible && (
         <div className="camera-capture-toolbar">
-          <button type="button" onClick={takePhoto} data-testid="button-take-photo">
+          <button type="button" onClick={takePhoto} disabled={preparing || recording} data-testid="button-take-photo">
             <Camera size={14} /><span>{t('TAKE PHOTO')}</span>
           </button>
           <button
             className={recording ? 'is-recording' : ''}
             type="button"
             aria-pressed={recording}
+            disabled={preparing}
             onClick={toggleRecording}
             data-testid="button-toggle-recording"
           >
@@ -186,6 +283,7 @@ export function CameraCaptureControls({ stream, videoRef, mirrored }: CameraCapt
         </div>
       )}
 
+      {controlsVisible && <p className="camera-capture-hint">{t('Select this tab to include effects and information panels.')}</p>}
       {status && <div className="camera-capture-status" role="status" aria-live="polite" data-testid="status-capture">{t(status)}</div>}
     </div>
   );

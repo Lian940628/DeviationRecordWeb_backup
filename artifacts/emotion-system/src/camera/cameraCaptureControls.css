@@ -77,9 +77,27 @@
   outline-offset: 2px;
 }
 
+.camera-capture-toolbar button:disabled {
+  cursor: wait;
+  opacity: .55;
+  transform: none;
+}
+
 .camera-capture-toolbar button:active,
 .camera-capture-visibility:active {
   transform: scale(.97);
+}
+
+.camera-capture-hint {
+  max-width: min(100%, 350px);
+  margin: 0;
+  padding: 4px 7px;
+  border-left: 1px solid rgba(102, 237, 222, .38);
+  background: rgba(2, 14, 18, .78);
+  color: #a7c7c1;
+  font-size: 7px;
+  line-height: 1.5;
+  letter-spacing: .04em;
 }
 
 .camera-recording-indicator {
@@ -133,6 +151,7 @@
   .camera-capture-toolbar { gap: 5px; }
   .camera-capture-toolbar button { min-width: 0; min-height: 40px; padding-inline: 9px; font-size: 7px; }
   .camera-recording-indicator { min-height: 26px; font-size: 7px; }
+  .camera-capture-hint { max-width: 290px; font-size: 6.5px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

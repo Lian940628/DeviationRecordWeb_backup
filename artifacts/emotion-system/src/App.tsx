@@ -297,8 +297,6 @@ function Experience() {
               />
               <CameraCaptureControls
                 stream={camera.stream}
-                videoRef={camera.videoRef}
-                mirrored={camera.mirrored}
               />
             </div>
             <div className="preview-actions">
