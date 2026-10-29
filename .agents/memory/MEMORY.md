@@ -6,3 +6,4 @@
 - [Camera fitting](video-fit-coordinates.md) — contain the full source; update video, shaders, boxes, and connections together to preserve alignment.
 - [WebGL shader portability](webgl-shader-portability.md) — WebGL 1 GLSL nested loops need compile-time bounds; use constant loop indices and guard conditions.
 - [Live camera render performance](live-camera-render-performance.md) — avoid live-video backdrop filters and paint-heavy motion; cap overlay pixel ratios and stop inactive canvas loops.
+- [Person detection precision](person-detection-precision.md) — apply confidence and consecutive-frame confirmation before exposing person tracks; single-frame object detections are noisy.

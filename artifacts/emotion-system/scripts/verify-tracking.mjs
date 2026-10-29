@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { classifyBlendshapes, ExpressionSmoother, getCandidateSupports } from '../src/tracking/expressionClassifier.ts';
+import { PersonTracker } from '../src/tracking/personTracker.ts';
 
 // Deterministic rule/geometry regression checks, NOT an accuracy benchmark.
 // These feature vectors never enter the live camera application.
@@ -41,4 +42,17 @@ assert.equal(first.label, 'SAD');
 assert.equal(second.label, 'ANGRY');
 assert.equal(smoother.markUnknown(1).label, 'UNKNOWN');
 
-console.log('PASS: expression labels, neutral fallback, ambiguous cues, per-ID smoothing and per-class diagnostics.');
+const person = { x: 0.4, y: 0.12, width: 0.2, height: 0.72, confidence: 0.82 };
+const tracker = new PersonTracker();
+assert.equal(tracker.update([person], 1_000)[0].visible, false, 'single-frame detections remain unconfirmed');
+assert.equal(tracker.update([person], 1_100)[0].visible, true, 'two consistent detections confirm a person track');
+
+const transient = new PersonTracker();
+assert.equal(transient.update([person], 2_000)[0].visible, false);
+assert.equal(
+  transient.update([], 2_100).some((track) => track.visible),
+  false,
+  'a one-frame false positive never becomes a visible person',
+);
+
+console.log('PASS: expression rules, temporal smoothing, and two-frame person-track confirmation.');

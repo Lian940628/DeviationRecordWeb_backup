@@ -214,6 +214,7 @@ export function CameraHudOverlayV2({
   } as CSSProperties;
   const totalEmotionSamples = EMOTIONS.reduce((sum, emotion) => sum + (analytics.counts[emotion] ?? 0), 0);
   const score = averageScore.averageScore;
+  const scoreText = score === null ? t('N/A') : score.toFixed(2);
   const scoreProgress = score === null ? 0 : clamp(score, 0, 1) * 100;
   const scoreCircumference = 2 * Math.PI * 34;
   const latestEvents = systemEvents.slice(-8).reverse();
@@ -330,7 +331,7 @@ export function CameraHudOverlayV2({
                   />
                 </svg>
                 <div className="hud-v2-score-center">
-                  <strong data-testid="camera-hud-average-score">{score === null ? t('N/A') : score.toFixed(2)}</strong>
+                  <strong data-testid="camera-hud-average-score">{scoreText}</strong>
                   <span>{t('AVG SCORE')}</span>
                 </div>
                 <small>{t('RELATIVE RULE INDEX')}</small>
@@ -420,7 +421,7 @@ export function CameraHudOverlayV2({
       ) : (
         <div className="hud-v2-collapsed" data-testid="camera-hud-compact">
           <div><span>{t('PERSON COUNT')}</span><strong>{String(personCount).padStart(2, '0')}</strong></div>
-          <div><span>{t('AVERAGE SCORE')}</span><strong>{score === null ? t('N/A') : score.toFixed(2)}</strong></div>
+          <div><span>{t('AVERAGE SCORE')}</span><strong data-testid="camera-hud-average-score-compact">{scoreText}</strong></div>
           <div><span>{t('CURRENT VISUAL STAGE')}</span><strong>{stageLabel}</strong></div>
         </div>
       )}

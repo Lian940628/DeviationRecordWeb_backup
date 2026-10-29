@@ -9,7 +9,7 @@
     "serve": "vite preview --config vite.config.ts --host 0.0.0.0",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test:tracking": "node --experimental-strip-types scripts/verify-tracking.mjs",
-    "test:session-analytics": "node --experimental-strip-types scripts/verify-session-analytics.mjs"
+    "test:session-analytics": "node --experimental-strip-types scripts/verify-session-analytics.mjs && node --experimental-strip-types scripts/verify-session-metrics.mjs"
   },
   "devDependencies": {
     "@hookform/resolvers": "^3.10.0",

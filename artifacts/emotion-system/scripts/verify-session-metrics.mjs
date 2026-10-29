@@ -29,16 +29,18 @@ assert.deepEqual(
 );
 
 const displayedScores = getValidDisplayedScores([
-  { score: 0.62 },
-  { score: 0.78 },
-  { score: null },
-  { score: undefined },
-  { score: Number.NaN },
-  { score: Number.POSITIVE_INFINITY },
+  { trackId: 1, label: 'HAPPY', score: 0.62 },
+  { trackId: 2, label: 'SAD', score: 0.78 },
+  { trackId: 3, label: 'UNKNOWN', score: 0.99 },
+  { trackId: 1, label: 'HAPPY', score: 0.35 },
+  { trackId: 4, label: 'NEUTRAL', score: null },
+  { trackId: 5, label: 'HAPPY', score: Number.NaN },
+  { trackId: 6, label: 'SAD', score: Number.POSITIVE_INFINITY },
+  { trackId: 7, label: 'ANGRY', score: 1.2 },
 ]);
 assert.deepEqual(displayedScores, [0.62, 0.78]);
 assert.equal(averageOfValidScores(displayedScores.reduce((sum, score) => sum + score, 0), displayedScores.length), 0.7);
 assert.equal(averageOfValidScores(0, 0), null);
 assert.equal(averageOfValidScores(Number.NaN, 2), null);
 
-console.log('PASS: deterministic MST connections exclude hidden tracks; expression score averages reject invalid and missing values.');
+console.log('PASS: MST connections exclude hidden tracks; score averages exclude UNKNOWN, duplicates, invalid, and out-of-range values.');

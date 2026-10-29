@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { ExpressionReadout } from './expressionTypes';
 import { averageOfValidScores, getValidDisplayedScores } from './sessionScoreMath';
 
-const SCORE_REFRESH_INTERVAL_MS = 10_000;
+const SCORE_REFRESH_INTERVAL_MS = 1_000;
 
 export interface SessionAverageScore {
   averageScore: number | null;
@@ -35,7 +35,11 @@ export function useSessionAverageScore(
   const accumulatorRef = useRef<SessionAccumulator>({ lastSequence: 0, sum: 0, count: 0 });
 
   useEffect(() => {
-    if (!running) return;
+    if (!running) {
+      accumulatorRef.current = { lastSequence: inferenceSequence, sum: 0, count: 0 };
+      setStats(EMPTY_STATS);
+      return;
+    }
 
     accumulatorRef.current = { lastSequence: inferenceSequence, sum: 0, count: 0 };
     setStats(EMPTY_STATS);

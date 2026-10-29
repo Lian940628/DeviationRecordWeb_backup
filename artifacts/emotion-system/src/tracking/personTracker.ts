@@ -13,10 +13,13 @@ interface MutableTrack extends PersonObservation {
   velocityX: number;
   velocityY: number;
   lastSeenAt: number;
+  consecutiveHits: number;
 }
 
 const TRACK_RETENTION_MS = 2000;
 const BOX_COAST_MS = 420;
+const CONFIRMATION_WINDOW_MS = 1200;
+const REQUIRED_CONFIRMATION_HITS = 2;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
@@ -138,7 +141,10 @@ export class PersonTracker {
 
       track.velocityX = clamp(track.velocityX * 0.55 + observedVelocityX * 0.45, -1.5, 1.5);
       track.velocityY = clamp(track.velocityY * 0.55 + observedVelocityY * 0.45, -1.5, 1.5);
-      Object.assign(track, smoothed, { lastSeenAt: now });
+      const consecutiveHits = now - track.lastSeenAt <= CONFIRMATION_WINDOW_MS
+        ? track.consecutiveHits + 1
+        : 1;
+      Object.assign(track, smoothed, { lastSeenAt: now, consecutiveHits });
       matchedTracks.add(track.id);
       matchedDetections.add(candidate.detectionIndex);
     }
@@ -152,6 +158,7 @@ export class PersonTracker {
         velocityX: 0,
         velocityY: 0,
         lastSeenAt: now,
+        consecutiveHits: 1,
       });
     });
 
@@ -161,7 +168,7 @@ export class PersonTracker {
       return {
         id: track.id,
         ...box,
-        visible: age <= BOX_COAST_MS,
+        visible: track.consecutiveHits >= REQUIRED_CONFIRMATION_HITS && age <= BOX_COAST_MS,
       };
     });
   }
