@@ -488,6 +488,103 @@ button:focus-visible, a:focus-visible, select:focus-visible { outline-color: #c9
   .ambient-particle { animation: none; }
 }
 
+.preview-fullscreen-toggle {
+  position: absolute;
+  z-index: 30;
+  top: 48px;
+  right: 10px;
+  display: none;
+  min-height: 34px;
+  align-items: center;
+  gap: 7px;
+  padding: 0 10px;
+  border: 1px solid rgba(108, 244, 229, .7);
+  background: rgba(3, 18, 22, .9);
+  color: #e3fbf8;
+  font: 8px var(--app-font-mono), monospace;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.preview-fullscreen-toggle:hover {
+  background: rgba(30, 100, 100, .9);
+}
+
+#camera-preview:fullscreen {
+  width: 100vw !important;
+  width: 100dvw !important;
+  height: 100vh !important;
+  height: 100dvh !important;
+  max-width: none !important;
+  aspect-ratio: auto !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+#camera-preview:fullscreen .preview-fullscreen-toggle,
+.camera-css-fullscreen .preview-fullscreen-toggle {
+  display: flex;
+}
+
+.camera-css-fullscreen {
+  position: fixed !important;
+  z-index: 2147483000 !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  width: 100dvw !important;
+  height: 100vh !important;
+  height: 100dvh !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+}
+
+.camera-css-fullscreen > .topbar,
+.camera-css-fullscreen .experience-heading,
+.camera-css-fullscreen .experience-footer,
+.camera-css-fullscreen .control-panel,
+.camera-css-fullscreen .preview-actions,
+.camera-css-fullscreen .status-note {
+  display: none !important;
+}
+
+.camera-css-fullscreen .experience-page {
+  position: absolute !important;
+  inset: 0 !important;
+  display: block !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+}
+
+.camera-css-fullscreen .workspace,
+.camera-css-fullscreen .preview-column {
+  display: block !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  overflow: hidden !important;
+}
+
+.camera-css-fullscreen #camera-preview {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  width: 100dvw !important;
+  height: 100vh !important;
+  height: 100dvh !important;
+  max-width: none !important;
+  min-height: 0 !important;
+  aspect-ratio: auto !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
 /* Site-wide blue-green identity and slow ambient movement. */
 :root {
   --background: 186 52% 4%;

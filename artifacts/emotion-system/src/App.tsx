@@ -92,6 +92,9 @@ function Experience() {
   const [overlayFps, setOverlayFps] = useState(0);
   const [artworkFps, setArtworkFps] = useState(0);
   const [fullscreenError, setFullscreenError] = useState('');
+  const [cssFullscreen, setCssFullscreen] = useState(false);
+  const [nativeFullscreen, setNativeFullscreen] = useState(false);
+  const isFullscreen = cssFullscreen || nativeFullscreen;
   const renderingFps = artworkFps || overlayFps;
   const systemEvents = useSystemEventLog({
     cameraStatus: camera.status,
@@ -114,6 +117,35 @@ function Experience() {
     }
   }, [activeTrackIds, selectedTrackId]);
 
+  useEffect(() => {
+    const syncFullscreen = () => {
+      const prefixedDocument = document as Document & { webkitFullscreenElement?: Element | null };
+      const preview = document.getElementById('camera-preview');
+      setNativeFullscreen(
+        Boolean(preview && (document.fullscreenElement === preview || prefixedDocument.webkitFullscreenElement === preview)),
+      );
+    };
+    document.addEventListener('fullscreenchange', syncFullscreen);
+    document.addEventListener('webkitfullscreenchange', syncFullscreen);
+    syncFullscreen();
+    return () => {
+      document.removeEventListener('fullscreenchange', syncFullscreen);
+      document.removeEventListener('webkitfullscreenchange', syncFullscreen);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!cssFullscreen) return undefined;
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousRootOverflow = document.documentElement.style.overflow;
+    document.body.style.overflow = 'hidden';
+    document.documentElement.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousBodyOverflow;
+      document.documentElement.style.overflow = previousRootOverflow;
+    };
+  }, [cssFullscreen]);
+
   const updateScanSettings = (next: Partial<ScanEffectSettings>) => {
     setScanSettings((previous) => ({ ...previous, ...next }));
   };
@@ -135,22 +167,65 @@ function Experience() {
   const toggleFullscreen = async () => {
     const frame = document.getElementById('camera-preview');
     if (!frame) return;
+    const prefixedDocument = document as Document & {
+      webkitFullscreenElement?: Element | null;
+      webkitExitFullscreen?: () => Promise<void> | void;
+    };
+    const prefixedFrame = frame as HTMLElement & {
+      webkitRequestFullscreen?: () => Promise<void> | void;
+    };
+    const nativeTarget = document.fullscreenElement ?? prefixedDocument.webkitFullscreenElement;
+
+    if (cssFullscreen) {
+      setCssFullscreen(false);
+      setFullscreenError('');
+      return;
+    }
+
+    if (nativeTarget) {
+      try {
+        if (document.fullscreenElement) await document.exitFullscreen();
+        else await prefixedDocument.webkitExitFullscreen?.();
+        setFullscreenError('');
+      } catch {
+        setFullscreenError('Fullscreen is unavailable in this browser or page context.');
+      }
+      return;
+    }
+
     try {
-      if (document.fullscreenElement) await document.exitFullscreen();
-      else await frame.requestFullscreen();
+      if (typeof frame.requestFullscreen === 'function') {
+        await frame.requestFullscreen({ navigationUI: 'hide' });
+      } else if (prefixedFrame.webkitRequestFullscreen) {
+        await prefixedFrame.webkitRequestFullscreen();
+      } else {
+        setCssFullscreen(true);
+      }
       setFullscreenError('');
     } catch {
-      setFullscreenError('Fullscreen is unavailable in this browser or page context.');
+      // Mobile Safari and embedded browsers may reject element fullscreen.
+      setFullscreenError('');
+      setCssFullscreen(true);
     }
   };
 
   return (
-    <div className="app-shell experience-shell">
+    <div className={`app-shell experience-shell${cssFullscreen ? ' camera-css-fullscreen' : ''}`}>
       <Header />
       <main className="experience-page">
         <div className="workspace">
           <section className="preview-column" aria-label={t('Camera experience')}>
             <div id="camera-preview" className="preview-frame" data-testid="camera-preview">
+              <button
+                type="button"
+                className="preview-fullscreen-toggle"
+                onClick={toggleFullscreen}
+                aria-label={t(isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen')}
+                data-testid="button-preview-fullscreen-toggle"
+              >
+                <Expand size={14} aria-hidden="true" />
+                <span>{t(isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen')}</span>
+              </button>
               {camera.stream && <video ref={camera.videoRef} className={`preview-video${camera.mirrored ? ' mirrored' : ''}`} autoPlay playsInline muted aria-label={t('Live camera preview')} data-testid="video-live-preview" />}
               {!camera.stream && <div className="preview-empty" data-testid="status-camera-idle"><div className="aperture"><span className="aperture-center" /></div><div className="preview-message">{t('A space held for you')}</div><div className="preview-hint">{t('Start the camera when you are ready.')}</div></div>}
               {camera.stream && (
@@ -221,7 +296,7 @@ function Experience() {
                 </button>
                 <button type="button" className="text-button" onClick={stopCamera} disabled={!camera.stream} data-testid="button-stop-camera" aria-label={t('Stop camera')}><VideoOff size={15} strokeWidth={1.6} /><span className="button-label">{t('STOP CAMERA')}</span></button>
               </div>
-              <button type="button" className="secondary-button" onClick={toggleFullscreen} data-testid="button-fullscreen" aria-label={t('Toggle fullscreen preview')}><Expand size={13} aria-hidden="true" /> &nbsp; {t('FULLSCREEN')}</button>
+              <button type="button" className="secondary-button" onClick={toggleFullscreen} data-testid="button-fullscreen" aria-label={t(isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen')}><Expand size={13} aria-hidden="true" /> &nbsp; {t(isFullscreen ? 'Exit fullscreen' : 'FULLSCREEN')}</button>
             </div>
             <div className={`status-note${camera.status === 'error' ? ' error' : camera.status === 'live' ? ' success' : ''}`} role="status" aria-live="polite" data-testid="status-camera-message">
               {camera.status === 'error' && <strong>{t('CAMERA NOT STARTED · ')}</strong>}{t(camera.message)}{fullscreenError && ` ${t(fullscreenError)}`}

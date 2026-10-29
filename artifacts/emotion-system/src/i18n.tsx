@@ -36,6 +36,8 @@ const TRADITIONAL_CHINESE: Record<string, string> = {
   'Start camera': '啟動攝影機',
   'Stop camera': '停止攝影機',
   'Toggle fullscreen preview': '切換全螢幕預覽',
+  'Enter fullscreen': '進入全螢幕',
+  'Exit fullscreen': '離開全螢幕',
   'Experience settings': '體驗設定',
   'Enter the': '進入',
   'frame.': '畫面。',

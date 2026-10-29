@@ -7,3 +7,4 @@
 - [WebGL shader portability](webgl-shader-portability.md) — WebGL 1 GLSL nested loops need compile-time bounds; use constant loop indices and guard conditions.
 - [Live camera render performance](live-camera-render-performance.md) — avoid live-video backdrop filters and paint-heavy motion; cap overlay pixel ratios and stop inactive canvas loops.
 - [Person detection precision](person-detection-precision.md) — apply confidence and consecutive-frame confirmation before exposing person tracks; single-frame object detections are noisy.
+- [Mobile camera fullscreen](mobile-camera-fullscreen.md) — retain a viewport-filling CSS fallback and an in-preview exit control when mobile browsers reject element fullscreen.
