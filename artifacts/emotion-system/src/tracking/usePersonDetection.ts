@@ -96,6 +96,7 @@ function idleState(): PersonDetectionState {
 export function usePersonDetection(
   videoRef: RefObject<HTMLVideoElement | null>,
   enabled: boolean,
+  requireNewFrame = false,
 ): PersonDetectionState {
   const [state, setState] = useState<PersonDetectionState>(idleState);
 
@@ -126,6 +127,7 @@ export function usePersonDetection(
 
         let fpsWindowStartedAt = performance.now();
         let inferenceCount = 0;
+        let lastDetectedMediaTime = -1;
 
         const inferNextFrame = async () => {
           if (cancelled) return;
@@ -140,11 +142,18 @@ export function usePersonDetection(
             return;
           }
 
+          const mediaTime = video.currentTime;
+          if (requireNewFrame && Math.abs(mediaTime - lastDetectedMediaTime) < 0.001) {
+            timer = window.setTimeout(() => void inferNextFrame(), 50);
+            return;
+          }
+
           const inferenceStartedAt = performance.now();
           try {
             const predictions = await model.detect(video, 20, MINIMUM_PERSON_SCORE);
             const completedAt = performance.now();
             if (cancelled) return;
+            lastDetectedMediaTime = mediaTime;
 
             const observations = toPersonObservations(predictions, video.videoWidth, video.videoHeight);
             const tracks = tracker.update(observations, completedAt);
@@ -197,7 +206,7 @@ export function usePersonDetection(
       if (timer !== null) window.clearTimeout(timer);
       tracker.reset();
     };
-  }, [enabled, videoRef]);
+  }, [enabled, requireNewFrame, videoRef]);
 
   return state;
 }

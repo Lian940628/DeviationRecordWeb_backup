@@ -23,6 +23,8 @@ interface VideoArtworkCanvasProps {
   renderScale: number;
   settings: VisualSettings;
   onRenderingFps: (fps: number) => void;
+  renderSize?: { width: number; height: number } | null;
+  onCanvasReady?: (canvas: HTMLCanvasElement | null) => void;
 }
 
 interface TransitionState {
@@ -73,14 +75,18 @@ export function VideoArtworkCanvas({
   renderScale,
   settings,
   onRenderingFps,
+  renderSize = null,
+  onCanvasReady,
 }: VideoArtworkCanvasProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const tracksRef = useRef(tracks);
   const expressionsRef = useRef(expressions);
   const mirroredRef = useRef(mirrored);
   const renderScaleRef = useRef(renderScale);
+  const renderSizeRef = useRef(renderSize);
   const settingsRef = useRef(settings);
   const fpsCallbackRef = useRef(onRenderingFps);
+  const canvasReadyCallbackRef = useRef(onCanvasReady);
   const uniformsRef = useRef<THREE.ShaderMaterial['uniforms'] | null>(null);
   const resizeCallbackRef = useRef<(() => void) | null>(null);
   const transitionRef = useRef<TransitionState | null>(null);
@@ -91,8 +97,10 @@ export function VideoArtworkCanvas({
   expressionsRef.current = expressions;
   mirroredRef.current = mirrored;
   renderScaleRef.current = renderScale;
+  renderSizeRef.current = renderSize;
   settingsRef.current = settings;
   fpsCallbackRef.current = onRenderingFps;
+  canvasReadyCallbackRef.current = onCanvasReady;
 
   useEffect(() => {
     const host = hostRef.current;
@@ -186,6 +194,14 @@ export function VideoArtworkCanvas({
 
     const resize = () => {
       const bounds = host.getBoundingClientRect();
+      const outputSize = renderSizeRef.current;
+      if (outputSize) {
+        renderer.setPixelRatio(1);
+        renderer.setSize(outputSize.width, outputSize.height, false);
+        renderer.getDrawingBufferSize(drawingSize);
+        setUniformVector(uniforms, 'uResolution', drawingSize.x, drawingSize.y);
+        return;
+      }
       if (!bounds.width || !bounds.height) return;
       // Limit GPU fill rate on high-DPI displays while keeping enough detail for the HUD.
       const pixelRatio = Math.min(1.25, (window.devicePixelRatio || 1) * renderScaleRef.current);
@@ -197,6 +213,7 @@ export function VideoArtworkCanvas({
     resizeCallbackRef.current = resize;
 
     resize();
+    canvasReadyCallbackRef.current?.(renderer.domElement);
     const resizeObserver = typeof ResizeObserver !== 'undefined'
       ? new ResizeObserver(resize)
       : null;
@@ -355,6 +372,7 @@ export function VideoArtworkCanvas({
       resizeObserver?.disconnect();
       window.removeEventListener('resize', resize);
       resizeCallbackRef.current = null;
+      canvasReadyCallbackRef.current?.(null);
       transitionRef.current = null;
       uniformsRef.current = null;
       videoTexture.dispose();
@@ -388,7 +406,7 @@ export function VideoArtworkCanvas({
 
   useEffect(() => {
     resizeCallbackRef.current?.();
-  }, [renderScale]);
+  }, [renderScale, renderSize?.width, renderSize?.height]);
 
   return (
     <div ref={hostRef} className="video-artwork">

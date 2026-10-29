@@ -1,12 +1,21 @@
 import { useCallback, useEffect, useRef, useState, type ChangeEvent, type DragEvent } from 'react';
-import { AlertCircle, Check, Expand, FileVideo2, Pause, Play, RotateCcw, Shrink, Trash2, Upload } from 'lucide-react';
+import { AlertCircle, Check, Cpu, Download, Expand, FileVideo2, Pause, Play, RotateCcw, Shrink, Trash2, Upload, Users, X } from 'lucide-react';
 import { useAppLanguage } from '../i18n';
+import { usePersonDetection } from '../tracking/usePersonDetection';
+import { VideoArtworkCanvas } from '../visualization/VideoArtworkCanvas';
+import { useVisualModes } from '../visualization/useVisualModes';
+import { useVisualSettings } from '../visualization/useVisualSettings';
+import type { VisualStage } from '../visualization/visualSettings';
+import { VideoEffectControls } from './VideoEffectControls';
+import { useLocalVideoExport } from './useLocalVideoExport';
 import './VideoDistortion.css';
 
 type VideoSource = {
   file: File;
   url: string;
 };
+
+const EMPTY_EXPRESSIONS: [] = [];
 
 const COPY = {
   'VIDEO / DISTORTION': '影像 / 偏移',
@@ -70,6 +79,36 @@ const COPY = {
   'Video loaded': '影像已載入',
   'Ready to inspect': '可開始檢視',
   'Local only · no upload': '僅限本機 · 不會上傳',
+  'PROCESSED EFFECTS': '即時效果',
+  'Apply the live shader system to this local video.': '將即時視覺 Shader 套用至本機影片。',
+  'Four local shader stages with tracked person regions.': '四種本機 Shader 效果，並依人物追蹤區域渲染。',
+  'PERSON TRACKING': '人物追蹤',
+  'Model': '模型',
+  'LOADING': '載入中',
+  'READY': '就緒',
+  'ERROR': '錯誤',
+  'PERSON COUNT': '人物數量',
+  'TRACK IDS': '追蹤編號',
+  'RENDER FPS': '渲染 FPS',
+  'PERSON MODEL LOADING': '人物模型載入中',
+  'START PLAYBACK TO TRACK': '播放影片以啟動追蹤',
+  'NO PERSON TRACKS': '尚無人物追蹤',
+  '05 / EXPORT': '05 / 匯出',
+  'SOURCE AUDIO': '保留來源音訊',
+  'OUTPUT FORMAT': '輸出格式',
+  'EXPORT PROCESSED CLIP': '匯出處理後影片',
+  'CANCEL EXPORT': '取消匯出',
+  'EXPORTING': '正在匯出',
+  'Browser encoder unavailable': '此瀏覽器沒有可用的影片編碼器',
+  'Effects, person tracking and export are processed in this browser.':
+    '效果、人物追蹤與影片匯出均在此瀏覽器本機執行。',
+  'If the source has no audio track, the exported audio will be silent.':
+    '若來源影片沒有音訊軌，匯出影片也不會有聲音。',
+  'Processed preview is ready.': '處理後預覽已就緒。',
+  'ORIGINAL AUDIO': '原始音訊',
+  'MP4 / WEBM': 'MP4 / WEBM',
+  'OUTPUT RESOLUTION': '輸出解析度',
+  'Person tracking starts while the processed clip is playing.': '處理後影片播放時會啟動人物追蹤。',
 } as const;
 
 function formatTime(value: number) {
@@ -91,8 +130,11 @@ export default function VideoDistortion() {
   ), [language]);
   const inputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const frameRef = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const urlRef = useRef<string | null>(null);
   const dragDepth = useRef(0);
+  const [renderingFps, setRenderingFps] = useState(0);
   const [source, setSource] = useState<VideoSource | null>(null);
   const [duration, setDuration] = useState(0);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
@@ -107,7 +149,30 @@ export default function VideoDistortion() {
   const [mode, setMode] = useState<'original' | 'processed'>('original');
   const [cssFullscreen, setCssFullscreen] = useState(false);
   const [nativeFullscreen, setNativeFullscreen] = useState(false);
+  const [cycleEnabled, setCycleEnabled] = useState(true);
   const isFullscreen = cssFullscreen || nativeFullscreen;
+  const visualSettings = useVisualSettings();
+  const visualModes = useVisualModes(
+    Boolean(source && mode === 'processed' && playing && cycleEnabled),
+    visualSettings.settings,
+  );
+  const activeStage = visualModes.visualMode;
+  const detection = usePersonDetection(
+    videoRef,
+    Boolean(source && mode === 'processed' && playing),
+    true,
+  );
+  const onCanvasReady = useCallback((canvas: HTMLCanvasElement | null) => {
+    canvasRef.current = canvas;
+  }, []);
+  const exportController = useLocalVideoExport({
+    videoRef,
+    canvasRef,
+    sourceName: source?.file.name ?? 'emotion-system',
+    trimStart,
+    trimEnd,
+    onEnableProcessed: () => setMode('processed'),
+  });
 
   const releaseSource = useCallback(() => {
     if (urlRef.current) URL.revokeObjectURL(urlRef.current);
@@ -157,6 +222,7 @@ export default function VideoDistortion() {
 
   const loadFile = (file?: File) => {
     if (!file) return;
+    exportController.cancelExport();
     const recognizedVideoType = file.type.startsWith('video/');
     const recognizedVideoExtension = /\.(mp4|m4v|mov|webm|ogv)$/i.test(file.name);
     if (!recognizedVideoType && !recognizedVideoExtension) {
@@ -193,6 +259,7 @@ export default function VideoDistortion() {
   };
 
   const removeFile = () => {
+    exportController.cancelExport();
     resetVideoElement();
     releaseSource();
     setSource(null);
@@ -227,6 +294,7 @@ export default function VideoDistortion() {
 
   const onVideoError = () => {
     if (!source) return;
+    exportController.cancelExport();
     setError(t('This video could not be decoded. Try another file.'));
     setStatus('');
     setPlaying(false);
@@ -302,6 +370,11 @@ export default function VideoDistortion() {
   const onTimeUpdate = () => {
     const video = videoRef.current;
     if (!video) return;
+    if (exportController.recording) {
+      setCurrentTime(video.currentTime);
+      exportController.updateProgress(video.currentTime);
+      return;
+    }
     if (video.currentTime >= trimEnd) {
       if (looping) {
         video.currentTime = trimStart;
@@ -343,6 +416,7 @@ export default function VideoDistortion() {
               </div>
               <div
                 className={`vd-source-frame${dragging ? ' is-dragging' : ''}${source ? ' has-source' : ''}${cssFullscreen ? ' is-fullscreen-fallback' : ''}`}
+                ref={frameRef}
                 onDragEnter={(event) => { event.preventDefault(); dragDepth.current += 1; setDragging(true); }}
                 onDragOver={(event) => event.preventDefault()}
                 onDragLeave={(event) => { event.preventDefault(); dragDepth.current = Math.max(0, dragDepth.current - 1); if (dragDepth.current === 0) setDragging(false); }}
@@ -351,19 +425,67 @@ export default function VideoDistortion() {
               >
                 <video
                   ref={videoRef}
-                  className="vd-video"
+                  className={`vd-video${mode === 'processed' ? ' vd-video-hidden' : ''}`}
                   src={source?.url}
                   playsInline
                   preload="metadata"
                   aria-label={t('Video preview')}
                   onLoadedMetadata={onMetadata}
                   onTimeUpdate={onTimeUpdate}
-                  onEnded={() => { setPlaying(false); if (looping) seek(trimStart); }}
+                  onEnded={() => {
+                    const wasExporting = exportController.recording || exportController.status.includes('Recording processed');
+                    if (wasExporting) exportController.updateProgress(trimEnd);
+                    setPlaying(false);
+                    if (looping && !wasExporting) seek(trimStart);
+                  }}
                   onPlay={() => setPlaying(true)}
                   onPause={() => setPlaying(false)}
                   onError={onVideoError}
                   data-testid="video-local-preview"
                 />
+                {source && mode === 'processed' && duration > 0 && (
+                  <VideoArtworkCanvas
+                    videoRef={videoRef}
+                    tracks={detection.tracks}
+                    expressions={EMPTY_EXPRESSIONS}
+                    running
+                    mirrored={false}
+                    mode={visualModes.visualMode}
+                    previousMode={visualModes.previousMode}
+                    transitionKey={visualModes.transitionKey}
+                    transitionDurationSeconds={visualModes.transitionDurationSeconds}
+                    renderScale={visualSettings.settings.transitions.renderScale}
+                    settings={visualSettings.settings}
+                    onRenderingFps={setRenderingFps}
+                    renderSize={exportController.renderSize}
+                    onCanvasReady={onCanvasReady}
+                  />
+                )}
+                {source && mode === 'processed' && detection.tracks.some((track) => track.visible) && (
+                  <svg
+                    className="vd-track-overlay"
+                    viewBox={`0 0 ${dimensions.width || 16} ${dimensions.height || 9}`}
+                    preserveAspectRatio="xMidYMid meet"
+                    aria-label={t('PERSON TRACKING')}
+                    role="img"
+                  >
+                    {detection.tracks.filter((track) => track.visible).map((track) => {
+                      const width = dimensions.width || 16;
+                      const height = dimensions.height || 9;
+                      const x = track.x * width;
+                      const y = track.y * height;
+                      const boxWidth = track.width * width;
+                      const boxHeight = track.height * height;
+                      return (
+                        <g key={track.id} className="vd-track-mark">
+                          <rect x={x} y={y} width={boxWidth} height={boxHeight} />
+                          <rect className="vd-track-label-bg" x={x} y={Math.max(0, y - Math.max(22, height * 0.027))} width={Math.max(112, width * 0.15)} height={Math.max(22, height * 0.027)} />
+                          <text x={x + Math.max(7, width * 0.01)} y={Math.max(15, y - Math.max(7, height * 0.008))}>PERSON ID: {String(track.id).padStart(3, '0')}</text>
+                        </g>
+                      );
+                    })}
+                  </svg>
+                )}
                 {!source && (
                   <div className="vd-empty">
                     <div className="vd-empty-symbol"><FileVideo2 size={22} strokeWidth={1.2} /><i /></div>
@@ -412,9 +534,9 @@ export default function VideoDistortion() {
               </div>
               <div className={`vd-trim-panel${!source || !duration ? ' is-disabled' : ''}`}>
                 <div className="vd-trim-controls">
-                  <label className="vd-time-field"><span>{t('Start')}</span><div><input type="number" min="0" max={duration} step="0.1" value={trimStart.toFixed(1)} disabled={!duration} onChange={(event) => clampStart(Number(event.target.value) || 0)} aria-label={t('Trim start')} data-testid="input-trim-start" /><em>{t('SECONDS')}</em></div></label>
+                  <label className="vd-time-field"><span>{t('Start')}</span><div><input type="number" min="0" max={duration} step="0.1" value={trimStart.toFixed(1)} disabled={!duration || exportController.recording} onChange={(event) => clampStart(Number(event.target.value) || 0)} aria-label={t('Trim start')} data-testid="input-trim-start" /><em>{t('SECONDS')}</em></div></label>
                   <span className="vd-range-separator">—</span>
-                  <label className="vd-time-field"><span>{t('End')}</span><div><input type="number" min={trimStart + Math.min(1, duration)} max={Math.min(duration, trimStart + 30)} step="0.1" value={trimEnd.toFixed(1)} disabled={!duration} onChange={(event) => clampEnd(Number(event.target.value) || 0)} aria-label={t('Trim end')} data-testid="input-trim-end" /><em>{t('SECONDS')}</em></div></label>
+                  <label className="vd-time-field"><span>{t('End')}</span><div><input type="number" min={trimStart + Math.min(1, duration)} max={Math.min(duration, trimStart + 30)} step="0.1" value={trimEnd.toFixed(1)} disabled={!duration || exportController.recording} onChange={(event) => clampEnd(Number(event.target.value) || 0)} aria-label={t('Trim end')} data-testid="input-trim-end" /><em>{t('SECONDS')}</em></div></label>
                   <div className="vd-length-readout"><span>WINDOW</span><strong data-testid="text-trim-length">{duration ? `${(trimEnd - trimStart).toFixed(1)}s` : '—'}</strong></div>
                 </div>
 
@@ -422,9 +544,9 @@ export default function VideoDistortion() {
                   <div className="vd-timeline-track">
                     <div className="vd-timeline-selection" style={{ left: `${left}%`, width: `${width}%` }} />
                     <div className="vd-timeline-progress" style={{ width: `${progress}%` }} />
-                    <input className="vd-range vd-range-start" type="range" min="0" max={safeDuration} step="0.1" value={trimStart} disabled={!duration} onChange={(event) => clampStart(Number(event.target.value))} aria-label={t('Trim start')} data-testid="range-trim-start" />
-                    <input className="vd-range vd-range-end" type="range" min="0" max={safeDuration} step="0.1" value={trimEnd} disabled={!duration} onChange={(event) => clampEnd(Number(event.target.value))} aria-label={t('Trim end')} data-testid="range-trim-end" />
-                    <input className="vd-range vd-range-seek" type="range" min="0" max={safeDuration} step="0.1" value={currentTime} disabled={!duration} onChange={(event) => seek(Number(event.target.value))} aria-label={t('Timeline seek')} data-testid="range-video-seek" />
+                    <input className="vd-range vd-range-start" type="range" min="0" max={safeDuration} step="0.1" value={trimStart} disabled={!duration || exportController.recording} onChange={(event) => clampStart(Number(event.target.value))} aria-label={t('Trim start')} data-testid="range-trim-start" />
+                    <input className="vd-range vd-range-end" type="range" min="0" max={safeDuration} step="0.1" value={trimEnd} disabled={!duration || exportController.recording} onChange={(event) => clampEnd(Number(event.target.value))} aria-label={t('Trim end')} data-testid="range-trim-end" />
+                    <input className="vd-range vd-range-seek" type="range" min="0" max={safeDuration} step="0.1" value={currentTime} disabled={!duration || exportController.recording} onChange={(event) => seek(Number(event.target.value))} aria-label={t('Timeline seek')} data-testid="range-video-seek" />
                   </div>
                   <div className="vd-timeline-labels"><span>00:00</span><span>{duration ? formatTime(duration) : '00:00'}</span></div>
                 </div>
@@ -447,12 +569,98 @@ export default function VideoDistortion() {
               <div className="vd-mode-label">{t('Playback mode')}</div>
               <div className="vd-mode-switch" role="group" aria-label={t('Playback mode')}>
                 <button type="button" className={mode === 'original' ? 'selected' : ''} onClick={() => setMode('original')} aria-pressed={mode === 'original'} data-testid="button-mode-original"><Check size={12} />{t('ORIGINAL')}</button>
-                <button type="button" className="unavailable" disabled aria-disabled="true" title={t('NOT AVAILABLE IN THIS STAGE')} data-testid="button-mode-processed">{t('PROCESSED')}<span>—</span></button>
+                <button type="button" className={mode === 'processed' ? 'selected' : ''} onClick={() => setMode('processed')} aria-pressed={mode === 'processed'} disabled={!source || exportController.recording} data-testid="button-mode-processed">{t('PROCESSED')}<span>✳</span></button>
               </div>
-              <div className="vd-mode-caption"><span className="vd-status-dot" />{t('NOT AVAILABLE IN THIS STAGE')}</div>
+              <div className="vd-mode-caption"><span className={`vd-status-dot${mode === 'processed' ? ' is-ready' : ''}`} />{t(mode === 'processed' ? 'Processed preview is ready.' : 'The source remains unchanged.')}</div>
               <div className="vd-divider" />
-              <div className="vd-output-copy"><span className="vd-output-index">A / 01</span><strong>{t('The source remains unchanged.')}</strong><p>{t('Processed mode is reserved for a later stage. No effects are applied here.')}</p></div>
+              <div className="vd-output-copy"><span className="vd-output-index">A / 02</span><strong>{t('PROCESSED EFFECTS')}</strong><p>{t('Four local shader stages with tracked person regions.')}</p></div>
               <div className="vd-local-note"><div className="vd-lock-mark"><Check size={12} /></div><span>{t('Local only · no upload')}</span></div>
+            </section>
+
+            <VideoEffectControls
+              settings={visualSettings.settings}
+              activeStage={activeStage}
+              autoCycle={cycleEnabled}
+              disabled={!source || exportController.recording}
+              onModeChange={(stage: VisualStage) => {
+                setCycleEnabled(false);
+                visualModes.chooseMode(stage);
+              }}
+              onCycleChange={(enabled) => {
+                setCycleEnabled(enabled);
+                visualModes.setPlaybackMode(enabled ? 'auto' : 'manual');
+              }}
+              onGlobalSettingChange={visualSettings.onGlobalSettingChange}
+              onStageSettingChange={visualSettings.onStageSettingChange}
+              onResetStage={visualSettings.onResetStage}
+            />
+
+            <section className="vd-detection-panel">
+              <div className="vd-section-heading"><span>{t('PERSON TRACKING')}</span><span className="vd-section-rule" /></div>
+              <div className="vd-detection-status">
+                <Cpu size={14} />
+                <span>{t('Model')}</span>
+                <strong className={`vd-model-${detection.modelStatus}`}>{detection.modelStatus === 'idle' ? t('START PLAYBACK TO TRACK') : t(detection.modelStatus.toUpperCase())}</strong>
+              </div>
+              {detection.modelStatus === 'error' && <p className="vd-detection-error">{detection.modelMessage}</p>}
+              <div className="vd-detection-stats">
+                <div><Users size={13} /><span>{t('PERSON COUNT')}</span><strong>{detection.personCount}</strong></div>
+                <div><span>{t('RENDER FPS')}</span><strong>{renderingFps || '—'}</strong></div>
+              </div>
+              <div className="vd-track-ids">
+                <span>{t('TRACK IDS')}</span>
+                <strong>{detection.activeTrackIds.length
+                  ? detection.activeTrackIds.map((id) => String(id).padStart(3, '0')).join(' · ')
+                  : t('NO PERSON TRACKS')}</strong>
+              </div>
+              <p className="vd-effect-note">{t('Person tracking starts while the processed clip is playing.')}</p>
+            </section>
+
+            <section className="vd-export-panel">
+              <div className="vd-section-heading"><span>{t('05 / EXPORT')}</span><span className="vd-section-rule" /></div>
+              <label className="vd-audio-option">
+                <input type="checkbox" checked={exportController.includeAudio} disabled={exportController.recording} onChange={(event) => exportController.setIncludeAudio(event.currentTarget.checked)} />
+                <span>{t('SOURCE AUDIO')}</span>
+              </label>
+              <p className="vd-export-hint">{t('If the source has no audio track, the exported audio will be silent.')}</p>
+              <label className="vd-format-field">
+                <span>{t('OUTPUT FORMAT')}</span>
+                <select
+                  value={exportController.format}
+                  disabled={!exportController.formats.length || exportController.recording}
+                  onChange={(event) => exportController.setFormat(event.currentTarget.value)}
+                >
+                  {exportController.formats.length
+                    ? exportController.formats.map((item) => <option key={item.mimeType} value={item.mimeType}>{item.label}</option>)
+                    : <option value="">{t('Browser encoder unavailable')}</option>}
+                </select>
+              </label>
+              {exportController.renderSize && (
+                <div className="vd-output-resolution">{t('OUTPUT RESOLUTION')} · {exportController.renderSize.width} × {exportController.renderSize.height}</div>
+              )}
+              <div className="vd-export-actions">
+                <button
+                  type="button"
+                  className="vd-export-button"
+                  disabled={!source || !duration || !exportController.format || exportController.recording}
+                  onClick={() => void exportController.startExport()}
+                  data-testid="button-export-processed"
+                >
+                  <Download size={14} />{t('EXPORT PROCESSED CLIP')}
+                </button>
+                {exportController.recording && (
+                  <button type="button" className="vd-cancel-export" onClick={exportController.cancelExport} aria-label={t('CANCEL EXPORT')}>
+                    <X size={14} />{t('CANCEL EXPORT')}
+                  </button>
+                )}
+              </div>
+              {exportController.recording && (
+                <div className="vd-export-progress" role="progressbar" aria-valuenow={Math.round(exportController.progress * 100)} aria-valuemin={0} aria-valuemax={100}>
+                  <span style={{ width: `${exportController.progress * 100}%` }} />
+                </div>
+              )}
+              {exportController.status && <p className="vd-export-status" role="status">{exportController.status}</p>}
+              {exportController.error && <p className="vd-export-error" role="alert">{exportController.error}</p>}
             </section>
 
             <div className={`vd-status-box${error ? ' has-error' : ''}`} role={error ? 'alert' : 'status'} aria-live="polite" data-testid="status-video-message">
@@ -461,7 +669,7 @@ export default function VideoDistortion() {
             </div>
           </aside>
         </div>
-        <footer className="vd-footer"><span>EMOTION / SYSTEM</span><span>LOCAL INPUT · NO RECORDING</span><span data-testid="status-stage">STAGE 01 / 03</span></footer>
+        <footer className="vd-footer"><span>EMOTION / SYSTEM</span><span>LOCAL INPUT · EXPORT ON REQUEST</span><span data-testid="status-stage">STAGE 03 / 03</span></footer>
       </div>
     </main>
   );
