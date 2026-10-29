@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState, type ChangeEvent, type DragEv
 import { AlertCircle, Check, Cpu, Download, Expand, FileVideo2, Pause, Play, RotateCcw, Shrink, Trash2, Upload, Users, X } from 'lucide-react';
 import { useAppLanguage } from '../i18n';
 import { usePersonDetection } from '../tracking/usePersonDetection';
+import { samplePersonTracks } from '../tracking/videoTrackSamples';
+import type { TimedPersonTracks } from '../tracking/types';
 import { VideoArtworkCanvas } from '../visualization/VideoArtworkCanvas';
 import { useVisualModes } from '../visualization/useVisualModes';
 import { useVisualSettings } from '../visualization/useVisualSettings';
@@ -90,6 +92,11 @@ const COPY = {
   'PERSON COUNT': '人物數量',
   'TRACK IDS': '追蹤編號',
   'RENDER FPS': '渲染 FPS',
+  'Analyzing local person tracks…': '正在本機分析人物追蹤…',
+  'Preparing the processed render…': '正在準備效果輸出…',
+  'Recording processed playback in this browser…': '正在本機錄製處理後影片…',
+  'Export cancelled.': '已取消匯出。',
+  'The browser encoder stopped unexpectedly. Try a shorter clip or another format.': '瀏覽器編碼器意外停止，請縮短片段或更換格式。',
   'PERSON MODEL LOADING': '人物模型載入中',
   'START PLAYBACK TO TRACK': '播放影片以啟動追蹤',
   'NO PERSON TRACKS': '尚無人物追蹤',
@@ -109,6 +116,7 @@ const COPY = {
   'MP4 / WEBM': 'MP4 / WEBM',
   'OUTPUT RESOLUTION': '輸出解析度',
   'Person tracking starts while the processed clip is playing.': '處理後影片播放時會啟動人物追蹤。',
+  'Track data is analyzed locally before export.': '匯出前會在本機先分析追蹤資料。',
 } as const;
 
 function formatTime(value: number) {
@@ -150,6 +158,7 @@ export default function VideoDistortion() {
   const [cssFullscreen, setCssFullscreen] = useState(false);
   const [nativeFullscreen, setNativeFullscreen] = useState(false);
   const [cycleEnabled, setCycleEnabled] = useState(true);
+  const [exportTrackSamples, setExportTrackSamples] = useState<TimedPersonTracks[]>([]);
   const isFullscreen = cssFullscreen || nativeFullscreen;
   const visualSettings = useVisualSettings();
   const visualModes = useVisualModes(
@@ -157,11 +166,6 @@ export default function VideoDistortion() {
     visualSettings.settings,
   );
   const activeStage = visualModes.visualMode;
-  const detection = usePersonDetection(
-    videoRef,
-    Boolean(source && mode === 'processed' && playing),
-    true,
-  );
   const onCanvasReady = useCallback((canvas: HTMLCanvasElement | null) => {
     canvasRef.current = canvas;
   }, []);
@@ -172,7 +176,20 @@ export default function VideoDistortion() {
     trimStart,
     trimEnd,
     onEnableProcessed: () => setMode('processed'),
+    onTrackSamplesReady: setExportTrackSamples,
   });
+  const detection = usePersonDetection(
+    videoRef,
+    Boolean(source && mode === 'processed' && playing && !exportController.recording),
+    true,
+  );
+  const displayTracks = exportController.recording && exportTrackSamples.length
+    ? samplePersonTracks(exportTrackSamples, currentTime)
+    : detection.tracks;
+  const visibleTracks = displayTracks.filter((track) => track.visible);
+  const modelStatus = exportController.recording
+    ? exportController.status === 'Analyzing local person tracks…' ? 'loading' : 'ready'
+    : detection.modelStatus;
 
   const releaseSource = useCallback(() => {
     if (urlRef.current) URL.revokeObjectURL(urlRef.current);
@@ -241,6 +258,7 @@ export default function VideoDistortion() {
     setTrimStart(0);
     setTrimEnd(0);
     setPlaying(false);
+    setExportTrackSamples([]);
     setError('');
     setStatus(t('Loading video metadata…'));
     setMode('original');
@@ -269,6 +287,7 @@ export default function VideoDistortion() {
     setTrimStart(0);
     setTrimEnd(0);
     setPlaying(false);
+    setExportTrackSamples([]);
     setError('');
     setStatus(t('Choose a video to begin.'));
     setMode('original');
@@ -401,7 +420,7 @@ export default function VideoDistortion() {
       <div className="vd-wrap">
         <header className="vd-heading">
           <div>
-            <div className="vd-eyebrow"><span className="vd-mark" />{t('VIDEO / DISTORTION')} <span className="vd-index">STAGE 01</span></div>
+          <div className="vd-eyebrow"><span className="vd-mark" />{t('VIDEO / DISTORTION')} <span className="vd-index">STAGE 03</span></div>
             <h1>{t('A frame, held slightly out of place.')}</h1>
             <p>{t('Prepare a local fragment before it enters the system. Nothing is uploaded or saved.')}</p>
           </div>
@@ -446,7 +465,8 @@ export default function VideoDistortion() {
                 {source && mode === 'processed' && duration > 0 && (
                   <VideoArtworkCanvas
                     videoRef={videoRef}
-                    tracks={detection.tracks}
+                    tracks={displayTracks}
+                    trackSamples={exportController.recording ? exportTrackSamples : []}
                     expressions={EMPTY_EXPRESSIONS}
                     running
                     mirrored={false}
@@ -461,7 +481,7 @@ export default function VideoDistortion() {
                     onCanvasReady={onCanvasReady}
                   />
                 )}
-                {source && mode === 'processed' && detection.tracks.some((track) => track.visible) && (
+                {source && mode === 'processed' && visibleTracks.length > 0 && (
                   <svg
                     className="vd-track-overlay"
                     viewBox={`0 0 ${dimensions.width || 16} ${dimensions.height || 9}`}
@@ -469,7 +489,7 @@ export default function VideoDistortion() {
                     aria-label={t('PERSON TRACKING')}
                     role="img"
                   >
-                    {detection.tracks.filter((track) => track.visible).map((track) => {
+                    {visibleTracks.map((track) => {
                       const width = dimensions.width || 16;
                       const height = dimensions.height || 9;
                       const x = track.x * width;
@@ -600,19 +620,20 @@ export default function VideoDistortion() {
               <div className="vd-detection-status">
                 <Cpu size={14} />
                 <span>{t('Model')}</span>
-                <strong className={`vd-model-${detection.modelStatus}`}>{detection.modelStatus === 'idle' ? t('START PLAYBACK TO TRACK') : t(detection.modelStatus.toUpperCase())}</strong>
+                <strong className={`vd-model-${modelStatus}`}>{modelStatus === 'idle' ? t('START PLAYBACK TO TRACK') : t(modelStatus.toUpperCase())}</strong>
               </div>
-              {detection.modelStatus === 'error' && <p className="vd-detection-error">{detection.modelMessage}</p>}
+              {!exportController.recording && detection.modelStatus === 'error' && <p className="vd-detection-error">{detection.modelMessage}</p>}
               <div className="vd-detection-stats">
-                <div><Users size={13} /><span>{t('PERSON COUNT')}</span><strong>{detection.personCount}</strong></div>
+                <div><Users size={13} /><span>{t('PERSON COUNT')}</span><strong>{visibleTracks.length}</strong></div>
                 <div><span>{t('RENDER FPS')}</span><strong>{renderingFps || '—'}</strong></div>
               </div>
               <div className="vd-track-ids">
                 <span>{t('TRACK IDS')}</span>
-                <strong>{detection.activeTrackIds.length
-                  ? detection.activeTrackIds.map((id) => String(id).padStart(3, '0')).join(' · ')
+                <strong>{visibleTracks.length
+                  ? visibleTracks.map((track) => String(track.id).padStart(3, '0')).join(' · ')
                   : t('NO PERSON TRACKS')}</strong>
               </div>
+              {exportController.recording && <p className="vd-detection-hint">{t('Track data is analyzed locally before export.')}</p>}
               <p className="vd-effect-note">{t('Person tracking starts while the processed clip is playing.')}</p>
             </section>
 
@@ -659,7 +680,7 @@ export default function VideoDistortion() {
                   <span style={{ width: `${exportController.progress * 100}%` }} />
                 </div>
               )}
-              {exportController.status && <p className="vd-export-status" role="status">{exportController.status}</p>}
+              {exportController.status && <p className="vd-export-status" role="status">{t(exportController.status)}</p>}
               {exportController.error && <p className="vd-export-error" role="alert">{exportController.error}</p>}
             </section>
 

@@ -2,7 +2,8 @@ import { useEffect, useRef } from 'react';
 import type { RefObject } from 'react';
 import * as THREE from 'three';
 import type { ExpressionReadout } from '../tracking/expressionTypes';
-import type { PersonTrack } from '../tracking/types';
+import type { PersonTrack, TimedPersonTracks } from '../tracking/types';
+import { samplePersonTracks } from '../tracking/videoTrackSamples';
 import type { VisualMode } from '../visual-controls/visualControlsTypes';
 import { artworkFragmentShader, artworkVertexShader } from './artworkShaders';
 import type { VisualSettings } from './visualSettings';
@@ -13,6 +14,7 @@ const TARGET_FRAME_INTERVAL_MS = 1000 / 30;
 interface VideoArtworkCanvasProps {
   videoRef: RefObject<HTMLVideoElement | null>;
   tracks: PersonTrack[];
+  trackSamples?: TimedPersonTracks[];
   expressions: ExpressionReadout[];
   running: boolean;
   mirrored: boolean;
@@ -65,6 +67,7 @@ function setUniformVector(
 export function VideoArtworkCanvas({
   videoRef,
   tracks,
+  trackSamples = [],
   expressions,
   running,
   mirrored,
@@ -80,6 +83,7 @@ export function VideoArtworkCanvas({
 }: VideoArtworkCanvasProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const tracksRef = useRef(tracks);
+  const trackSamplesRef = useRef(trackSamples);
   const expressionsRef = useRef(expressions);
   const mirroredRef = useRef(mirrored);
   const renderScaleRef = useRef(renderScale);
@@ -94,6 +98,7 @@ export function VideoArtworkCanvas({
   const errorRef = useRef<HTMLParagraphElement>(null);
 
   tracksRef.current = tracks;
+  trackSamplesRef.current = trackSamples;
   expressionsRef.current = expressions;
   mirroredRef.current = mirrored;
   renderScaleRef.current = renderScale;
@@ -198,11 +203,26 @@ export function VideoArtworkCanvas({
       if (outputSize) {
         renderer.setPixelRatio(1);
         renderer.setSize(outputSize.width, outputSize.height, false);
+        const fit = Math.min(bounds.width / outputSize.width, bounds.height / outputSize.height);
+        const displayWidth = outputSize.width * fit;
+        const displayHeight = outputSize.height * fit;
+        renderer.domElement.style.width = `${displayWidth}px`;
+        renderer.domElement.style.height = `${displayHeight}px`;
+        renderer.domElement.style.left = `${(bounds.width - displayWidth) / 2}px`;
+        renderer.domElement.style.top = `${(bounds.height - displayHeight) / 2}px`;
+        renderer.domElement.style.right = 'auto';
+        renderer.domElement.style.bottom = 'auto';
         renderer.getDrawingBufferSize(drawingSize);
         setUniformVector(uniforms, 'uResolution', drawingSize.x, drawingSize.y);
         return;
       }
       if (!bounds.width || !bounds.height) return;
+      renderer.domElement.style.width = '';
+      renderer.domElement.style.height = '';
+      renderer.domElement.style.left = '';
+      renderer.domElement.style.top = '';
+      renderer.domElement.style.right = '';
+      renderer.domElement.style.bottom = '';
       // Limit GPU fill rate on high-DPI displays while keeping enough detail for the HUD.
       const pixelRatio = Math.min(1.25, (window.devicePixelRatio || 1) * renderScaleRef.current);
       renderer.setPixelRatio(Math.max(0.35, pixelRatio));
@@ -230,14 +250,19 @@ export function VideoArtworkCanvas({
         return;
       }
 
-      const scale = Math.min(bounds.width / sourceWidth, bounds.height / sourceHeight);
+      const outputSize = renderSizeRef.current;
+      const layoutWidth = outputSize?.width ?? bounds.width;
+      const layoutHeight = outputSize?.height ?? bounds.height;
+      const scale = Math.min(layoutWidth / sourceWidth, layoutHeight / sourceHeight);
       const imageWidth = sourceWidth * scale;
       const imageHeight = sourceHeight * scale;
-      const padX = (bounds.width - imageWidth) / 2;
-      const padY = (bounds.height - imageHeight) / 2;
+      const padX = (layoutWidth - imageWidth) / 2;
+      const padY = (layoutHeight - imageHeight) / 2;
       const boxes = uniforms.uPersonBoxes.value as THREE.Vector4[];
       const happyValues = uniforms.uPersonHappy.value as Float32Array;
-      const allTracks = tracksRef.current;
+      const allTracks = trackSamplesRef.current.length
+        ? samplePersonTracks(trackSamplesRef.current, video.currentTime)
+        : tracksRef.current;
       const expressionList = expressionsRef.current;
       let index = 0;
       for (let t = 0; t < allTracks.length && index < MAX_PERSONS; t += 1) {
@@ -245,12 +270,12 @@ export function VideoArtworkCanvas({
         if (!track || !track.visible) continue;
         const sourceTrackWidth = track.width * sourceWidth * scale;
         const sourceTrackHeight = track.height * sourceHeight * scale;
-        const width = sourceTrackWidth / bounds.width;
-        const height = sourceTrackHeight / bounds.height;
-        let x = (padX + track.x * sourceWidth * scale) / bounds.width;
-        const y = (padY + track.y * sourceHeight * scale) / bounds.height;
+        const width = sourceTrackWidth / layoutWidth;
+        const height = sourceTrackHeight / layoutHeight;
+        let x = (padX + track.x * sourceWidth * scale) / layoutWidth;
+        const y = (padY + track.y * sourceHeight * scale) / layoutHeight;
         if (mirroredRef.current) {
-          x = (padX + imageWidth - track.x * sourceWidth * scale - sourceTrackWidth) / bounds.width;
+          x = (padX + imageWidth - track.x * sourceWidth * scale - sourceTrackWidth) / layoutWidth;
         }
         boxes[index]?.set(x, y, width, height);
         let happy = 0;

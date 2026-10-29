@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { RefObject } from 'react';
+import { analyzeVideoTrackRange } from '../tracking/usePersonDetection';
+import type { TimedPersonTracks } from '../tracking/types';
+import { samplePersonTracks } from '../tracking/videoTrackSamples';
 
 export interface VideoOutputFormat {
   label: string;
@@ -21,6 +24,55 @@ function getOutputSize(width: number, height: number) {
     width: Math.max(2, Math.floor((width * scale) / 2) * 2),
     height: Math.max(2, Math.floor((height * scale) / 2) * 2),
   };
+}
+
+function drawTrackedPeople(
+  context: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  sourceWidth: number,
+  sourceHeight: number,
+  time: number,
+  samples: TimedPersonTracks[],
+) {
+  if (!samples.length || !sourceWidth || !sourceHeight) return;
+  const scaleX = width / sourceWidth;
+  const scaleY = height / sourceHeight;
+  const labelHeight = Math.max(22, sourceHeight * 0.027) * scaleY;
+  const labelWidth = Math.max(112, sourceWidth * 0.15) * scaleX;
+  const fontSize = 16 * scaleY;
+
+  context.save();
+  for (const track of samplePersonTracks(samples, time)) {
+    const x = track.x * width;
+    const y = track.y * height;
+    const boxWidth = track.width * width;
+    const boxHeight = track.height * height;
+    context.shadowColor = 'rgba(64, 255, 218, .62)';
+    context.shadowBlur = 8;
+    context.fillStyle = 'rgba(62, 242, 201, .025)';
+    context.strokeStyle = '#64ffe0';
+    context.lineWidth = 2;
+    context.fillRect(x, y, boxWidth, boxHeight);
+    context.strokeRect(x, y, boxWidth, boxHeight);
+    context.shadowBlur = 0;
+
+    const labelY = Math.max(0, y - labelHeight);
+    context.fillStyle = 'rgba(2, 18, 16, .88)';
+    context.strokeStyle = 'rgba(100, 255, 224, .85)';
+    context.lineWidth = 1;
+    context.fillRect(x, labelY, labelWidth, labelHeight);
+    context.strokeRect(x, labelY, labelWidth, labelHeight);
+    context.fillStyle = '#c7fff2';
+    context.font = `${fontSize}px monospace`;
+    context.textBaseline = 'alphabetic';
+    context.fillText(
+      `PERSON ID: ${String(track.id).padStart(3, '0')}`,
+      x + 7 * scaleX,
+      Math.max(15 * scaleY, y - Math.max(7, sourceHeight * 0.008) * scaleY),
+    );
+  }
+  context.restore();
 }
 
 function safeBaseName(name: string) {
@@ -81,6 +133,7 @@ export function useLocalVideoExport({
   trimStart,
   trimEnd,
   onEnableProcessed,
+  onTrackSamplesReady,
 }: {
   videoRef: RefObject<HTMLVideoElement | null>;
   canvasRef: RefObject<HTMLCanvasElement | null>;
@@ -88,6 +141,7 @@ export function useLocalVideoExport({
   trimStart: number;
   trimEnd: number;
   onEnableProcessed: () => void;
+  onTrackSamplesReady: (samples: TimedPersonTracks[]) => void;
 }) {
   const [formats, setFormats] = useState<VideoOutputFormat[]>([]);
   const [format, setFormat] = useState('');
@@ -104,6 +158,9 @@ export function useLocalVideoExport({
   const preparingRef = useRef(false);
   const cancelledRef = useRef(false);
   const animationRef = useRef(0);
+  const compositeAnimationRef = useRef(0);
+  const outputCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const trackSamplesRef = useRef<TimedPersonTracks[]>([]);
   const lastProgressAtRef = useRef(0);
   const trimRef = useRef({ start: trimStart, end: trimEnd });
   const downloadUrlsRef = useRef<string[]>([]);
@@ -131,6 +188,13 @@ export function useLocalVideoExport({
     mediaStreamRef.current = null;
   }, []);
 
+  const stopCompositor = useCallback(() => {
+    window.cancelAnimationFrame(compositeAnimationRef.current);
+    compositeAnimationRef.current = 0;
+    outputCanvasRef.current?.remove();
+    outputCanvasRef.current = null;
+  }, []);
+
   const finalizeRecording = useCallback((save: boolean) => {
     const existingRecorder = recorderRef.current;
     if (
@@ -152,9 +216,11 @@ export function useLocalVideoExport({
         recorder.stop();
       } catch {
         stopMediaTracks();
+        stopCompositor();
       }
     } else {
       stopMediaTracks();
+      stopCompositor();
       audioDestinationRef.current?.stream.getTracks().forEach((track) => track.stop());
       audioDestinationRef.current = null;
       if (audioSourceRef.current && audioContextRef.current) {
@@ -164,7 +230,7 @@ export function useLocalVideoExport({
       setRenderSize(null);
     }
     setRecording(false);
-  }, [stopMediaTracks, videoRef]);
+  }, [stopCompositor, stopMediaTracks, videoRef]);
 
   const startExport = useCallback(async () => {
     const video = videoRef.current;
@@ -185,39 +251,95 @@ export function useLocalVideoExport({
     setError('');
     setStatus('');
     setProgress(0);
-    const outputSize = getOutputSize(video.videoWidth, video.videoHeight);
-    setRenderSize(outputSize);
     onEnableProcessed();
+    onTrackSamplesReady([]);
+    trackSamplesRef.current = [];
     cancelledRef.current = false;
     preparingRef.current = true;
+    setStatus('Analyzing local person tracks…');
     setRecording(true);
 
     try {
       let audioResumePromise: Promise<void> | null = null;
+      let audioContext: AudioContext | null = null;
       if (includeAudio) {
         const browserWindow = window as Window & { webkitAudioContext?: typeof AudioContext };
         const AudioContextConstructor = window.AudioContext ?? browserWindow.webkitAudioContext;
         if (!AudioContextConstructor) throw new Error('This browser cannot mix the source audio for export.');
-        const context = audioContextRef.current ?? new AudioContextConstructor();
-        audioContextRef.current = context;
+        audioContext = audioContextRef.current ?? new AudioContextConstructor();
+        audioContextRef.current = audioContext;
         if (!audioSourceRef.current) {
-          audioSourceRef.current = context.createMediaElementSource(video);
-          audioSourceRef.current.connect(context.destination);
+          audioSourceRef.current = audioContext.createMediaElementSource(video);
+          audioSourceRef.current.connect(audioContext.destination);
         }
         audioSourceRef.current.disconnect();
-        audioSourceRef.current.connect(context.destination);
-        audioDestinationRef.current = context.createMediaStreamDestination();
-        audioSourceRef.current.connect(audioDestinationRef.current);
-        audioResumePromise = context.resume();
+        audioSourceRef.current.connect(audioContext.destination);
+        audioResumePromise = audioContext.resume();
+        void audioResumePromise.catch(() => {});
       }
+
+      // Analyze the selected clip while paused, then reuse time-aligned results
+      // during capture so model inference cannot stall the recorded playback.
+      const trackSamples = await analyzeVideoTrackRange(
+        video,
+        trimStart,
+        trimEnd,
+        (value) => {
+          if (!cancelledRef.current) setProgress(value * 0.5);
+        },
+        () => cancelledRef.current,
+      );
+      if (cancelledRef.current) return;
+      onTrackSamplesReady(trackSamples);
+      trackSamplesRef.current = trackSamples;
+      setProgress(0.5);
+      setStatus('Preparing the processed render…');
+      const outputSize = getOutputSize(video.videoWidth, video.videoHeight);
+      setRenderSize(outputSize);
 
       const canvas = await waitForCanvas(() => canvasRef.current, outputSize, () => cancelledRef.current);
       if (cancelledRef.current) return;
-      const videoStream = canvas.captureStream(30);
+      const outputCanvas = document.createElement('canvas');
+      outputCanvas.width = outputSize.width;
+      outputCanvas.height = outputSize.height;
+      outputCanvas.setAttribute('aria-hidden', 'true');
+      outputCanvas.style.cssText = 'position:fixed;left:-10000px;top:0;width:1px;height:1px;pointer-events:none;';
+      document.body.appendChild(outputCanvas);
+      outputCanvasRef.current = outputCanvas;
+      const outputContext = outputCanvas.getContext('2d', { alpha: false });
+      if (!outputContext) throw new Error('This browser could not prepare the export canvas.');
+      let lastCompositeAt = 0;
+      const compositeFrame = (now: number) => {
+        if (cancelledRef.current || (!preparingRef.current && !activeRef.current)) return;
+        if (now - lastCompositeAt >= 1000 / 30) {
+          outputContext.drawImage(canvas, 0, 0, outputSize.width, outputSize.height);
+          drawTrackedPeople(
+            outputContext,
+            outputSize.width,
+            outputSize.height,
+            video.videoWidth,
+            video.videoHeight,
+            video.currentTime,
+            trackSamplesRef.current,
+          );
+          lastCompositeAt = now;
+        }
+        compositeAnimationRef.current = window.requestAnimationFrame(compositeFrame);
+      };
+      compositeAnimationRef.current = window.requestAnimationFrame(compositeFrame);
+      await new Promise<void>((resolve) => window.requestAnimationFrame(() => window.requestAnimationFrame(() => resolve())));
+      if (cancelledRef.current) return;
+
+      // A 2D relay canvas gives browsers a steady, explicit frame source for
+      // MediaRecorder while the live effect continues rendering in WebGL.
+      const videoStream = outputCanvas.captureStream(30);
       const tracks = [...videoStream.getVideoTracks()];
 
       if (includeAudio) {
         await audioResumePromise;
+        if (!audioContext) throw new Error('The source audio could not be prepared.');
+        audioDestinationRef.current = audioContext.createMediaStreamDestination();
+        audioSourceRef.current?.connect(audioDestinationRef.current);
         const audioTracks = audioDestinationRef.current?.stream.getAudioTracks() ?? [];
         tracks.push(...audioTracks);
       }
@@ -243,6 +365,7 @@ export function useLocalVideoExport({
       recorder.onstop = () => {
         recorderRef.current = null;
         stopMediaTracks();
+        stopCompositor();
         audioDestinationRef.current = null;
         if (audioSourceRef.current && audioContextRef.current) {
           audioSourceRef.current.disconnect();
@@ -296,7 +419,7 @@ export function useLocalVideoExport({
         const windowRange = trimRef.current;
         const elapsed = Math.max(0, Math.min(windowRange.end - windowRange.start, video.currentTime - windowRange.start));
         if (now - lastProgressAtRef.current > 100) {
-          setProgress(elapsed / Math.max(0.001, windowRange.end - windowRange.start));
+          setProgress(0.5 + (elapsed / Math.max(0.001, windowRange.end - windowRange.start)) * 0.5);
           lastProgressAtRef.current = now;
         }
         if (video.currentTime >= windowRange.end) {
@@ -318,10 +441,13 @@ export function useLocalVideoExport({
         setStatus('');
       }
     }
-  }, [canvasRef, finalizeRecording, format, formats, includeAudio, onEnableProcessed, sourceName, stopMediaTracks, trimEnd, trimStart, videoRef]);
+  }, [canvasRef, finalizeRecording, format, formats, includeAudio, onEnableProcessed, onTrackSamplesReady, sourceName, stopCompositor, stopMediaTracks, trimEnd, trimStart, videoRef]);
 
   const cancelExport = useCallback(() => {
-    if (activeRef.current || preparingRef.current) finalizeRecording(false);
+    if (!activeRef.current && !preparingRef.current) return;
+    finalizeRecording(false);
+    setError('');
+    setStatus('Export cancelled.');
   }, [finalizeRecording]);
 
   useEffect(() => () => {
@@ -333,15 +459,16 @@ export function useLocalVideoExport({
       try { recorderRef.current.stop(); } catch { /* already stopping */ }
     }
     stopMediaTracks();
+    stopCompositor();
     audioSourceRef.current?.disconnect();
     void audioContextRef.current?.close();
     downloadUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
-  }, [stopMediaTracks]);
+  }, [stopCompositor, stopMediaTracks]);
 
   const updateProgress = useCallback((time: number) => {
     if (!activeRef.current) return;
     const range = trimRef.current;
-    setProgress(Math.max(0, Math.min(1, (time - range.start) / Math.max(0.001, range.end - range.start))));
+    setProgress(0.5 + Math.max(0, Math.min(1, (time - range.start) / Math.max(0.001, range.end - range.start))) * 0.5);
     if (time >= range.end) finalizeRecording(true);
   }, [finalizeRecording]);
 

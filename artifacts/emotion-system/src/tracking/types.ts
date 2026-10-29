@@ -10,6 +10,11 @@ export interface PersonTrack {
   visible: boolean;
 }
 
+export interface TimedPersonTracks {
+  time: number;
+  tracks: PersonTrack[];
+}
+
 export type ModelStatus = 'idle' | 'loading' | 'ready' | 'error';
 
 export interface PersonDetectionState {

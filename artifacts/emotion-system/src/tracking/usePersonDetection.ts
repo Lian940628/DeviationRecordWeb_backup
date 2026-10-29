@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import type { RefObject } from 'react';
 import type { DetectedObject, ObjectDetection } from '@tensorflow-models/coco-ssd';
 import { PersonTracker, type PersonObservation } from './personTracker';
-import type { PersonDetectionState } from './types';
+import type { PersonDetectionState, TimedPersonTracks } from './types';
 
 const TARGET_DETECTION_INTERVAL_MS = 1000 / 12;
 const MINIMUM_PERSON_SCORE = 0.55;
@@ -42,6 +42,66 @@ async function getCocoSsdModel(): Promise<ObjectDetection> {
     if (modelPromise === pending) modelPromise = null;
     throw error;
   }
+}
+
+function seekToVideoTime(video: HTMLVideoElement, time: number): Promise<void> {
+  if (Math.abs(video.currentTime - time) < 0.025) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const cleanup = () => {
+      window.clearTimeout(timeout);
+      video.removeEventListener('seeked', onSeeked);
+      video.removeEventListener('error', onError);
+    };
+    const timeout = window.setTimeout(() => {
+      cleanup();
+      reject(new Error('Could not decode a frame for the local tracking pass.'));
+    }, 5000);
+    const onSeeked = () => { cleanup(); resolve(); };
+    const onError = () => {
+      cleanup();
+      reject(new Error('Could not decode a frame for the local tracking pass.'));
+    };
+    video.addEventListener('seeked', onSeeked, { once: true });
+    video.addEventListener('error', onError, { once: true });
+    video.currentTime = time;
+  });
+}
+
+/** Analyze clip frames before recording, then reuse their short-lived tracks during export. */
+export async function analyzeVideoTrackRange(
+  video: HTMLVideoElement,
+  start: number,
+  end: number,
+  onProgress: (progress: number) => void,
+  isCancelled: () => boolean,
+): Promise<TimedPersonTracks[]> {
+  const model = await getCocoSsdModel();
+  const tracker = new PersonTracker();
+  const samples: TimedPersonTracks[] = [];
+  let time = start;
+  let sampleCount = 0;
+
+  while (time < end && sampleCount < 310) {
+    if (isCancelled()) throw new Error('Export cancelled.');
+    time = Math.min(end - 0.001, time);
+    await seekToVideoTime(video, time);
+    if (isCancelled()) throw new Error('Export cancelled.');
+
+    const inferenceStartedAt = performance.now();
+    const detections = await model.detect(video, 20, MINIMUM_PERSON_SCORE);
+    const inferenceDuration = performance.now() - inferenceStartedAt;
+    if (isCancelled()) throw new Error('Export cancelled.');
+    const observations = toPersonObservations(detections, video.videoWidth, video.videoHeight);
+    samples.push({ time, tracks: tracker.update(observations, time * 1000) });
+    const interval = Math.max(0.1, Math.min(0.75, inferenceDuration * 1.15 / 1000));
+    time += interval;
+    sampleCount += 1;
+    onProgress(Math.min(1, (time - start) / (end - start)));
+    await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+  }
+
+  await seekToVideoTime(video, start);
+  return samples;
 }
 
 /** Called only when the app itself is leaving; camera stops retain the loaded model for reuse. */

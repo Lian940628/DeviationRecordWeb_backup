@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { classifyBlendshapes, ExpressionSmoother, getCandidateSupports } from '../src/tracking/expressionClassifier.ts';
 import { PersonTracker } from '../src/tracking/personTracker.ts';
+import { samplePersonTracks } from '../src/tracking/videoTrackSamples.ts';
 
 // Deterministic rule/geometry regression checks, NOT an accuracy benchmark.
 // These feature vectors never enter the live camera application.
@@ -55,4 +56,10 @@ assert.equal(
   'a one-frame false positive never becomes a visible person',
 );
 
-console.log('PASS: expression rules, temporal smoothing, and two-frame person-track confirmation.');
+const timedTracks = [
+  { time: 0, tracks: [{ id: 7, x: 0.1, y: 0.2, width: 0.2, height: 0.5, confidence: 0.7, visible: true }] },
+  { time: 0.2, tracks: [{ id: 7, x: 0.3, y: 0.4, width: 0.2, height: 0.5, confidence: 0.9, visible: true }] },
+];
+assert.ok(Math.abs(samplePersonTracks(timedTracks, 0.1)[0].x - 0.2) < 0.001, 'export tracks interpolate between analyzed frames');
+
+console.log('PASS: expression rules, temporal smoothing, person tracks, and export-time track interpolation.');
