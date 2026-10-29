@@ -75,15 +75,19 @@ export function PersonConnectionsOverlay({
       context?.clearRect(0, 0, canvas?.width ?? 0, canvas?.height ?? 0);
       return;
     }
+    if (!active || settings.personConnectionOpacity <= 0) {
+      context.clearRect(0, 0, canvas.width, canvas.height);
+      return;
+    }
 
     let frameId = 0;
     let previousFrame = 0;
-    let pixelRatio = Math.max(1, window.devicePixelRatio || 1);
+    let pixelRatio = Math.min(1.25, Math.max(1, window.devicePixelRatio || 1));
 
     const resize = () => {
       const bounds = canvas.parentElement?.getBoundingClientRect();
       if (!bounds) return;
-      pixelRatio = Math.max(1, window.devicePixelRatio || 1);
+      pixelRatio = Math.min(1.25, Math.max(1, window.devicePixelRatio || 1));
       const width = Math.max(1, Math.round(bounds.width * pixelRatio));
       const height = Math.max(1, Math.round(bounds.height * pixelRatio));
       if (canvas.width !== width || canvas.height !== height) {
@@ -192,7 +196,7 @@ export function PersonConnectionsOverlay({
       context.setTransform(1, 0, 0, 1, 0, 0);
       context.clearRect(0, 0, canvas.width, canvas.height);
     };
-  }, [running, videoRef]);
+  }, [running, videoRef, active, settings.personConnectionOpacity]);
 
   return <canvas ref={canvasRef} className="person-connections-canvas" aria-hidden="true" data-testid="canvas-person-connections" />;
 }

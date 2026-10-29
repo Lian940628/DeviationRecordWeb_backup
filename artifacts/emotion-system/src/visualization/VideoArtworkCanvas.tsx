@@ -187,7 +187,8 @@ export function VideoArtworkCanvas({
     const resize = () => {
       const bounds = host.getBoundingClientRect();
       if (!bounds.width || !bounds.height) return;
-      const pixelRatio = Math.min(2, (window.devicePixelRatio || 1) * renderScaleRef.current);
+      // Limit GPU fill rate on high-DPI displays while keeping enough detail for the HUD.
+      const pixelRatio = Math.min(1.25, (window.devicePixelRatio || 1) * renderScaleRef.current);
       renderer.setPixelRatio(Math.max(0.35, pixelRatio));
       renderer.setSize(bounds.width, bounds.height, false);
       renderer.getDrawingBufferSize(drawingSize);

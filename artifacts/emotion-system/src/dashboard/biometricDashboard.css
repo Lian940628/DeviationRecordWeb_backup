@@ -111,6 +111,7 @@
 
 .body-schematic {
   position: relative;
+  container-type: size;
   height: clamp(180px, 34vh, 330px);
   min-height: 180px;
   overflow: hidden;
@@ -677,6 +678,7 @@
   position: absolute;
   z-index: 3;
   inset: 0;
+  container-type: size;
   overflow: hidden;
   color: var(--scan-color, #42b8e8);
   opacity: 0;
@@ -733,6 +735,19 @@
 @keyframes schematic-sweep {
   from { top: 0; }
   to { top: 100%; }
+}
+
+@supports (height: 1cqh) {
+  .scan-sweep-line { top: 0; }
+  .body-scan-sweep { top: 0; }
+  @keyframes camera-sweep {
+    from { transform: translateY(0); }
+    to { transform: translateY(calc(100cqh - 1px)); }
+  }
+  @keyframes schematic-sweep {
+    from { transform: translateY(-2px); }
+    to { transform: translateY(calc(100cqh - 2px)); }
+  }
 }
 
 @keyframes progress-sweep {

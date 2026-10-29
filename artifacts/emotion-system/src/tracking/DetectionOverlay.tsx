@@ -81,12 +81,12 @@ export function DetectionOverlay({
     let intervalStart = 0;
     let intervalFrames = 0;
     let lastReportedAt = 0;
-    let pixelRatio = Math.max(1, window.devicePixelRatio || 1);
+    let pixelRatio = Math.min(1.25, Math.max(1, window.devicePixelRatio || 1));
 
     const resizeCanvas = () => {
       const bounds = canvas.parentElement?.getBoundingClientRect();
       if (!bounds) return;
-      pixelRatio = Math.max(1, window.devicePixelRatio || 1);
+      pixelRatio = Math.min(1.25, Math.max(1, window.devicePixelRatio || 1));
       const width = Math.max(1, Math.round(bounds.width * pixelRatio));
       const height = Math.max(1, Math.round(bounds.height * pixelRatio));
       if (canvas.width !== width || canvas.height !== height) {

@@ -617,19 +617,20 @@
     radial-gradient(ellipse at 78% 32%, rgba(0, 179, 194, .2), transparent 40%),
     radial-gradient(ellipse at 20% 82%, rgba(16, 107, 114, .2), transparent 48%),
     linear-gradient(142deg, #031314 0%, #041014 58%, #061b1d 100%);
-  background-size: 160% 160%, 180% 180%, 100% 100%;
-  animation: ir-water-background 28s ease-in-out infinite alternate;
+  animation: none;
 }
 
 .ir-landing::before {
   background-image:
     linear-gradient(rgba(65, 219, 215, .09) 1px, transparent 1px),
     linear-gradient(90deg, rgba(65, 219, 215, .09) 1px, transparent 1px);
+  will-change: transform;
   animation: ir-grid-drift 42s linear infinite;
 }
 
 .ir-landing::after {
   background: repeating-linear-gradient(0deg, transparent 0 5px, rgba(55, 221, 221, .11) 6px, transparent 7px 11px);
+  will-change: transform;
   animation: ir-scan-drift 18s linear infinite;
 }
 
@@ -691,18 +692,14 @@
   text-shadow: 0 0 12px rgba(37, 217, 224, .9);
 }
 
-@keyframes ir-water-background {
-  from { background-position: 0% 20%, 100% 75%, 50% 50%; }
-  to { background-position: 100% 82%, 0% 25%, 50% 50%; }
-}
-@keyframes ir-grid-drift { to { background-position: 72px 72px, 72px 72px; } }
-@keyframes ir-scan-drift { to { background-position-y: 11px; } }
+@keyframes ir-grid-drift { to { transform: translate3d(72px, 72px, 0); } }
+@keyframes ir-scan-drift { to { transform: translate3d(0, 11px, 0); } }
 @keyframes ir-waterlight {
-  from { transform: scale(1.005) translate3d(-.25%, .15%, 0); filter: saturate(1.12) contrast(1.05) brightness(.78); }
-  to { transform: scale(1.035) translate3d(.25%, -.15%, 0); filter: saturate(1.24) contrast(1.1) brightness(.88); }
+  from { transform: scale(1.005) translate3d(-.25%, .15%, 0); }
+  to { transform: scale(1.035) translate3d(.25%, -.15%, 0); }
 }
-@keyframes ir-ring-breathe { from { opacity: .5; filter: blur(0); } to { opacity: .95; filter: blur(.3px); } }
-@keyframes ir-particle-glint { from { opacity: .32; filter: brightness(.8); } to { opacity: .9; filter: brightness(1.5); } }
+@keyframes ir-ring-breathe { from { opacity: .5; } to { opacity: .95; } }
+@keyframes ir-particle-glint { from { opacity: .32; } to { opacity: .9; } }
 
 @media (max-width: 600px) {
   .ir-landing__title {

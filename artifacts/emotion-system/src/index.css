@@ -515,8 +515,7 @@ body { background: #031114; }
     radial-gradient(ellipse at 75% 26%, rgba(0, 143, 169, .17), transparent 38%),
     radial-gradient(ellipse at 14% 82%, rgba(0, 113, 105, .18), transparent 46%),
     linear-gradient(146deg, #04171b, #030d11 62%, #061b1d);
-  background-size: 180% 180%, 170% 170%, 100% 100%;
-  animation: site-ambient-drift 28s ease-in-out infinite alternate;
+  animation: none;
 }
 
 .experience-shell {
@@ -526,8 +525,7 @@ body { background: #031114; }
     radial-gradient(ellipse at 78% 28%, rgba(0, 164, 180, .18), transparent 38%),
     radial-gradient(ellipse at 18% 80%, rgba(0, 122, 119, .18), transparent 44%),
     linear-gradient(146deg, #04171b 0%, #030d11 58%, #062023 100%);
-  background-size: 180% 180%, 170% 170%, 100% 100%;
-  animation: site-ambient-drift 25s ease-in-out infinite alternate;
+  animation: none;
 }
 
 .experience-shell::before,
@@ -541,15 +539,16 @@ body { background: #031114; }
 .experience-shell::before {
   opacity: .28;
   background:
-    radial-gradient(ellipse at 20% 24%, rgba(36, 206, 215, .18), transparent 36%),
     linear-gradient(rgba(73, 218, 222, .08) 1px, transparent 1px),
     linear-gradient(90deg, rgba(73, 218, 222, .08) 1px, transparent 1px);
-  background-size: 160% 180%, 74px 74px, 74px 74px;
+  background-size: 74px 74px, 74px 74px;
+  will-change: transform;
   animation: site-grid-flow 34s linear infinite;
 }
 .experience-shell::after {
   opacity: .08;
   background: repeating-linear-gradient(0deg, transparent 0 5px, rgba(66, 227, 219, .22) 6px, transparent 7px 11px);
+  will-change: transform;
   animation: site-scan-flow 16s linear infinite;
 }
 .experience-shell > .topbar,
@@ -650,15 +649,11 @@ body { background: #031114; }
 .experience-shell .detection-debug-expression-row strong { color: #8ff2dc; }
 .experience-shell .experience-heading::after { color: rgba(83, 225, 218, .58); }
 
-@keyframes site-ambient-drift {
-  from { background-position: 0% 25%, 100% 80%, 50% 50%; }
-  to { background-position: 100% 80%, 0% 20%, 50% 50%; }
-}
 @keyframes site-grid-flow {
-  from { background-position: 0% 0%, 0 0, 0 0; }
-  to { background-position: 100% 100%, 74px 74px, 74px 74px; }
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(74px, 74px, 0); }
 }
-@keyframes site-scan-flow { to { background-position-y: 11px; } }
+@keyframes site-scan-flow { to { transform: translate3d(0, 11px, 0); } }
 
 @media (prefers-reduced-motion: reduce) {
   .app-shell,

@@ -29,12 +29,13 @@
 .hud-v2-collapsed,
 .hud-v2-reveal {
   border: 1px solid rgba(66, 184, 232, .45);
-  background: rgba(4, 18, 32, var(--hud-panel-alpha));
+  background: rgba(3, 18, 22, .93);
   box-shadow:
     0 0 16px rgba(66, 184, 232, calc(var(--hud-glow) * .18)),
     inset 0 0 20px rgba(66, 184, 232, calc(var(--hud-glow) * .055));
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
+  /* Avoid re-blurring the moving camera texture beneath every HUD panel. */
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 .hud-v2-topbar {
@@ -173,7 +174,7 @@
   border: 1px solid rgba(66, 184, 232, .23);
   background:
     linear-gradient(115deg, rgba(66, 184, 232, .075), transparent 62%),
-    rgba(4, 18, 32, calc(var(--hud-panel-alpha) * .78));
+    rgba(3, 18, 22, .88);
 }
 
 .hud-v2-module > header {

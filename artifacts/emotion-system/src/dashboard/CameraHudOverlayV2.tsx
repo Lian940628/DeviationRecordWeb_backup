@@ -194,6 +194,7 @@ export function CameraHudOverlayV2({
       setFpsHistory([]);
       return undefined;
     }
+    if (!hudSettings.visible || !expanded) return undefined;
     const timer = window.setInterval(() => {
       setFpsHistory((history) => [
         ...history,
@@ -204,7 +205,7 @@ export function CameraHudOverlayV2({
       ].slice(-24));
     }, 1000);
     return () => window.clearInterval(timer);
-  }, [cameraStatus]);
+  }, [cameraStatus, hudSettings.visible, expanded]);
 
   const hudStyle = {
     '--hud-panel-alpha': hudSettings.opacity,
