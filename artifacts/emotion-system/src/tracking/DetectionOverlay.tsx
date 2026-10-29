@@ -168,40 +168,25 @@ export function DetectionOverlay({
         const labelX = Math.max(videoOffsetX, Math.min(x, videoOffsetX + videoRect.width - labelWidth - 12));
         const labelY = Math.max(videoOffsetY, y - labelHeight);
 
-        context.strokeStyle = 'rgba(104, 237, 213, 0.9)';
-        context.shadowColor = 'rgba(79, 239, 221, 0.58)';
+        context.strokeStyle = 'rgba(239, 237, 226, 0.94)';
+        context.shadowColor = 'rgba(93, 239, 167, 0.5)';
         context.shadowBlur = 7;
         context.strokeRect(x + 0.5, y + 0.5, width, height);
         context.shadowBlur = 0;
-        context.fillStyle = 'rgba(5, 16, 24, 0.86)';
+        context.fillStyle = 'rgba(3, 4, 5, 0.9)';
         context.fillRect(labelX, labelY, labelWidth + 12, labelHeight);
-        context.strokeStyle = 'rgba(104, 237, 213, 0.58)';
+        context.strokeStyle = 'rgba(239, 237, 226, 0.58)';
         context.strokeRect(labelX + 0.5, labelY + 0.5, labelWidth + 11, labelHeight - 1);
         labels.forEach((label, index) => {
           const isId = showPersonIdsRef.current && index === 0;
           const isExpression = label.startsWith('EXPRESSION:');
           context.fillStyle = isId || (isExpression && expression?.label !== 'UNKNOWN')
-            ? '#b9fff0'
-            : isExpression ? '#a9b8c1' : '#a6c8c8';
+            ? '#5defa7'
+            : isExpression ? '#efeee8' : '#c4c2b9';
           context.fillText(label, labelX + 6, labelY + 4 + index * 13);
         });
       });
 
-      const countLabel = translateRef.current('PERSON COUNT');
-      const countValue = String(visibleTracks.length).padStart(2, '0');
-      const countTextWidth = context.measureText(countLabel).width;
-      const countX = Math.max(12, videoOffsetX + 18);
-       const countY = Math.max(12, videoOffsetY + 42);
-      context.fillStyle = 'rgba(5, 16, 24, 0.82)';
-      context.fillRect(countX, countY, countTextWidth + 48, 26);
-      context.fillStyle = 'rgba(108, 232, 205, 0.92)';
-      context.fillRect(countX, countY, 2, 26);
-      context.font = '9px "DM Mono", monospace';
-      context.fillStyle = 'rgba(184, 218, 219, 0.88)';
-      context.fillText(countLabel, countX + 9, countY + 4);
-      context.font = '10px "DM Mono", monospace';
-      context.fillStyle = '#a8ffe7';
-      context.fillText(countValue, countX + 9 + countTextWidth + 8, countY + 4);
       context.restore();
     };
 

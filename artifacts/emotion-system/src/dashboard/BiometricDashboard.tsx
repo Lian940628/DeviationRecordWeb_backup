@@ -30,17 +30,17 @@ export interface ScanEffectSettings {
 }
 
 const SCAN_COLORS: Record<ScanColor, string> = {
-  cyan: '#42B8E8',
-  teal: '#52D4BE',
-  white: '#E1E6E8',
+  cyan: '#E5E2D7',
+  teal: '#5DEFA7',
+  white: '#F6F2E7',
 };
 
 const EMOTION_COLORS: Record<KnownEmotion, string> = {
-  NEUTRAL: '#8498A3',
-  HAPPY: '#52D4BE',
-  SAD: '#42B8E8',
-  ANGRY: '#D6535B',
-  SURPRISED: '#E1E6E8',
+  NEUTRAL: '#A5A69E',
+  HAPPY: '#5DEFA7',
+  SAD: '#B6D1EF',
+  ANGRY: '#ED475A',
+  SURPRISED: '#F2F0E7',
 };
 
 const VISUAL_STAGE_KEYS: Record<VisualMode, string> = {

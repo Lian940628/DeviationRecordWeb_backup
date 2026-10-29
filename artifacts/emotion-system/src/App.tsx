@@ -11,6 +11,7 @@ import { releaseFaceLandmarkerWorker } from './tracking/faceLandmarkerWorker';
 import { useFaceExpressions } from './tracking/useFaceExpressions';
 import { useSessionAverageScore } from './tracking/useSessionAverageScore';
 import { BiometricDashboard, BodyScanPanel, ScanEffectOverlay, type ScanEffectSettings } from './dashboard/BiometricDashboard';
+import { CameraHudOverlay } from './dashboard/CameraHudOverlay';
 import { useSessionAnalytics } from './dashboard/useSessionAnalytics';
 import { useSystemEventLog } from './dashboard/useSystemEventLog';
 import { VideoArtworkCanvas } from './visualization/VideoArtworkCanvas';
@@ -203,12 +204,6 @@ function Experience() {
                   settings={visualSettings.settings.stages.line}
                 />
               )}
-              {camera.stream && (
-                <div className="preview-hud">
-                  <span className="hud-live"><i className="tiny-dot" /> {t('LIVE · LOCAL')}</span>
-                  <span>{t(({ normal: '01 NORMAL', anomaly: '02 ANOMALY', particle: '03 PARTICLE', line: '04 LINE' } as const)[visualModes.visualMode])} · {camera.fps > 0 ? `${camera.fps} FPS` : t('SYNCING')}</span>
-                </div>
-              )}
               <div className="preview-overlay" aria-hidden="true">
                 <div className="overlay-detection" />
                 <div className="overlay-generative" />
@@ -223,6 +218,23 @@ function Experience() {
                 mirrored={camera.mirrored}
                 showPersonIds={visualSettings.settings.stages.line.showPersonIds}
                 onRenderingFps={setOverlayFps}
+              />
+              <CameraHudOverlay
+                cameraStatus={camera.status}
+                personModelStatus={detection.modelStatus}
+                faceModelStatus={faceAnalysis.modelStatus}
+                personCount={detection.personCount}
+                tracks={visibleTracks}
+                expressions={faceAnalysis.expressions}
+                detectionFps={detection.detectionFps}
+                renderingFps={renderingFps}
+                visualStage={visualModes.visualMode}
+                sessionDurationSeconds={sessionAnalytics.durationSeconds}
+                averageScore={averageScore}
+                analytics={sessionAnalytics}
+                systemEvents={systemEvents}
+                scanSettings={scanSettings}
+                onScanSettingsChange={updateScanSettings}
               />
             </div>
             <div className="preview-actions">

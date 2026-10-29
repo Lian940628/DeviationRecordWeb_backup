@@ -152,10 +152,10 @@ export function PersonConnectionsOverlay({
         context.moveTo(connection.from.x, connection.from.y);
         context.lineTo(connection.to.x, connection.to.y);
       }
-      context.strokeStyle = 'rgba(124, 232, 240, 1)';
+      context.strokeStyle = 'rgba(232, 232, 222, 1)';
       context.globalAlpha = opacity * 0.52;
       context.lineWidth = lineWidth;
-      context.shadowColor = `rgba(103, 231, 239, ${glow})`;
+      context.shadowColor = `rgba(93, 239, 167, ${glow})`;
       context.shadowBlur = glow * 14;
       context.stroke();
 
@@ -171,7 +171,7 @@ export function PersonConnectionsOverlay({
 
       const phase = (now * 0.00016 * options.personConnectionAnimationSpeed) % 1;
       context.globalAlpha = opacity;
-      context.fillStyle = '#c2ffff';
+      context.fillStyle = '#f1efe6';
       context.shadowBlur = glow * 12;
       for (const [index, connection] of connections.entries()) {
         const progress = (phase + index / connections.length) % 1;
