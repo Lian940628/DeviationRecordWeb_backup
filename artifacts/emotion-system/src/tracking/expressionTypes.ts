@@ -8,11 +8,43 @@ export type ExpressionLabel =
   | 'NEUTRAL'
   | 'UNKNOWN';
 
+export type UnknownReason =
+  | 'MODEL_NOT_READY'
+  | 'NO_FACE'
+  | 'NO_BLENDSHAPES'
+  | 'INVALID_BLENDSHAPES'
+  | 'NO_PERSON_MATCH'
+  | 'LOW_CLASSIFICATION_CONFIDENCE'
+  | 'RESULT_EXPIRED'
+  | 'CLASSIFIER_ERROR'
+  | 'SMOOTHING_PENDING';
+
+export interface BlendshapeSummary {
+  name: string;
+  score: number;
+}
+
 export interface ExpressionReadout {
   trackId: number;
   label: ExpressionLabel;
+  rawLabel: ExpressionLabel;
   /** Weighted blendshape support in [0, 1], not a calibrated emotion probability. */
   score: number | null;
+  matchedPersonId: number | null;
+  blendshapeCount: number;
+  topBlendshapes: BlendshapeSummary[];
+  unknownReason: UnknownReason | null;
+}
+
+export interface FaceDebugRecord {
+  faceNumber: number;
+  blendshapeCount: number;
+  topBlendshapes: BlendshapeSummary[];
+  rawExpression: ExpressionLabel;
+  smoothedExpression: ExpressionLabel;
+  matchedPersonId: number | null;
+  score: number | null;
+  unknownReason: UnknownReason | null;
 }
 
 export interface FaceObservation {
@@ -21,6 +53,8 @@ export interface FaceObservation {
   width: number;
   height: number;
   poseReliable: boolean;
+  blendshapeCount: number;
+  invalidBlendshapeCount: number;
   blendshapes: Record<string, number>;
 }
 
@@ -29,7 +63,10 @@ export interface FaceExpressionState {
   modelMessage: string;
   detectedFaces: number;
   inferenceTimeMs: number;
+  lastSuccessfulFaceAt: number | null;
+  unknownReason: UnknownReason | null;
   expressions: ExpressionReadout[];
+  faceDiagnostics: FaceDebugRecord[];
 }
 
 export interface FaceWorkerInitializeMessage {

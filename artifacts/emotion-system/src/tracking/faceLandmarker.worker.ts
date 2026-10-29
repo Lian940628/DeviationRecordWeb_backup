@@ -58,10 +58,15 @@ async function getLandmarker(): Promise<FaceLandmarker> {
 function summarizeFace(
   landmarks: NormalizedLandmark[],
   blendshapes: Record<string, number>,
+  blendshapeCount: number,
+  invalidBlendshapeCount: number,
 ): FaceObservation {
   const finite = landmarks.filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y));
   if (finite.length < 264) {
-    return { x: 0, y: 0, width: 0, height: 0, poseReliable: false, blendshapes };
+    return {
+      x: 0, y: 0, width: 0, height: 0, poseReliable: false,
+      blendshapeCount, invalidBlendshapeCount, blendshapes,
+    };
   }
 
   const minX = Math.min(...finite.map((point) => point.x));
@@ -98,6 +103,8 @@ function summarizeFace(
     width: Math.max(0, Math.min(1, maxX) - Math.max(0, minX)),
     height: Math.max(0, Math.min(1, maxY) - Math.max(0, minY)),
     poseReliable,
+    blendshapeCount,
+    invalidBlendshapeCount,
     blendshapes,
   };
 }
@@ -105,12 +112,15 @@ function summarizeFace(
 function getFaces(result: ReturnType<FaceLandmarker['detectForVideo']>): FaceObservation[] {
   return result.faceLandmarks.map((landmarks, index) => {
     const categories = result.faceBlendshapes[index]?.categories ?? [];
+    const validCategories = categories.filter((category) =>
+      Boolean(category.categoryName) && Number.isFinite(category.score));
     const blendshapes = Object.fromEntries(
-      categories
-        .filter((category) => category.categoryName && Number.isFinite(category.score))
-        .map((category) => [category.categoryName, Math.max(0, Math.min(1, category.score))]),
+      validCategories.map((category) => [
+        category.categoryName,
+        Math.max(0, Math.min(1, category.score)),
+      ]),
     );
-    return summarizeFace(landmarks, blendshapes);
+    return summarizeFace(landmarks, blendshapes, categories.length, categories.length - validCategories.length);
   });
 }
 
