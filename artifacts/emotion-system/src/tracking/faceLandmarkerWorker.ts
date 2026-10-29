@@ -5,7 +5,7 @@ let faceWorker: Worker | null = null;
 export function getFaceLandmarkerWorker(): Worker {
   if (!faceWorker) {
     faceWorker = new Worker(new URL('./faceLandmarker.worker.ts', import.meta.url), {
-      type: 'module',
+      type: 'classic',
       name: 'emotion-system-face-landmarker',
     });
   }
