@@ -87,6 +87,24 @@ function snapshotVideoFrame(video: HTMLVideoElement, scale: number) {
   return canvas;
 }
 
+function getContainedImageLayout(image: HTMLImageElement) {
+  const container = image.parentElement;
+  if (!container || !image.naturalWidth || !image.naturalHeight) return null;
+  const width = container.clientWidth;
+  const height = container.clientHeight;
+  if (!width || !height) return null;
+
+  const fit = Math.min(width / image.naturalWidth, height / image.naturalHeight);
+  const imageWidth = image.naturalWidth * fit;
+  const imageHeight = image.naturalHeight * fit;
+  return {
+    width: imageWidth,
+    height: imageHeight,
+    left: (width - imageWidth) / 2,
+    top: (height - imageHeight) / 2,
+  };
+}
+
 function cloneCanvas(source: HTMLCanvasElement, sourceElement: HTMLElement, targetDocument: Document) {
   const copy = targetDocument.createElement('canvas');
   copy.width = source.width;
@@ -104,6 +122,8 @@ async function captureFullscreenPreview(target: HTMLElement) {
   const scale = Math.min(window.devicePixelRatio || 1, 1.5);
   const video = target.querySelector<HTMLVideoElement>('.preview-video');
   const videoFrame = video ? snapshotVideoFrame(video, scale) : null;
+  const bodyScanImage = target.querySelector<HTMLImageElement>('.body-scan-portrait');
+  const bodyScanLayout = bodyScanImage ? getContainedImageLayout(bodyScanImage) : null;
   const artworkFrame = captureArtworkFrame();
 
   return html2canvas(target, {
@@ -133,6 +153,16 @@ async function captureFullscreenPreview(target: HTMLElement) {
       const clonedVideo = clonedTarget.querySelector<HTMLVideoElement>('.preview-video');
       if (videoFrame && clonedVideo) {
         clonedVideo.replaceWith(cloneCanvas(videoFrame, clonedVideo, clonedDocument));
+      }
+
+      const clonedBodyScanImage = clonedTarget.querySelector<HTMLImageElement>('.body-scan-portrait');
+      if (bodyScanLayout && clonedBodyScanImage) {
+        clonedBodyScanImage.style.position = 'absolute';
+        clonedBodyScanImage.style.left = `${bodyScanLayout.left}px`;
+        clonedBodyScanImage.style.top = `${bodyScanLayout.top}px`;
+        clonedBodyScanImage.style.width = `${bodyScanLayout.width}px`;
+        clonedBodyScanImage.style.height = `${bodyScanLayout.height}px`;
+        clonedBodyScanImage.style.objectFit = 'fill';
       }
 
       const clonedArtworkCanvas = clonedTarget.querySelector<HTMLCanvasElement>('.video-artwork-canvas');
