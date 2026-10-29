@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { Link } from 'wouter';
 import type { AppLanguage } from '../i18n';
+import bodyScanReference from '../dashboard/body-scan-reference.png';
 import './interactiveLanding.css';
 
 type InteractiveLandingProps = {
@@ -76,6 +77,8 @@ export default function InteractiveLanding({ header, language = 'en' }: Interact
     if (field) {
       field.style.setProperty('--ir-x', `${Math.round(x * 100)}%`);
       field.style.setProperty('--ir-y', `${Math.round(y * 100)}%`);
+      field.style.setProperty('--ir-parallax-x', `${((x - .5) * 26).toFixed(1)}px`);
+      field.style.setProperty('--ir-parallax-y', `${((y - .5) * 18).toFixed(1)}px`);
     }
     setPointerEnabled(true);
     const particles = event.currentTarget.querySelectorAll<HTMLElement>('.ir-landing__particle');
@@ -112,7 +115,7 @@ export default function InteractiveLanding({ header, language = 'en' }: Interact
 
   return (
     <main
-      className={`ir-landing${pointerClass}`}
+      className={`ir-landing${pointerClass}${signals.length ? ' is-signaling' : ''}`}
       onPointerMove={handlePointerMove}
       onPointerLeave={handlePointerLeave}
       onPointerDown={handleClick}
@@ -120,6 +123,9 @@ export default function InteractiveLanding({ header, language = 'en' }: Interact
       {header ? <div className="ir-landing__header">{header}</div> : null}
       <section className="ir-landing__stage" aria-labelledby="ir-landing-title">
         <div className="ir-landing__field" aria-hidden="true">
+          <div className="ir-landing__body-art">
+            <img src={bodyScanReference} alt="" />
+          </div>
           <div className="ir-landing__orbit" />
           {PARTICLES.map((particle, index) => (
             <span

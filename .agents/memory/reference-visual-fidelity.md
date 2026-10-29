@@ -7,6 +7,10 @@ Match the supplied reference's image structure and short, abrupt rhythm rather t
 
 The site's visual identity is 偏差紀錄 (Deviation Record): near-black surveillance imagery, off-white monospaced Latin UI, Source Han Serif HK fallback for Chinese glyphs, and a restrained blue/cyan glass HUD with teal and gold accents. The camera remains the primary canvas; keep the HUD floating on the left rather than adding large side or bottom data panels.
 
+Home should focus on Deviation Record and the supplied graduation-exhibition statement. Avoid adding extra archive labels, marketing sections, or invented system metrics to its main copy.
+
+**Why:** The user explicitly asked to remove other Home copy and prioritize that statement.
+
 **Why:** The user compared an actual site recording with their reference and explicitly identified transparent blocks, indistinguishable effects, excessive raster lines, and slow switching as failures.
 
 **Why:** The user named 偏差紀錄 and described it as a precise system carrying personal misalignment, memory/perception errors, and emotional noise. Their later HUD direction refines older monochrome/green accents to blue glass.

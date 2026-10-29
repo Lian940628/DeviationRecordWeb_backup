@@ -745,7 +745,7 @@ html body .experience-shell .preview-column {
   min-width: 0;
   min-height: 0;
   flex-direction: column;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 9px;
   overflow: visible;
 }
@@ -938,12 +938,27 @@ html body .experience-shell .preview-video {
   background: #03080d;
 }
 
+html body .experience-shell .preview-actions,
+html body .experience-shell .status-note {
+  width: 100%;
+  max-width: none;
+}
+
+html body .experience-shell .preview-frame {
+  width: min(100%, calc((100dvh - 230px) * 1.77778));
+  flex: 0 0 auto;
+  align-self: center;
+}
+
 html body .ir-landing__header .topbar {
   width: 100%;
 }
 
 @media (max-width: 900px) {
   html body .ir-landing__header .topbar { width: 100%; }
+  html body .experience-shell .preview-frame {
+    width: min(100%, calc((41dvh - 82px) * 1.77778));
+  }
 }
 
 /* 偏差紀錄 — field archive / security-console composition */

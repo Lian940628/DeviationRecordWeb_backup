@@ -1,0 +1,6 @@
+.site-interaction-effects { position: fixed; inset: 0; z-index: 80; overflow: hidden; pointer-events: none; }
+.site-pointer-halo { position: absolute; top: 0; left: 0; width: 125px; height: 125px; opacity: 0; background: radial-gradient(circle, rgba(66,184,232,.08), transparent 65%); transition: opacity .2s ease; will-change: transform; }
+.site-click-pulse { position: absolute; width: 20px; height: 20px; border: 1px solid rgba(127,224,255,.8); border-radius: 50%; animation: site-click-pulse .55s ease-out both; }
+.site-click-pulse::after { position: absolute; inset: -6px; border: 1px solid rgba(82,212,190,.32); border-radius: inherit; content: ""; }
+@keyframes site-click-pulse { from { opacity: .85; transform: translate(-50%,-50%) scale(.4); } to { opacity: 0; transform: translate(-50%,-50%) scale(3.5); } }
+@media (prefers-reduced-motion: reduce) { .site-interaction-effects { display: none; } }

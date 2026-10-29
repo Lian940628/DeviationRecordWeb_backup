@@ -3,4 +3,5 @@
 - [Expression heuristic thresholds](expression-heuristic-sensitivity.md) — tune subtle labels per class and require corroborating cues; rule scores are not calibrated emotion probabilities.
 - [Local visual processing](local-visual-processing.md) — camera, tracking, facial signals, and derived effects must remain in the visitor's browser.
 - [Reference visual fidelity](reference-visual-fidelity.md) — preserve the camera as primary canvas, use the blue glass left HUD, and keep charts tied to real local session data.
+- [Camera fitting](video-fit-coordinates.md) — contain the full source; update video, shaders, boxes, and connections together to preserve alignment.
 - [WebGL shader portability](webgl-shader-portability.md) — WebGL 1 GLSL nested loops need compile-time bounds; use constant loop indices and guard conditions.

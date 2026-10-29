@@ -109,6 +109,44 @@
   transform: translate(-50%, -50%);
 }
 
+.ir-landing__body-art {
+  position: absolute;
+  top: 5%;
+  right: 7%;
+  width: 53%;
+  height: 90%;
+  opacity: .74;
+  mix-blend-mode: screen;
+  transform: translate3d(var(--ir-parallax-x, 0px), var(--ir-parallax-y, 0px), 0);
+  transition: transform .4s ease-out;
+  mask-image: linear-gradient(0deg, transparent, #000 12%, #000 85%, transparent);
+}
+
+.ir-landing__body-art img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: grayscale(1) contrast(1.5) sepia(.3) hue-rotate(108deg) drop-shadow(0 0 12px rgba(108,233,216,.18));
+  transition: filter .18s ease;
+}
+
+.ir-landing__body-art::after {
+  position: absolute;
+  top: 0;
+  right: 8%;
+  left: 8%;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #b6fff2, transparent);
+  box-shadow: 0 0 16px rgba(108,233,216,.45);
+  content: "";
+  animation: ir-body-scan 7s linear infinite;
+}
+
+.ir-landing.is-signaling .ir-landing__body-art img {
+  filter: grayscale(1) contrast(1.9) brightness(1.35) drop-shadow(0 0 18px rgba(108,233,216,.4));
+}
+
 .ir-landing__orbit::before,
 .ir-landing__orbit::after {
   position: absolute;
@@ -214,6 +252,13 @@
 
 .ir-landing__text p {
   margin: 0;
+}
+
+.ir-landing__text[lang="zh-TW"] {
+  font-family: var(--app-font-cjk), serif;
+  font-size: 14px;
+  line-height: 2.05;
+  letter-spacing: .07em;
 }
 
 .ir-landing__text p:nth-child(2) {
@@ -326,6 +371,12 @@
   100% { opacity: 0; transform: scale(3.1); }
 }
 
+@keyframes ir-body-scan {
+  0% { top: 5%; opacity: 0; }
+  10%, 85% { opacity: .6; }
+  100% { top: 95%; opacity: 0; }
+}
+
 @media (max-width: 900px) {
   .ir-landing__header,
   .ir-landing__stage,
@@ -359,8 +410,10 @@
     font-size: 12px;
     line-height: 1.9;
   }
+  .ir-landing__text[lang="zh-TW"] { font-size: 13px; }
   .ir-landing__action { margin-top: 28px; }
   .ir-landing__field { inset: 6% -32% 0 2%; opacity: .78; }
+  .ir-landing__body-art { top: 2%; right: 3%; width: 60%; height: 88%; opacity: .3; }
   .ir-landing__orbit { top: 29%; left: 69%; width: 90vw; opacity: .68; }
   .ir-landing__edge-mark { right: 4%; bottom: 9%; }
   .ir-landing__footer { min-height: 48px; }
@@ -368,8 +421,8 @@
 
 @media (hover: none), (pointer: coarse) {
   .ir-landing__field { background: radial-gradient(ellipse at 65% 42%, rgba(91, 243, 221, .13), transparent 29%), radial-gradient(ellipse at 65% 48%, rgba(20, 128, 118, .16), transparent 46%); }
-  .ir-landing__particle,
-  .ir-landing__signal { display: none; }
+  .ir-landing__particle { display: none; }
+  .ir-landing__body-art::after { animation: none; opacity: 0; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -378,4 +431,6 @@
   .ir-landing__action,
   .ir-landing__action svg { transition: none; }
   .ir-landing__signal { display: none; }
+  .ir-landing__body-art { transition: none; }
+  .ir-landing__body-art::after { animation: none; opacity: 0; }
 }

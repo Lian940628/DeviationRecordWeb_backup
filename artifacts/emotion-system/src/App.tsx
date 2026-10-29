@@ -21,6 +21,7 @@ import { useStageTransitionAudio } from './visualization/useStageTransitionAudio
 import { VisualModeControls } from './visual-controls/VisualModeControls';
 import { LanguageProvider, useAppLanguage, useTranslation } from './i18n';
 import InteractiveLanding from './components/InteractiveLanding';
+import { SiteInteractionEffects } from './components/SiteInteractionEffects';
 
 function Header({ minimal = false }: { minimal?: boolean }) {
   const { language, setLanguage } = useAppLanguage();
@@ -145,12 +146,9 @@ function Experience() {
 
   return (
     <div className="app-shell experience-shell">
+      <SiteInteractionEffects />
       <Header />
       <main className="experience-page">
-        <div className="experience-heading">
-          <div><div className="eyebrow">{t('The encounter')}</div><h1>{t('Enter the')} <span>{t('frame.')}</span></h1></div>
-          <div className="experience-meta">{t('A PRIVATE MOMENT')}<br />{t('NO IMAGE LEAVES THIS DEVICE')}</div>
-        </div>
         <div className="workspace">
           <section className="preview-column" aria-label={t('Camera experience')}>
             <div id="camera-preview" className="preview-frame" data-testid="camera-preview">

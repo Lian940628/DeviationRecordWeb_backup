@@ -295,8 +295,8 @@
 }
 
 .hud-v2-body-module .body-scan-panel--compact .body-schematic {
-  height: 130px;
-  min-height: 130px;
+  height: 180px;
+  min-height: 180px;
   border-color: rgba(66, 184, 232, .3);
   background:
     linear-gradient(rgba(66, 184, 232, .05) 1px, transparent 1px),
@@ -312,31 +312,14 @@
   filter: drop-shadow(0 0 4px rgba(66, 184, 232, calc(var(--hud-glow) * .72)));
 }
 
-.hud-v2-body-module .body-figure-highlight {
-  fill: none;
-  stroke: rgba(247, 253, 255, .72);
-  stroke-width: 2;
-  stroke-linecap: round;
-  opacity: .32;
-}
-
-.hud-v2-body-module .body-figure-glitches rect {
-  fill: #f2fdff;
-  opacity: .34;
+.body-schematic .body-scan-portrait {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
   mix-blend-mode: screen;
-}
-
-.hud-v2-body-module .body-scan-fragments rect {
-  fill: #dffaff;
-  filter: drop-shadow(0 0 2px rgba(190, 240, 255, .55));
-}
-
-.hud-v2-body-module .body-figure-edge {
-  fill: none;
-  stroke: rgba(224, 246, 250, .5);
-  stroke-width: .65;
-  stroke-linecap: round;
-  opacity: .28;
+  opacity: .94;
+  filter: grayscale(1) contrast(1.45) brightness(1.12) drop-shadow(0 0 3px rgba(174, 235, 255, .25));
 }
 
 .hud-v2-body-module .body-scan-panel--compact .body-scan-grid {
