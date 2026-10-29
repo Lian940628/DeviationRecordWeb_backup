@@ -5,12 +5,15 @@ import { useCameraController } from './camera/useCameraController';
 import { SceneCanvas } from './scene/SceneCanvas';
 import { DetectionDebugPanel } from './tracking/DetectionDebugPanel';
 import { DetectionOverlay } from './tracking/DetectionOverlay';
+import { PersonConnectionsOverlay } from './tracking/PersonConnectionsOverlay';
 import { releaseCocoSsdModel, usePersonDetection } from './tracking/usePersonDetection';
 import { releaseFaceLandmarkerWorker } from './tracking/faceLandmarkerWorker';
 import { useFaceExpressions } from './tracking/useFaceExpressions';
+import { useSessionAverageScore } from './tracking/useSessionAverageScore';
 import { VideoArtworkCanvas } from './visualization/VideoArtworkCanvas';
 import { useVisualModes } from './visualization/useVisualModes';
 import { useVisualSettings } from './visualization/useVisualSettings';
+import { useStageTransitionAudio } from './visualization/useStageTransitionAudio';
 import { VisualModeControls } from './visual-controls/VisualModeControls';
 
 function Header() {
@@ -52,12 +55,37 @@ function Experience() {
   const faceAnalysis = useFaceExpressions(camera.videoRef, Boolean(camera.stream), detection.tracks);
   const visualSettings = useVisualSettings();
   const visualModes = useVisualModes(Boolean(camera.stream), visualSettings.settings);
+  const averageScore = useSessionAverageScore(
+    Boolean(camera.stream),
+    faceAnalysis.inferenceSequence,
+    faceAnalysis.expressions,
+  );
+  const stageAudio = useStageTransitionAudio(
+    Boolean(camera.stream),
+    visualModes.visualMode,
+    visualModes.transitionKey,
+    visualSettings.settings.audio,
+  );
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [debugMode, setDebugMode] = useState(false);
   const [overlayFps, setOverlayFps] = useState(0);
   const [artworkFps, setArtworkFps] = useState(0);
   const [fullscreenError, setFullscreenError] = useState('');
   const renderingFps = artworkFps || overlayFps;
+  const startCamera = () => {
+    void stageAudio.unlock();
+    void camera.startCamera().then((started) => {
+      if (!started) void stageAudio.close();
+    });
+  };
+  const stopCamera = () => {
+    camera.stopCamera();
+    void stageAudio.close();
+  };
+  const changeAudioSetting = (key: string, value: number | boolean) => {
+    visualSettings.onAudioSettingChange(key, value);
+    if (key === 'muted' && value === true && !camera.stream) void stageAudio.close();
+  };
 
   const toggleFullscreen = async () => {
     const frame = document.getElementById('camera-preview');
@@ -101,6 +129,16 @@ function Experience() {
                 />
               )}
               {camera.stream && (
+                <PersonConnectionsOverlay
+                  videoRef={camera.videoRef}
+                  tracks={detection.tracks}
+                  running={Boolean(camera.stream)}
+                  mirrored={camera.mirrored}
+                  active={visualModes.visualMode === 'line' && visualSettings.settings.stages.line.personConnectionsEnabled}
+                  settings={visualSettings.settings.stages.line}
+                />
+              )}
+              {camera.stream && (
                 <div className="preview-hud">
                   <span className="hud-live"><i className="tiny-dot" /> LIVE · LOCAL</span>
                   <span>{({ normal: '01 NORMAL', anomaly: '02 ANOMALY', particle: '03 PARTICLE', line: '04 LINE' } as const)[visualModes.visualMode]} · {camera.fps > 0 ? `${camera.fps} FPS` : 'SYNCING'}</span>
@@ -117,15 +155,16 @@ function Experience() {
                 expressions={faceAnalysis.expressions}
                 running={Boolean(camera.stream)}
                 mirrored={camera.mirrored}
+                showPersonIds={visualSettings.settings.stages.line.showPersonIds}
                 onRenderingFps={setOverlayFps}
               />
             </div>
             <div className="preview-actions">
               <div className="camera-actions">
-                <button type="button" className="primary-button" onClick={camera.startCamera} disabled={camera.isStarting} aria-busy={camera.isStarting} data-testid="button-start-camera" aria-label="Start camera">
+                  <button type="button" className="primary-button" onClick={startCamera} disabled={camera.isStarting} aria-busy={camera.isStarting} data-testid="button-start-camera" aria-label="Start camera">
                   <Camera size={15} strokeWidth={1.6} aria-hidden="true" /><span className="button-label">{camera.isStarting ? 'STARTING…' : 'START CAMERA'}</span>
                 </button>
-                <button type="button" className="text-button" onClick={camera.stopCamera} disabled={!camera.stream} data-testid="button-stop-camera" aria-label="Stop camera"><VideoOff size={15} strokeWidth={1.6} /><span className="button-label">STOP CAMERA</span></button>
+                <button type="button" className="text-button" onClick={stopCamera} disabled={!camera.stream} data-testid="button-stop-camera" aria-label="Stop camera"><VideoOff size={15} strokeWidth={1.6} /><span className="button-label">STOP CAMERA</span></button>
               </div>
               <button type="button" className="secondary-button" onClick={toggleFullscreen} data-testid="button-fullscreen" aria-label="Toggle fullscreen preview"><Expand size={13} aria-hidden="true" /> &nbsp; FULLSCREEN</button>
             </div>
@@ -169,6 +208,9 @@ function Experience() {
               faceDiagnostics={faceAnalysis.faceDiagnostics}
               expressions={faceAnalysis.expressions}
               personCount={detection.personCount}
+              averageScore={averageScore.averageScore}
+              validScoreSamples={averageScore.validSamples}
+              lastUpdatedAt={averageScore.lastUpdatedAt}
               detectionFps={detection.detectionFps}
               renderingFps={renderingFps}
               activeTrackIds={detection.activeTrackIds}
@@ -186,6 +228,8 @@ function Experience() {
                 onGlobalSettingChange={visualSettings.onGlobalSettingChange}
                 onTransitionSettingChange={visualSettings.onTransitionSettingChange}
                 onStageSettingChange={visualSettings.onStageSettingChange}
+                onAudioSettingChange={changeAudioSetting}
+                onAudioUnlock={() => { void stageAudio.unlock(); }}
                 onResetImageSettings={visualSettings.onResetImageSettings}
                 onResetStage={visualSettings.onResetStage}
                 onSavePreset={visualSettings.onSavePreset}

@@ -132,11 +132,11 @@ export function useCameraController() {
 
   // This function is called only from the explicit START CAMERA control.
   const startCamera = useCallback(async () => {
-    if (startingRef.current) return;
+    if (startingRef.current) return false;
     if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
       setStatus('error');
       setMessage('Camera access needs a secure page (HTTPS or localhost) and a browser with camera support.');
-      return;
+      return false;
     }
     startingRef.current = true;
     setIsStarting(true);
@@ -157,7 +157,7 @@ export function useCameraController() {
       const nextStream = await navigator.mediaDevices.getUserMedia({ video: videoConstraints, audio: false });
       if (!mountedRef.current) {
         stopTracks(nextStream);
-        return;
+        return false;
       }
       streamRef.current = nextStream;
       setStream(nextStream);
@@ -166,11 +166,13 @@ export function useCameraController() {
       const settings = nextStream.getVideoTracks()[0]?.getSettings();
       setMessage(`Live preview active · ${settings?.width ?? '—'} × ${settings?.height ?? '—'}. Your video remains local to this browser.`);
       void refreshDevices();
+      return true;
     } catch (error) {
       if (mountedRef.current) {
         setStatus('error');
         setMessage(cameraErrorMessage(error));
       }
+      return false;
     } finally {
       startingRef.current = false;
       if (mountedRef.current) setIsStarting(false);

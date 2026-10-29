@@ -15,6 +15,9 @@ interface DetectionDebugPanelProps {
   faceDiagnostics: FaceDebugRecord[];
   expressions: ExpressionReadout[];
   personCount: number;
+  averageScore: number | null;
+  validScoreSamples: number;
+  lastUpdatedAt: number | null;
   detectionFps: number;
   renderingFps: number;
   activeTrackIds: number[];
@@ -45,6 +48,9 @@ export function DetectionDebugPanel({
   faceDiagnostics,
   expressions,
   personCount,
+  averageScore,
+  validScoreSamples,
+  lastUpdatedAt,
   detectionFps,
   renderingFps,
   activeTrackIds,
@@ -79,6 +85,24 @@ export function DetectionDebugPanel({
             <div className="detection-debug-row">
               <dt>Person Count</dt>
               <dd data-testid="text-detected-person-count">{personCount}</dd>
+            </div>
+            <div className="detection-debug-row">
+              <dt>Average Score</dt>
+              <dd data-testid="text-average-score">{averageScore === null ? 'N/A' : averageScore.toFixed(3)}</dd>
+            </div>
+            <div className="detection-debug-row">
+              <dt>Valid Score Samples</dt>
+              <dd data-testid="text-valid-score-samples">{validScoreSamples}</dd>
+            </div>
+            <div className="detection-debug-row">
+              <dt>Last Updated</dt>
+              <dd data-testid="text-average-score-updated">
+                {lastUpdatedAt === null
+                  ? 'N/A'
+                  : new Date(lastUpdatedAt).toLocaleTimeString([], {
+                    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+                  })}
+              </dd>
             </div>
             <div className="detection-debug-row">
               <dt>Detection FPS</dt>
@@ -227,6 +251,9 @@ export function DetectionDebugPanel({
             HAPPY ≥ .24; SAD ≥ .12 with frown + inner brow or strong bilateral frown; ANGRY ≥ .14 with brow down + a second action; SURPRISED ≥ .25. Labels require a .04 lead and two confirming frames.
             Neutral fallback is used when the strongest weighted class support is ≤ .20. Faces below the normalized geometry threshold or with unreliable poses remain UNKNOWN.
             Scores use different rules by label and are not directly comparable; uncertain cases are UNKNOWN.
+          </p>
+          <p className="detection-debug-message">
+            Average Score uses finite displayed expression scores only, once per person per completed face inference. It is a heuristic display average, not a calibrated probability; detection confidence is not included.
           </p>
           {modelMessage && <p className="detection-debug-message" role="status" data-testid="text-model-message">{modelMessage}</p>}
           {faceModelMessage && <p className="detection-debug-message" role="status" data-testid="text-face-model-message">{faceModelMessage}</p>}

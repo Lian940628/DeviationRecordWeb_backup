@@ -18,7 +18,7 @@ const STAGES: { mode: VisualStage; index: string; name: string; note: string; gl
   { mode: "line", index: "04", name: "Line contour", note: "Scharr edges, broken", glyph: "vmc-glyph-line" },
 ];
 
-type FieldSpec = { key: string; label: string; unit: string; precision: number; note?: string };
+type FieldSpec = { key: string; label: string; unit: string; precision: number; control?: "toggle" };
 const GLOBAL_FIELDS: FieldSpec[] = [
   { key: "saturation", label: "Saturation", unit: "%", precision: 0 },
   { key: "brightness", label: "Brightness", unit: "%", precision: 0 },
@@ -72,6 +72,9 @@ const STAGE_FIELDS: Record<VisualStage, FieldSpec[]> = {
     { key: "personConnectionWidth", label: "Connection width", unit: "px", precision: 1 },
     { key: "personConnectionOpacity", label: "Connection opacity", unit: "%", precision: 0 },
     { key: "personConnectionGlow", label: "Connection glow", unit: "%", precision: 0 },
+    { key: "personConnectionAnimationSpeed", label: "Connection animation speed", unit: "×", precision: 1 },
+    { key: "personConnectionsEnabled", label: "Enable person connections", unit: "", precision: 0, control: "toggle" },
+    { key: "showPersonIds", label: "Show person IDs", unit: "", precision: 0, control: "toggle" },
   ],
 };
 
@@ -111,13 +114,14 @@ function RangeControl({
 export function VisualModeControls({
   playbackMode, onPlaybackModeChange, visualMode, onVisualModeChange, settings, savedPresets,
   presetMessage, presetError, onGlobalSettingChange, onStageSettingChange, onResetImageSettings,
-  onTransitionSettingChange, onResetStage, onSavePreset, onLoadPreset, onExportPreset,
+  onTransitionSettingChange, onAudioSettingChange, onAudioUnlock, onResetStage, onSavePreset, onLoadPreset, onExportPreset,
   onImportPreset, className = "",
 }: VisualModeControlsProps) {
   const [presetName, setPresetName] = useState("");
   const [selectedPreset, setSelectedPreset] = useState("");
   const stageSettings = settings.stages[visualMode];
   const stage = STAGES.find((item) => item.mode === visualMode)!;
+  const audio = settings.audio;
   const changeFile = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.currentTarget.files?.[0];
     if (file) onImportPreset(file);
@@ -142,7 +146,17 @@ export function VisualModeControls({
     );
   };
   const renderStageField = (field: FieldSpec) => {
-    const value = (stageSettings as unknown as Record<string, number | string>)[field.key];
+    const value = (stageSettings as unknown as Record<string, number | string | boolean>)[field.key];
+    if (typeof value === "boolean") {
+      const id = `vmc-stage-${visualMode}-${field.key}`;
+      return (
+        <div className="vmc-control vmc-toggle-control" key={field.key} data-testid={`control-${id}`}>
+          <label className="vmc-label" htmlFor={id}>{field.label}</label>
+          <input id={id} type="checkbox" checked={value} aria-label={field.label} data-testid={`toggle-${id}`}
+            onChange={(event) => onStageSettingChange(visualMode, field.key, event.currentTarget.checked)} />
+        </div>
+      );
+    }
     if (typeof value === "string") {
       const id = `vmc-stage-${visualMode}-${field.key}`;
       return (
@@ -190,6 +204,35 @@ export function VisualModeControls({
           ))}
         </div>
         <p className="vmc-help">Auto cycles through all four stages. Selecting a stage switches to manual.</p>
+      </fieldset>
+
+      <fieldset className="vmc-group vmc-audio-group">
+        <legend className="vmc-group-title">Stage transition sound</legend>
+        <div className="vmc-audio-heading">
+          <button type="button" className="vmc-action" aria-pressed={!audio.muted}
+            onClick={() => {
+              const nextMuted = !audio.muted;
+              if (!nextMuted) onAudioUnlock();
+              onAudioSettingChange("muted", nextMuted);
+            }} data-testid="button-audio-mute">
+            {audio.muted ? "Unmute" : "Mute"}
+          </button>
+          <span className="vmc-audio-status">{audio.muted ? "SILENT" : "LOCAL · USER-GESTURE GATED"}</span>
+        </div>
+        <RangeControl id="vmc-audio-master-volume" label="Master volume" value={audio.masterVolume}
+          min={0} max={0.4} step={0.01} unit="×" precision={2}
+          onChange={(value) => onAudioSettingChange("masterVolume", value)} />
+        <div className="vmc-audio-stages" role="group" aria-label="Enable sound for each stage">
+          {STAGES.map((item) => (
+            <label className="vmc-audio-stage" key={item.mode}>
+              <input type="checkbox" checked={audio.enabledStages[item.mode]}
+                onChange={(event) => onAudioSettingChange(item.mode, event.currentTarget.checked)}
+                data-testid={`toggle-stage-sound-${item.mode}`} />
+              <span>{item.index} · {item.name}</span>
+            </label>
+          ))}
+        </div>
+        <p className="vmc-help">Short local tones play when stages change. Audio starts after camera access or UNMUTE.</p>
       </fieldset>
 
       <fieldset className="vmc-group">

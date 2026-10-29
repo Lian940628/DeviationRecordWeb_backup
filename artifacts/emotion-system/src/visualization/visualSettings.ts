@@ -59,6 +59,15 @@ export interface LineStageSettings {
   personConnectionWidth: number;
   personConnectionOpacity: number;
   personConnectionGlow: number;
+  personConnectionsEnabled: boolean;
+  personConnectionAnimationSpeed: number;
+  showPersonIds: boolean;
+}
+
+export interface StageAudioSettings {
+  muted: boolean;
+  masterVolume: number;
+  enabledStages: Record<VisualStage, boolean>;
 }
 
 export interface StageSettings {
@@ -71,6 +80,7 @@ export interface StageSettings {
 export interface VisualSettings {
   global: GlobalImageSettings;
   stages: StageSettings;
+  audio: StageAudioSettings;
   transitions: {
     glitchDurationSeconds: number;
     renderScale: number;
@@ -132,8 +142,21 @@ export const DEFAULT_VISUAL_SETTINGS: VisualSettings = {
       fragmentationIntensity: 15,
       lineFlicker: 25,
       personConnectionWidth: 2,
-      personConnectionOpacity: 0,
-      personConnectionGlow: 0,
+      personConnectionOpacity: 42,
+      personConnectionGlow: 18,
+      personConnectionsEnabled: true,
+      personConnectionAnimationSpeed: 1.2,
+      showPersonIds: true,
+    },
+  },
+  audio: {
+    muted: false,
+    masterVolume: 0.12,
+    enabledStages: {
+      normal: true,
+      anomaly: true,
+      particle: true,
+      line: true,
     },
   },
   transitions: {
@@ -215,6 +238,9 @@ export const STAGE_SETTING_RANGES: {
     personConnectionWidth: { min: 0.5, max: 10, step: 0.1 },
     personConnectionOpacity: { min: 0, max: 100, step: 1 },
     personConnectionGlow: { min: 0, max: 100, step: 1 },
+    personConnectionsEnabled: { min: 0, max: 1, step: 1 },
+    personConnectionAnimationSpeed: { min: 0, max: 4, step: 0.1 },
+    showPersonIds: { min: 0, max: 1, step: 1 },
   },
 };
 
@@ -238,6 +264,8 @@ function normalizeGroup<T extends object>(
     if (typeof defaultRecord[String(key)] === 'string') {
       result[String(key)] =
         typeof value === 'string' && COLOR.test(value) ? value : defaultRecord[String(key)];
+    } else if (typeof defaultRecord[String(key)] === 'boolean') {
+      result[String(key)] = typeof value === 'boolean' ? value : defaultRecord[String(key)];
     } else {
       result[String(key)] = clampNumber(
         value,
@@ -259,6 +287,12 @@ export function normalizeVisualSettings(candidate: unknown): VisualSettings {
     DEFAULT_VISUAL_SETTINGS.transitions,
     TRANSITION_SETTING_RANGES,
   );
+  const audioSource = source.audio && typeof source.audio === 'object'
+    ? source.audio as Partial<StageAudioSettings>
+    : {};
+  const enabledStagesSource = audioSource.enabledStages && typeof audioSource.enabledStages === 'object'
+    ? audioSource.enabledStages as Partial<Record<VisualStage, boolean>>
+    : {} as Partial<Record<VisualStage, boolean>>;
   return {
     global,
     stages: {
@@ -266,6 +300,20 @@ export function normalizeVisualSettings(candidate: unknown): VisualSettings {
       anomaly: normalizeGroup(source.stages?.anomaly, DEFAULT_VISUAL_SETTINGS.stages.anomaly, STAGE_SETTING_RANGES.anomaly),
       particle: normalizeGroup(source.stages?.particle, DEFAULT_VISUAL_SETTINGS.stages.particle, STAGE_SETTING_RANGES.particle),
       line: normalizeGroup(source.stages?.line, DEFAULT_VISUAL_SETTINGS.stages.line, STAGE_SETTING_RANGES.line),
+    },
+    audio: {
+      muted: typeof audioSource.muted === 'boolean' ? audioSource.muted : DEFAULT_VISUAL_SETTINGS.audio.muted,
+      masterVolume: clampNumber(
+        audioSource.masterVolume,
+        DEFAULT_VISUAL_SETTINGS.audio.masterVolume,
+        { min: 0, max: 0.4, step: 0.01 },
+      ),
+      enabledStages: {
+        normal: typeof enabledStagesSource.normal === 'boolean' ? enabledStagesSource.normal : true,
+        anomaly: typeof enabledStagesSource.anomaly === 'boolean' ? enabledStagesSource.anomaly : true,
+        particle: typeof enabledStagesSource.particle === 'boolean' ? enabledStagesSource.particle : true,
+        line: typeof enabledStagesSource.line === 'boolean' ? enabledStagesSource.line : true,
+      },
     },
     transitions,
   };

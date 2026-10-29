@@ -28,6 +28,7 @@ function idleFaceState(): FaceExpressionState {
   return {
     modelStatus: 'idle',
     modelMessage: 'Start the camera to load MediaPipe Face Landmarker.',
+    inferenceSequence: 0,
     detectedFaces: 0,
     inferenceTimeMs: 0,
     lastSuccessfulFaceAt: null,
@@ -126,6 +127,7 @@ export function useFaceExpressions(
 ): FaceExpressionState {
   const [state, setState] = useState<FaceExpressionState>(idleFaceState);
   const tracksRef = useRef(tracks);
+  const inferenceSequenceRef = useRef(0);
   tracksRef.current = tracks;
 
   useEffect(() => {
@@ -274,6 +276,7 @@ export function useFaceExpressions(
       busy = false;
       resultExpired = false;
       lastWorkerResponseAt = performance.now();
+      const completedInferenceSequence = ++inferenceSequenceRef.current;
       const currentTracks = tracksRef.current;
       const activeIds = currentTracks.map((track) => track.id);
       smoother.retain(activeIds);
@@ -377,6 +380,7 @@ export function useFaceExpressions(
         setState((previous) => ({
           ...previous,
           modelStatus: 'ready',
+          inferenceSequence: completedInferenceSequence,
           detectedFaces: message.faces.length,
           inferenceTimeMs: message.inferenceTimeMs,
           lastSuccessfulFaceAt: lastSuccessfulFaceAt ?? previous.lastSuccessfulFaceAt,
@@ -389,6 +393,7 @@ export function useFaceExpressions(
         setState((previous) => ({
           ...previous,
           modelStatus: 'ready',
+          inferenceSequence: completedInferenceSequence,
           detectedFaces: message.faces.length,
           inferenceTimeMs: message.inferenceTimeMs,
           unknownReason: 'CLASSIFIER_ERROR',

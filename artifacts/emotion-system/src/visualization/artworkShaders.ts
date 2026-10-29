@@ -232,32 +232,7 @@ export const artworkFragmentShader = `
 
     vec3 col = mix(uLineColor, CYAN, clamp(mag * 3.0, 0.0, 1.0));
     float faintScan = 0.97 + 0.03 * step(0.5, fract(gl_FragCoord.y * 0.25));
-    float connection = 0.0;
-    float connectionGlow = 0.0;
-    if (uLineFragmentSettings.w > 0.0 && uBoxCount > 1.0) {
-      vec2 pixel = uv * uResolution;
-      for (int a = 0; a < MAX_PERSONS; a++) {
-        if (float(a) >= uBoxCount) break;
-        vec4 boxA = uPersonBoxes[a];
-        vec2 start = vec2(boxA.x + boxA.z * 0.5, 1.0 - (boxA.y + boxA.w * 0.5)) * uResolution;
-        for (int b = 0; b < MAX_PERSONS; b++) {
-          if (b <= a) continue;
-          if (float(b) >= uBoxCount) break;
-          vec4 boxB = uPersonBoxes[b];
-          vec2 finish = vec2(boxB.x + boxB.z * 0.5, 1.0 - (boxB.y + boxB.w * 0.5)) * uResolution;
-          vec2 segment = finish - start;
-          float t = clamp(dot(pixel - start, segment) / max(dot(segment, segment), 0.001), 0.0, 1.0);
-          float distanceToLink = length(pixel - (start + segment * t));
-          float halfWidth = uLineFragmentSettings.z * 0.5;
-          connection = max(connection, 1.0 - smoothstep(halfWidth, halfWidth + 1.0, distanceToLink));
-          connectionGlow = max(connectionGlow, exp(-distanceToLink / max(uLineGlow * 5.0, 1.0)));
-        }
-      }
-    }
-    float connectionOpacity = uLineFragmentSettings.w * 0.01;
-    float totalLine = max(line, connection * connectionOpacity);
-    float glow = connectionGlow * uLineGlow * 0.01 * connectionOpacity;
-    return DEEP * 0.7 + col * (totalLine * uLineSettings.w * 0.01 * faintScan + glow);
+    return DEEP * 0.7 + col * (line * uLineSettings.w * 0.01 * faintScan);
   }
 
   vec3 rgbToHsv(vec3 c) {

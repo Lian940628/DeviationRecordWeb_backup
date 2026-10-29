@@ -14,7 +14,9 @@ export interface VisualModeControlsProps {
   presetError: string;
   onGlobalSettingChange: (key: string, value: number) => void;
   onTransitionSettingChange: (key: string, value: number) => void;
-  onStageSettingChange: (stage: VisualStage, key: string, value: number | string) => void;
+  onStageSettingChange: (stage: VisualStage, key: string, value: number | string | boolean) => void;
+  onAudioSettingChange: (key: string, value: number | boolean) => void;
+  onAudioUnlock: () => void;
   onResetImageSettings: () => void;
   onResetStage: (stage: VisualStage) => void;
   onSavePreset: (name: string) => void;

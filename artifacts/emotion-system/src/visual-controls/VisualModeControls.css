@@ -10,6 +10,8 @@
   box-sizing: border-box;
   width: 100%;
   min-width: 0;
+  container-name: visual-controls;
+  container-type: inline-size;
   color: var(--vmc-ink);
   border: 1px solid var(--vmc-line);
   background: linear-gradient(135deg, rgba(23, 47, 71, .28), transparent 52%), rgba(9, 15, 25, .88);
@@ -48,6 +50,12 @@
 .vmc-state-mark { width: 6px; height: 6px; border: 1px solid currentColor; border-radius: 50%; }
 .vmc-segment.is-active .vmc-state-mark { border-color: var(--vmc-teal); background: var(--vmc-teal); }
 .vmc-help { margin: 9px 0 0; color: var(--vmc-dim); font-size: 8px; line-height: 1.6; }
+.vmc-audio-heading { display: flex; align-items: center; gap: 10px; }
+.vmc-audio-status { color: var(--vmc-dim); font-size: 7px; letter-spacing: .08em; }
+.vmc-audio-stages { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.vmc-audio-stage { display: flex; align-items: center; gap: 7px; min-width: 0; color: #a7b6c7; font-size: 8px; line-height: 1.4; cursor: pointer; }
+.vmc-audio-stage input, .vmc-toggle-control input { width: 14px; height: 14px; margin: 0; accent-color: var(--vmc-teal); }
+.vmc-toggle-control { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 30px; }
 .vmc-mode-list { display: grid; gap: 6px; }
 .vmc-mode-option {
   width: 100%; min-height: 55px; display: grid; grid-template-columns: 27px minmax(0, 1fr) 12px;
@@ -126,7 +134,7 @@
 .vmc-status { margin: 0; color: var(--vmc-teal); font-size: 9px; line-height: 1.5; overflow-wrap: anywhere; }
 .vmc-status.is-error { color: #e6a0a5; }
 .vmc-panel button:focus-visible, .vmc-panel input:focus-visible, .vmc-panel select:focus-visible, .vmc-file-button:focus-visible { outline: 2px solid var(--vmc-gold); outline-offset: 3px; }
-@media (min-width: 650px) {
+@container visual-controls (min-width: 520px) {
   .vmc-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 17px; }
 }
 @media (max-width: 420px) {

@@ -81,6 +81,8 @@ export interface FaceObservation {
 export interface FaceExpressionState {
   modelStatus: ModelStatus;
   modelMessage: string;
+  /** Worker request ID for the most recently completed expression inference. */
+  inferenceSequence: number;
   detectedFaces: number;
   inferenceTimeMs: number;
   lastSuccessfulFaceAt: number | null;

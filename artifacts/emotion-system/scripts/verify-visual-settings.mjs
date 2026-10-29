@@ -12,6 +12,11 @@ assert.deepEqual(
 );
 assert.equal(defaults.transitions.glitchDurationSeconds, 0.12);
 assert.equal(defaults.transitions.renderScale, 0.7);
+assert.equal(defaults.audio.masterVolume, 0.12);
+assert.equal(defaults.audio.muted, false);
+assert.equal(defaults.stages.line.personConnectionsEnabled, true);
+assert.equal(defaults.stages.line.personConnectionOpacity, 42);
+assert.equal(defaults.stages.line.showPersonIds, true);
 
 const altered = normalizeVisualSettings({
   ...defaults,
@@ -25,7 +30,9 @@ const altered = normalizeVisualSettings({
   stages: {
     ...defaults.stages,
     anomaly: { ...defaults.stages.anomaly, intensity: 260, duration: -3, anomalyColor: 'corrupt' },
+    line: { ...defaults.stages.line, personConnectionsEnabled: false, showPersonIds: false },
   },
+  audio: { ...defaults.audio, masterVolume: 2, muted: true },
 });
 assert.equal(altered.global.saturation, 200);
 assert.equal(altered.global.gamma, 0.2);
@@ -33,6 +40,10 @@ assert.ok(altered.global.inputWhite > altered.global.inputBlack);
 assert.equal(altered.stages.anomaly.intensity, 200);
 assert.equal(altered.stages.anomaly.duration, 0.1);
 assert.equal(altered.stages.anomaly.anomalyColor, defaults.stages.anomaly.anomalyColor);
+assert.equal(altered.audio.masterVolume, 0.4);
+assert.equal(altered.audio.muted, true);
+assert.equal(altered.stages.line.personConnectionsEnabled, false);
+assert.equal(altered.stages.line.showPersonIds, false);
 assert.deepEqual(altered.stages.normal, defaults.stages.normal, 'stage settings must remain independent');
 assert.deepEqual(altered.stages.particle, defaults.stages.particle, 'stage settings must remain independent');
 

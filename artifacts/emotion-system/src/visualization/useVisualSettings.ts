@@ -73,10 +73,12 @@ export function useVisualSettings() {
     setPresetError('');
   }, []);
 
-  const onStageSettingChange = useCallback((stage: VisualStage, key: string, value: number | string) => {
+  const onStageSettingChange = useCallback((stage: VisualStage, key: string, value: number | string | boolean) => {
     const currentStage = DEFAULT_VISUAL_SETTINGS.stages[stage] as unknown as Record<string, unknown>;
     if (!(key in currentStage)) return;
-    if (key !== 'anomalyColor' && key !== 'particleColor' && key !== 'lineColor') {
+    if (typeof currentStage[key] === 'boolean') {
+      if (typeof value !== 'boolean') return;
+    } else if (key !== 'anomalyColor' && key !== 'particleColor' && key !== 'lineColor') {
       if (typeof value !== 'number' || !Number.isFinite(value)) return;
       const range = (STAGE_SETTING_RANGES[stage] as Record<string, { min: number; max: number }>)[key];
       if (!range) return;
@@ -91,6 +93,33 @@ export function useVisualSettings() {
         [stage]: { ...current.stages[stage], [key]: value },
       },
     }));
+    setPresetMessage('');
+    setPresetError('');
+  }, []);
+
+  const onAudioSettingChange = useCallback((key: string, value: number | boolean) => {
+    if (key === 'muted') {
+      if (typeof value !== 'boolean') return;
+      setSettings((current) => ({ ...current, audio: { ...current.audio, muted: value } }));
+    } else if (key === 'masterVolume') {
+      if (typeof value !== 'number' || !Number.isFinite(value)) return;
+      setSettings((current) => ({
+        ...current,
+        audio: { ...current.audio, masterVolume: Math.min(0.4, Math.max(0, value)) },
+      }));
+    } else if (key in DEFAULT_VISUAL_SETTINGS.audio.enabledStages) {
+      if (typeof value !== 'boolean') return;
+      const stage = key as VisualStage;
+      setSettings((current) => ({
+        ...current,
+        audio: {
+          ...current.audio,
+          enabledStages: { ...current.audio.enabledStages, [stage]: value },
+        },
+      }));
+    } else {
+      return;
+    }
     setPresetMessage('');
     setPresetError('');
   }, []);
@@ -175,6 +204,7 @@ export function useVisualSettings() {
     onGlobalSettingChange,
     onTransitionSettingChange,
     onStageSettingChange,
+    onAudioSettingChange,
     onResetImageSettings,
     onResetStage,
     onSavePreset,

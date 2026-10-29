@@ -9,6 +9,7 @@ interface DetectionOverlayProps {
   expressions: ExpressionReadout[];
   running: boolean;
   mirrored: boolean;
+  showPersonIds?: boolean;
   onRenderingFps: (fps: number) => void;
 }
 
@@ -43,16 +44,19 @@ export function DetectionOverlay({
   expressions,
   running,
   mirrored,
+  showPersonIds = true,
   onRenderingFps,
 }: DetectionOverlayProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const tracksRef = useRef(tracks);
   const expressionsRef = useRef(expressions);
   const mirroredRef = useRef(mirrored);
+  const showPersonIdsRef = useRef(showPersonIds);
   const fpsCallbackRef = useRef(onRenderingFps);
   tracksRef.current = tracks;
   expressionsRef.current = expressions;
   mirroredRef.current = mirrored;
+  showPersonIdsRef.current = showPersonIds;
   fpsCallbackRef.current = onRenderingFps;
 
   useEffect(() => {
@@ -152,9 +156,11 @@ export function DetectionOverlay({
         const expression = expressionByTrack.get(track.id);
         const expressionLabel = `EXPRESSION: ${expression?.label ?? 'UNKNOWN'}`;
         const scoreLabel = `SCORE: ${expression?.score === null || expression?.score === undefined ? '--' : expression.score.toFixed(2)}`;
-        const labels = [`PERSON ID: ${id}`, expressionLabel, scoreLabel];
+        const labels = showPersonIdsRef.current
+          ? [`PERSON ID: ${id}`, expressionLabel, scoreLabel]
+          : [expressionLabel, scoreLabel];
         const labelWidth = Math.max(...labels.map((label) => context.measureText(label).width));
-        const labelHeight = 42;
+        const labelHeight = labels.length * 13 + 3;
         const labelX = Math.max(videoOffsetX, Math.min(x, videoOffsetX + videoRect.width - labelWidth - 12));
         const labelY = Math.max(videoOffsetY, y - labelHeight);
 
@@ -167,12 +173,14 @@ export function DetectionOverlay({
         context.fillRect(labelX, labelY, labelWidth + 12, labelHeight);
         context.strokeStyle = 'rgba(104, 237, 213, 0.58)';
         context.strokeRect(labelX + 0.5, labelY + 0.5, labelWidth + 11, labelHeight - 1);
-        context.fillStyle = '#b9fff0';
-        context.fillText(labels[0] ?? '', labelX + 6, labelY + 4);
-        context.fillStyle = expression?.label === 'UNKNOWN' ? '#a9b8c1' : '#b9fff0';
-        context.fillText(labels[1] ?? '', labelX + 6, labelY + 17);
-        context.fillStyle = '#a6c8c8';
-        context.fillText(labels[2] ?? '', labelX + 6, labelY + 30);
+        labels.forEach((label, index) => {
+          const isId = showPersonIdsRef.current && index === 0;
+          const isExpression = label.startsWith('EXPRESSION:');
+          context.fillStyle = isId || (isExpression && expression?.label !== 'UNKNOWN')
+            ? '#b9fff0'
+            : isExpression ? '#a9b8c1' : '#a6c8c8';
+          context.fillText(label, labelX + 6, labelY + 4 + index * 13);
+        });
       });
 
       const countLabel = 'PERSON COUNT';
