@@ -24,6 +24,7 @@ import { VisualModeControls } from './visual-controls/VisualModeControls';
 import { LanguageProvider, useAppLanguage, useTranslation } from './i18n';
 import InteractiveLanding from './components/InteractiveLanding';
 import { SiteInteractionEffects } from './components/SiteInteractionEffects';
+import DeviationId from './pages/DeviationId';
 
 function Header({ minimal = false }: { minimal?: boolean }) {
   const { language, setLanguage } = useAppLanguage();
@@ -37,6 +38,7 @@ function Header({ minimal = false }: { minimal?: boolean }) {
       <nav className="site-nav" aria-label={t('Main navigation')} data-testid="nav-main">
         <Link href="/experience" className={`site-nav-link${location === '/experience' ? ' is-active' : ''}`} data-testid="link-live-experience">{t('LIVE EXPERIENCE')}</Link>
         <Link href="/video-distortion" className={`site-nav-link${location === '/video-distortion' ? ' is-active' : ''}`} data-testid="link-video-distortion">{t('VIDEO DISTORTION')}</Link>
+        <Link href="/deviation-id" className={`site-nav-link${location === '/deviation-id' ? ' is-active' : ''}`} data-testid="link-deviation-id">{t('DEVIATION ID')}</Link>
       </nav>
       <div className="header-actions">
         <div className="language-switch" role="group" aria-label={t('Language')}>
@@ -411,6 +413,15 @@ function VideoDistortionRoute() {
   );
 }
 
+function DeviationIdRoute() {
+  return (
+    <div className="app-shell deviation-id-shell">
+      <Header />
+      <DeviationId />
+    </div>
+  );
+}
+
 export default function App() {
   useEffect(() => () => {
     releaseCocoSsdModel();
@@ -423,6 +434,7 @@ export default function App() {
         <Route path="/" component={Home} />
         <Route path="/experience" component={Experience} />
         <Route path="/video-distortion" component={VideoDistortionRoute} />
+        <Route path="/deviation-id" component={DeviationIdRoute} />
         <Route component={NotFound} />
       </Switch>
     </LanguageProvider>

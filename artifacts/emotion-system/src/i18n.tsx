@@ -11,6 +11,7 @@ const TRADITIONAL_CHINESE: Record<string, string> = {
   'LIVE EXPERIENCE': '即時互動',
   'LIVE INTERACTION': '即時互動',
   'VIDEO DISTORTION': '影片偏差化',
+  'DEVIATION ID': '偏差名片',
   'ARCHIVE INDEX': '檔案索引',
   MEMORY: '記憶',
   PERCEPTION: '感知',

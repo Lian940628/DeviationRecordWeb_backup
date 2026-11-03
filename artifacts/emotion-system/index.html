@@ -12,12 +12,22 @@
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="偏差紀錄 — EMOTION / SYSTEM" />
     <meta name="twitter:description" content="A browser-local interactive artwork about memory drift, perceptual error, and emotional noise." />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/svg+xml" href="%BASE_URL%favicon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   </head>
   <body>
+    <script>
+      (function () {
+        var params = new URLSearchParams(window.location.search);
+        var restoredPath = params.get('__emotion_system_path');
+        if (restoredPath) {
+          var restored = new URL(restoredPath, window.location.origin);
+          window.history.replaceState(null, '', restored.pathname + restored.search + restored.hash);
+        }
+      })();
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

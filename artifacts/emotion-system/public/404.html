@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>EMOTION / SYSTEM</title>
+    <script>
+      (function () {
+        var requested = window.location.pathname + window.location.search + window.location.hash;
+        var segments = window.location.pathname.split('/').filter(Boolean);
+        var possibleRepositoryRoot = segments.length > 1 ? '/' + segments[0] + '/' : '/';
+        var candidate = possibleRepositoryRoot + 'index.html';
+        fetch(candidate, { method: 'HEAD', cache: 'no-store' })
+          .then(function (response) {
+            return response.ok && segments.length > 1 ? possibleRepositoryRoot : '/';
+          })
+          .catch(function () { return '/'; })
+          .then(function (base) {
+            var query = new URLSearchParams();
+            query.set('__emotion_system_path', requested);
+            window.location.replace(base + '?' + query.toString());
+          });
+      })();
+    </script>
+  </head>
+  <body></body>
+</html>
