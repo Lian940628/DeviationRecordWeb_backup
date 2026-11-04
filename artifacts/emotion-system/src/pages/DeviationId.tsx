@@ -303,6 +303,7 @@ export default function DeviationId() {
       setPersonSegmentationStatus('ready');
       return true;
     } catch (photoError) {
+      if (import.meta.env.DEV) console.error('[person-segmentation] Photo processing failed:', photoError);
       if (requestId === segmentationRequestRef.current) {
         setPersonSegmentationStatus('error');
         setError(localError(photoError, languageRef.current));

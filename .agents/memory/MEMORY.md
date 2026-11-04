@@ -1,4 +1,4 @@
-- [MediaPipe worker canvas](mediapipe-worker-canvas.md) — pass an explicit OffscreenCanvas when initializing Tasks Vision in a worker; its fallback may require document.
+- [MediaPipe canvas requirements](mediapipe-worker-canvas.md) — workers need explicit canvases; CPU delegation still needs WebGL image input, so no-WebGL devices need a separate CPU path.
 - [MediaPipe module loader](mediapipe-module-worker.md) — ES module workers need the ES module WASM fileset; the classic loader causes “ModuleFactory not set.”
 - [Expression heuristic thresholds](expression-heuristic-sensitivity.md) — tune subtle labels per class and require corroborating cues; rule scores are not calibrated emotion probabilities.
 - [Local visual processing](local-visual-processing.md) — camera, tracking, facial signals, and derived effects must remain in the visitor's browser.

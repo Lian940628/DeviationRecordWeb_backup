@@ -1,4 +1,5 @@
 import { FilesetResolver, ImageSegmenter } from '@mediapipe/tasks-vision';
+import { disposeCpuPersonSegmentation, segmentPhotoOnCpu } from './cpuPersonSegmentationClient';
 
 const TASKS_VISION_VERSION = '1.2.0';
 const WASM_BASE_URL = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${TASKS_VISION_VERSION}/wasm`;
@@ -10,6 +11,7 @@ const MAX_OUTPUT_EDGE = 2048;
 let segmenter: ImageSegmenter | null = null;
 let segmenterPromise: Promise<ImageSegmenter> | null = null;
 let segmenterGeneration = 0;
+let preferCpuFallback = false;
 
 function makeCanvas(width: number, height: number) {
   const canvas = document.createElement('canvas');
@@ -28,8 +30,14 @@ async function getSegmenter() {
   if (segmenterPromise) return segmenterPromise;
   const generation = segmenterGeneration;
   const pending = (async () => {
+    // CPU delegation does NOT remove MediaPipe's WebGL input-preprocessing requirement.
+    // Use a separate, verified GL canvas; never pass a canvas already bound to 2D.
+    const canvas = document.createElement('canvas');
+    const gl = canvas.getContext('webgl2') || canvas.getContext('webgl');
+    if (!gl || gl.isContextLost()) throw new Error('MediaPipe image input requires a working WebGL context.');
     const vision = await FilesetResolver.forVisionTasks(WASM_BASE_URL);
     const created = await ImageSegmenter.createFromOptions(vision, {
+      canvas,
       baseOptions: { modelAssetPath: PERSON_MODEL_URL, delegate: 'CPU' },
       runningMode: 'IMAGE',
       outputCategoryMask: true,
@@ -49,6 +57,46 @@ async function getSegmenter() {
     if (segmenterPromise === pending) segmenterPromise = null;
     throw error;
   }
+}
+
+async function inferPersonMask(input: HTMLCanvasElement) {
+  const generation = segmenterGeneration;
+  if (!preferCpuFallback) {
+    try {
+      const model = await getSegmenter();
+      const result = model.segment(input);
+      try {
+        const labels = model.getLabels().map((label) => label.trim().toLowerCase());
+        const labelIndex = labels.findIndex((label) => label.includes('person'));
+        const personIndex = labelIndex >= 0 ? labelIndex : Math.max(0, (result.confidenceMasks?.length ?? 1) - 1);
+        const confidence = result.confidenceMasks?.[personIndex];
+        const category = result.categoryMask;
+        if (confidence?.hasFloat32Array()) {
+          return { width: confidence.width, height: confidence.height, values: confidence.getAsFloat32Array().slice(), backend: 'mediapipe' };
+        }
+        if (confidence?.hasUint8Array()) {
+          return { width: confidence.width, height: confidence.height, values: Float32Array.from(confidence.getAsUint8Array(), (value) => value / 255), backend: 'mediapipe' };
+        }
+        if (category?.hasUint8Array()) {
+          return { width: category.width, height: category.height, values: Float32Array.from(category.getAsUint8Array(), (value) => value === personIndex ? 1 : 0), backend: 'mediapipe' };
+        }
+        throw new Error('MediaPipe did not return a CPU-readable person mask.');
+      } finally {
+        result.close();
+      }
+    } catch (error) {
+      if (generation !== segmenterGeneration) throw error;
+      preferCpuFallback = true;
+      if (import.meta.env.DEV) {
+        console.warn('[person-segmentation] Switching to WebGL-free CPU worker:', error);
+      }
+      // A failed graph can no longer be safely reused.
+      try { segmenter?.close(); } catch { /* Its GL context may already be lost. */ }
+      segmenter = null;
+      segmenterPromise = null;
+    }
+  }
+  return { ...await segmentPhotoOnCpu(input), backend: 'bodypix-cpu-worker' };
 }
 
 type DecodedPhoto = {
@@ -111,40 +159,7 @@ export async function removePersonBackground(photo: Blob): Promise<Blob> {
     if (!inputContext) throw new Error('This browser could not prepare the person segmentation image.');
     inputContext.drawImage(decoded.source, 0, 0, inferenceWidth, inferenceHeight);
 
-    const model = await getSegmenter();
-    const result = model.segment(inputCanvas);
-    try {
-      const labels = model.getLabels().map((label) => label.trim().toLowerCase());
-      const personIndexFromLabels = labels.findIndex((label) => label === 'person' || label.includes('person'));
-      const personIndex = personIndexFromLabels >= 0
-        ? personIndexFromLabels
-        : Math.max(0, (result.confidenceMasks?.length ?? 1) - 1);
-      const confidenceMask = result.confidenceMasks?.[personIndex];
-      const categoryMask = result.categoryMask;
-      if (!confidenceMask && !categoryMask) {
-        throw new Error(`The person segmentation model returned no usable mask (confidence masks: ${result.confidenceMasks?.length ?? 0}, category mask: ${Boolean(categoryMask)}).`);
-      }
-
-      let mask: typeof confidenceMask | typeof categoryMask | null = null;
-      let values: Float32Array | null = null;
-      if (confidenceMask?.hasFloat32Array()) {
-        mask = confidenceMask;
-        values = confidenceMask.getAsFloat32Array();
-      } else if (confidenceMask?.hasUint8Array()) {
-        mask = confidenceMask;
-        values = Float32Array.from(confidenceMask.getAsUint8Array(), (value) => value / 255);
-      } else if (categoryMask?.hasUint8Array()) {
-        mask = categoryMask;
-        values = Float32Array.from(categoryMask.getAsUint8Array(), (value) => Number(value) === personIndex ? 1 : 0);
-      } else if (categoryMask?.hasFloat32Array()) {
-        mask = categoryMask;
-        values = Float32Array.from(categoryMask.getAsFloat32Array(), (value) => Number(value) === personIndex ? 1 : 0);
-      }
-      if (!mask || !values) {
-        throw new Error('The person mask is not available in CPU memory. GPU-only masks are not supported in this browser.');
-      }
-      const maskWidth = mask.width;
-      const maskHeight = mask.height;
+    const { values, width: maskWidth, height: maskHeight, backend } = await inferPersonMask(inputCanvas);
       if (!maskWidth || !maskHeight || values.length !== maskWidth * maskHeight) {
         throw new Error('The person segmentation model returned an invalid person mask.');
       }
@@ -177,9 +192,7 @@ export async function removePersonBackground(photo: Blob): Promise<Blob> {
       const personRatio = foreground / values.length;
       if (import.meta.env.DEV) {
         console.debug('[person-segmentation] mask result', {
-          labels,
-          confidenceMaskCount: result.confidenceMasks?.length ?? 0,
-          hasCategoryMask: Boolean(categoryMask),
+          backend,
           maskWidth,
           maskHeight,
           personRatio,
@@ -230,10 +243,6 @@ export async function removePersonBackground(photo: Blob): Promise<Blob> {
           : reject(new Error('The transparent person image could not be created.')), 'image/png');
       });
       return cutoutBlob;
-    } finally {
-      result.confidenceMasks?.forEach((maskItem) => maskItem.close());
-      result.categoryMask?.close();
-    }
   } finally {
     decoded.dispose();
   }
@@ -241,7 +250,9 @@ export async function removePersonBackground(photo: Blob): Promise<Blob> {
 
 export function disposePersonSegmenter() {
   segmenterGeneration += 1;
-  segmenter?.close();
+  try { segmenter?.close(); } catch { /* Cleanup must also work after context loss. */ }
   segmenter = null;
   segmenterPromise = null;
+  preferCpuFallback = false;
+  disposeCpuPersonSegmentation();
 }

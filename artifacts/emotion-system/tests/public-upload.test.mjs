@@ -29,13 +29,19 @@ class TestMediaStream {
 const testTrack = { kind: 'video', stop() {} };
 const tick = () => new Promise((resolve) => setTimeout(resolve, 1));
 
-test('person segmentation reads CPU mask arrays without requiring a WebGL canvas', async () => {
+test('person segmentation checks WebGL before MediaPipe and has a truly WebGL-free fallback', async () => {
   const source = await readFile(`${root}src/pages/deviationId/personMatting.ts`, 'utf8');
   const options = source.match(/ImageSegmenter\.createFromOptions\(vision,\s*\{([\s\S]*?)\}\);/)?.[1];
   assert.ok(options, 'MediaPipe ImageSegmenter options should exist');
   assert.match(options, /delegate:\s*'CPU'/);
-  assert.doesNotMatch(options, /\bcanvas\b/);
+  assert.match(source, /if \(!gl \|\| gl\.isContextLost\(\)\) throw/);
+  assert.match(source, /await segmentPhotoOnCpu\(input\)/);
   assert.doesNotMatch(source, /hasWebGLTexture\s*\(/);
+  const cpu = await readFile(`${root}src/pages/deviationId/cpuPersonSegmentation.ts`, 'utf8');
+  assert.match(cpu, /await tf\.setBackend\('cpu'\)/);
+  assert.match(cpu, /tf\.tensor3d\(rgb/);
+  assert.match(cpu, /input\.dispose\(\)/);
+  assert.doesNotMatch(cpu, /getContext\s*\(|fromPixels\s*\(/);
 });
 
 async function compile(entry, mocks, sourceTransform = (source) => source) {
@@ -75,6 +81,60 @@ function sandbox(mocks, extra = {}) {
     ...extra,
   };
 }
+
+test('the photo pipeline uses the CPU fallback when WebGL is missing or MediaPipe throws activeTexture', async () => {
+  for (const failure of ['no-webgl', 'activeTexture']) {
+    let cpuCalls = 0;
+    let mediaPipeCalls = 0;
+    const mocks = {
+      '@mediapipe/tasks-vision': {
+        FilesetResolver: { forVisionTasks: async () => ({}) },
+        ImageSegmenter: {
+          createFromOptions: async () => {
+            mediaPipeCalls += 1;
+            return {
+              segment() { throw new TypeError("Cannot read properties of undefined (reading 'activeTexture')"); },
+              close() {},
+            };
+          },
+        },
+      },
+      './cpuPersonSegmentationClient': {
+        disposeCpuPersonSegmentation() {},
+        async segmentPhotoOnCpu() {
+          cpuCalls += 1;
+          return { width: 4, height: 4, values: Float32Array.from([0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0]) };
+        },
+      },
+    };
+    const drawing = { drawImage() {}, putImageData() {} };
+    const context = sandbox(mocks, {
+      console: { debug() {}, warn() {} },
+      createImageBitmap: async () => ({ width: 64, height: 64, close() {} }),
+      ImageData: class { constructor(data, width, height) { Object.assign(this, { data, width, height }); } },
+      document: {
+        createElement: () => ({
+          width: 0, height: 0,
+          getContext(type) {
+            if (type === '2d') return drawing;
+            return failure === 'no-webgl' ? null : { isContextLost: () => false };
+          },
+          toBlob(callback, type) { callback(new Blob(['mock-composited-person'], { type })); },
+        }),
+      },
+    });
+    vm.runInNewContext(await compile('src/pages/deviationId/personMatting.ts', mocks), context);
+    const { removePersonBackground, disposePersonSegmenter } = context.module.exports;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const image = await removePersonBackground(new Blob(['local-photo']));
+      assert.equal(image.type, 'image/png');
+      assert.ok(image.size > 0);
+    }
+    assert.equal(cpuCalls, 2);
+    assert.equal(mediaPipeCalls, failure === 'no-webgl' ? 0 : 1);
+    disposePersonSegmenter();
+  }
+});
 
 async function pageHarness({ visibility = 'PUBLIC', step = 1, generated = true, imageReady = true, videoReady = true, readReceipt, saveReceipt, upload } = {}) {
   let cursor = 0;

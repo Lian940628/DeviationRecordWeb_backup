@@ -13,4 +13,4 @@ The CPU delegate still needs a working WebGL canvas for the vision image-input p
 
 **Why:** A browser test without either main-thread or worker WebGL could initialize the graph but failed on image inference with an `activeTexture` error.
 
-**How to apply:** Distinguish successful model initialization from successful image inference. Probe both canvas and worker OffscreenCanvas WebGL capabilities before attributing this error to model loading.
+**How to apply:** Distinguish successful model initialization from successful image inference. Probe both canvas and worker OffscreenCanvas WebGL capabilities before attributing this error to model loading. Removing the canvas or changing mask readback does not eliminate the image-input dependency. A genuinely WebGL-free fallback must use an independent CPU runtime with typed-tensor input, isolated from the live detector's TensorFlow backend.
