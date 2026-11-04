@@ -498,6 +498,13 @@
 .deviation-status-message,
 .deviation-error-message { margin: 10px 0 0; border-left: 2px solid #50d8ce; padding: 8px 10px; background: rgba(50, 164, 153, .09); color: #b5ddd4; font: 8px/1.6 var(--app-font-mono); }
 .deviation-error-message { border-left-color: #de727b; background: rgba(159, 48, 59, .12); color: #f0b4b6; }
+.deviation-cloud-upload { margin-top: 12px; border: 1px solid rgba(93, 198, 193, .28); background: rgba(5, 25, 29, .72); padding: 10px; color: #a7d8d3; }
+.deviation-cloud-upload-heading { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 12px; font: 8px var(--app-font-mono); letter-spacing: .08em; }
+.deviation-cloud-upload-heading small { color: #8bb5b0; letter-spacing: .02em; }
+.deviation-cloud-upload-progress { display: grid; grid-template-columns: auto 1fr auto 1fr; align-items: center; gap: 8px; margin-top: 9px; color: #75a8a3; font: 7px var(--app-font-mono); }
+.deviation-cloud-upload-progress i { display: block; height: 3px; background: rgba(96, 148, 147, .2); }
+.deviation-cloud-upload-progress b { display: block; height: 100%; background: #54e2d2; box-shadow: 0 0 8px rgba(84, 226, 210, .55); transition: width .18s linear; }
+.deviation-cloud-upload-retry { margin-top: 9px; }
 .deviation-privacy-note { margin: 12px 0 0; color: #5e817e; font: 7px/1.7 var(--app-font-mono); }
 
 .deviation-archive { margin-top: 18px; padding: 18px 20px; }

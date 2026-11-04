@@ -7,6 +7,7 @@ import {
   portableProjectSchema,
   type DeviationDraft,
 } from './types';
+import type { CloudinaryAssetType, CloudinaryUploadResult } from './cloudinaryUpload';
 
 const DATABASE_NAME = 'emotion-system-deviation-id';
 const DATABASE_VERSION = 2;
@@ -24,6 +25,21 @@ export interface StoredProjectSummary {
 
 export interface StoredProject extends StoredProjectSummary {
   photoBlob: Blob | null;
+}
+
+export interface StoredCloudinaryReceipt {
+  key: string;
+  submissionId: string;
+  assetType: CloudinaryAssetType;
+  asset: CloudinaryUploadResult;
+  contentHash: string;
+  filename: string;
+  mimeType: string;
+  bytes: number;
+  cardName: string;
+  subjectId: string;
+  deviationLevel: number;
+  savedAt: number;
 }
 
 interface StoredAssets {
@@ -265,6 +281,82 @@ export async function deleteAllProjects() {
     transaction.objectStore(PROJECTS_STORE).clear();
     transaction.objectStore(ASSETS_STORE).clear();
     return undefined;
+  });
+}
+
+function cloudUploadReceiptKey(submissionId: string, assetType: CloudinaryAssetType) {
+  return `cloudinary-upload:${submissionId}:${assetType}`;
+}
+
+export async function getCloudinaryUploadReceipt(
+  submissionId: string,
+  assetType: CloudinaryAssetType,
+): Promise<StoredCloudinaryReceipt | null> {
+  const database = await openDatabase();
+  return new Promise((resolve, reject) => {
+    const transaction = database.transaction([META_STORE], 'readonly');
+    const request = transaction.objectStore(META_STORE).get(cloudUploadReceiptKey(submissionId, assetType));
+    let receipt: StoredCloudinaryReceipt | null = null;
+    request.onsuccess = () => {
+      const value = request.result as StoredCloudinaryReceipt | undefined;
+      receipt = value ?? null;
+    };
+    request.onerror = () => transaction.abort();
+    transaction.oncomplete = () => {
+      database.close();
+      resolve(receipt);
+    };
+    transaction.onerror = () => {
+      database.close();
+      reject(transaction.error ?? new Error('Could not read saved Cloudinary upload information.'));
+    };
+    transaction.onabort = () => {
+      database.close();
+      reject(transaction.error ?? new Error('Could not read saved Cloudinary upload information.'));
+    };
+  });
+}
+
+export async function saveCloudinaryUploadReceipt(
+  receipt: Omit<StoredCloudinaryReceipt, 'key' | 'savedAt'>,
+) {
+  const database = await openDatabase();
+  const saved: StoredCloudinaryReceipt = {
+    ...receipt,
+    key: cloudUploadReceiptKey(receipt.submissionId, receipt.assetType),
+    savedAt: Date.now(),
+  };
+  return transactionPromise(database, [META_STORE], 'readwrite', (transaction) => {
+    transaction.objectStore(META_STORE).put(saved);
+    return undefined;
+  });
+}
+
+export async function listCloudinaryUploadReceipts(): Promise<StoredCloudinaryReceipt[]> {
+  const database = await openDatabase();
+  return new Promise((resolve, reject) => {
+    const transaction = database.transaction([META_STORE], 'readonly');
+    const request = transaction.objectStore(META_STORE).getAll();
+    let receipts: StoredCloudinaryReceipt[] = [];
+    request.onsuccess = () => {
+      receipts = (request.result as Array<{ key?: string }>)
+        .filter((value): value is StoredCloudinaryReceipt & { key: string } =>
+          typeof value.key === 'string' && value.key.startsWith('cloudinary-upload:'))
+        .sort((left, right) => right.savedAt - left.savedAt);
+    };
+    request.onerror = () => transaction.abort();
+    transaction.oncomplete = () => {
+      database.close();
+      resolve(receipts);
+    };
+    transaction.onerror = () => {
+      database.close();
+      reject(transaction.error ?? new Error('Could not list saved Cloudinary upload information.'));
+    };
+    transaction.onabort = () => {
+      database.close();
+      reject(transaction.error ?? new Error('Could not list saved Cloudinary upload information.'));
+    };
   });
 }
 

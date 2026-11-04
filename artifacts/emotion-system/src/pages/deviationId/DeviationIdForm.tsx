@@ -217,7 +217,7 @@ export function DeviationIdForm({
           </fieldset>
           <div className="deviation-local-choice-note">
             <LockKeyhole size={16} />
-            <span>{t('No cloud upload happens in this phase, even when PUBLIC is selected.')}</span>
+            <span>{t('Only the completed PNG and exported video are uploaded after both are ready. The original photo stays on this device.')}</span>
           </div>
           <div className="deviation-local-choice-note">
             <ShieldCheck size={16} />
