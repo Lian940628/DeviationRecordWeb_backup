@@ -23,7 +23,8 @@ async function getModel() {
       return load({
         architecture: 'MobileNetV1',
         outputStride: 16,
-        multiplier: 0.5,
+        // Higher feature capacity helps retain small, lower-contrast people.
+        multiplier: 0.75,
         quantBytes: 2,
       });
     })().catch((error: unknown) => {
@@ -53,8 +54,10 @@ export async function segmentRgbaOnCpu(pixels: ArrayBuffer, width: number, heigh
   const input = tf.tensor3d(rgb, [height, width, 3], 'int32');
   try {
     const result = await model.segmentPerson(input, {
-      internalResolution: 'medium',
-      segmentationThreshold: 0.55,
+      internalResolution: 'high',
+      // BodyPix returns a binary mask here. A lower activation cutoff avoids
+      // erasing low-contrast parts of the subject before edge softening.
+      segmentationThreshold: 0.3,
       maxDetections: 3,
     });
     return {

@@ -7,6 +7,7 @@ import { samplePersonTracks } from '../tracking/videoTrackSamples';
 import type { VisualMode } from '../visual-controls/visualControlsTypes';
 import { artworkFragmentShader, artworkVertexShader } from './artworkShaders';
 import { ARTWORK_CAPTURE_EVENT, type ArtworkCaptureEventDetail } from './artworkCapture';
+import { drawArtworkFallbackFrame } from './artwork2dFallback';
 import type { VisualSettings } from './visualSettings';
 
 const MAX_PERSONS = 5;
@@ -90,6 +91,7 @@ export function VideoArtworkCanvas({
   const renderScaleRef = useRef(renderScale);
   const renderSizeRef = useRef(renderSize);
   const settingsRef = useRef(settings);
+  const modeRef = useRef(mode);
   const fpsCallbackRef = useRef(onRenderingFps);
   const canvasReadyCallbackRef = useRef(onCanvasReady);
   const uniformsRef = useRef<THREE.ShaderMaterial['uniforms'] | null>(null);
@@ -105,6 +107,7 @@ export function VideoArtworkCanvas({
   renderScaleRef.current = renderScale;
   renderSizeRef.current = renderSize;
   settingsRef.current = settings;
+  modeRef.current = mode;
   fpsCallbackRef.current = onRenderingFps;
   canvasReadyCallbackRef.current = onCanvasReady;
 
@@ -127,10 +130,120 @@ export function VideoArtworkCanvas({
       });
     } catch {
       if (errorRef.current) {
-        errorRef.current.textContent = 'WEBGL UNAVAILABLE · CAMERA PREVIEW CONTINUES';
+        errorRef.current.textContent = '2D VISUAL MODE · WEBGL UNAVAILABLE';
       }
-      fpsCallbackRef.current(0);
-      return;
+      const canvas = document.createElement('canvas');
+      canvas.className = 'video-artwork-canvas';
+      canvas.setAttribute('aria-hidden', 'true');
+      canvas.style.position = 'absolute';
+      canvas.style.inset = '0';
+      canvas.style.pointerEvents = 'none';
+      const context = canvas.getContext('2d', { alpha: false, desynchronized: true });
+      const sampleCanvas = document.createElement('canvas');
+      sampleCanvas.width = 160;
+      sampleCanvas.height = 90;
+      const sampleContext = sampleCanvas.getContext('2d', { willReadFrequently: true });
+      if (!context || !sampleContext) {
+        if (errorRef.current) errorRef.current.textContent = 'VISUAL EFFECTS UNAVAILABLE';
+        fpsCallbackRef.current(0);
+        return;
+      }
+      host.appendChild(canvas);
+
+      let fallbackFrameId = 0;
+      let lastFallbackRender = 0;
+      let fpsWindowStart = 0;
+      let fpsFrames = 0;
+      let lastFpsReportAt = 0;
+      const resizeFallback = () => {
+        const bounds = host.getBoundingClientRect();
+        const outputSize = renderSizeRef.current;
+        let displayWidth = bounds.width;
+        let displayHeight = bounds.height;
+        if (outputSize) {
+          canvas.width = outputSize.width;
+          canvas.height = outputSize.height;
+          const fit = Math.min(bounds.width / outputSize.width, bounds.height / outputSize.height);
+          displayWidth = outputSize.width * fit;
+          displayHeight = outputSize.height * fit;
+          canvas.style.width = `${displayWidth}px`;
+          canvas.style.height = `${displayHeight}px`;
+          canvas.style.left = `${(bounds.width - displayWidth) / 2}px`;
+          canvas.style.top = `${(bounds.height - displayHeight) / 2}px`;
+          canvas.style.right = 'auto';
+          canvas.style.bottom = 'auto';
+        } else {
+          const pixelRatio = Math.max(0.35, Math.min(1.25, (window.devicePixelRatio || 1) * renderScaleRef.current));
+          canvas.width = Math.max(1, Math.round(bounds.width * pixelRatio));
+          canvas.height = Math.max(1, Math.round(bounds.height * pixelRatio));
+          canvas.style.width = '';
+          canvas.style.height = '';
+          canvas.style.left = '';
+          canvas.style.top = '';
+          canvas.style.right = '';
+          canvas.style.bottom = '';
+        }
+      };
+      resizeFallback();
+      resizeCallbackRef.current = resizeFallback;
+      canvasReadyCallbackRef.current?.(canvas);
+      const resizeObserver = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(resizeFallback) : null;
+      resizeObserver?.observe(host);
+      window.addEventListener('resize', resizeFallback);
+
+      const captureFallback = (event: Event) => {
+        const detail = (event as CustomEvent<ArtworkCaptureEventDetail>).detail;
+        try {
+          const snapshot = document.createElement('canvas');
+          snapshot.width = canvas.width;
+          snapshot.height = canvas.height;
+          const snapshotContext = snapshot.getContext('2d');
+          if (!snapshotContext || !canvas.width || !canvas.height) {
+            detail.copyFrame(null);
+            return;
+          }
+          snapshotContext.drawImage(canvas, 0, 0);
+          detail.copyFrame(snapshot);
+        } catch {
+          detail.copyFrame(null);
+        }
+      };
+      window.addEventListener(ARTWORK_CAPTURE_EVENT, captureFallback);
+      const renderFallback = (now: number) => {
+        fallbackFrameId = window.requestAnimationFrame(renderFallback);
+        if (now - lastFallbackRender < TARGET_FRAME_INTERVAL_MS) return;
+        lastFallbackRender = now;
+        if (!fpsWindowStart) fpsWindowStart = now;
+        fpsFrames += 1;
+        if (now - fpsWindowStart >= 900 && now - lastFpsReportAt >= 850) {
+          fpsCallbackRef.current(Math.round((fpsFrames * 1000) / (now - fpsWindowStart)));
+          fpsFrames = 0;
+          fpsWindowStart = now;
+          lastFpsReportAt = now;
+        }
+        drawArtworkFallbackFrame({
+          context,
+          sampleContext,
+          video,
+          width: canvas.width,
+          height: canvas.height,
+          mode: modeRef.current,
+          mirrored: mirroredRef.current,
+          settings: settingsRef.current,
+          now,
+        });
+      };
+      fallbackFrameId = window.requestAnimationFrame(renderFallback);
+      return () => {
+        window.cancelAnimationFrame(fallbackFrameId);
+        window.removeEventListener(ARTWORK_CAPTURE_EVENT, captureFallback);
+        resizeObserver?.disconnect();
+        window.removeEventListener('resize', resizeFallback);
+        resizeCallbackRef.current = null;
+        canvasReadyCallbackRef.current?.(null);
+        canvas.remove();
+        fpsCallbackRef.current(0);
+      };
     }
 
     renderer.domElement.className = 'video-artwork-canvas';
