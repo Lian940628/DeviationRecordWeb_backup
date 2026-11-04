@@ -124,6 +124,7 @@ const ZH: Record<string, string> = {
   'The person segmentation model returned no usable person mask.': '人物分割模型未產生可用的人物遮罩。',
   'The person segmentation model returned an invalid person mask.': '人物分割模型產生的遮罩格式無效。',
   'The person segmentation model returned no visible person pixels.': '去背結果中沒有可見的人物像素。',
+  'The person mask is not available in CPU memory. GPU-only masks are not supported in this browser.': '此瀏覽器無法讀取 CPU 人物遮罩，請重新選擇照片或使用支援的瀏覽器。',
   'No clear person was found. Choose a photo with one visible person and a distinct background.': '未能清楚辨識人物。請選擇人物完整可見且背景明確的照片。',
   'This browser could not apply the person mask.': '此瀏覽器無法套用人物遮罩。',
   'This browser could not create the transparent person image.': '此瀏覽器無法建立透明背景人物影像。',

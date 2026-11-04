@@ -29,6 +29,15 @@ class TestMediaStream {
 const testTrack = { kind: 'video', stop() {} };
 const tick = () => new Promise((resolve) => setTimeout(resolve, 1));
 
+test('person segmentation reads CPU mask arrays without requiring a WebGL canvas', async () => {
+  const source = await readFile(`${root}src/pages/deviationId/personMatting.ts`, 'utf8');
+  const options = source.match(/ImageSegmenter\.createFromOptions\(vision,\s*\{([\s\S]*?)\}\);/)?.[1];
+  assert.ok(options, 'MediaPipe ImageSegmenter options should exist');
+  assert.match(options, /delegate:\s*'CPU'/);
+  assert.doesNotMatch(options, /\bcanvas\b/);
+  assert.doesNotMatch(source, /hasWebGLTexture\s*\(/);
+});
+
 async function compile(entry, mocks, sourceTransform = (source) => source) {
   const result = await build({
     entryPoints: [root + entry], bundle: true, write: false, format: 'cjs',

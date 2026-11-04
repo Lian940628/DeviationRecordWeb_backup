@@ -29,9 +29,7 @@ async function getSegmenter() {
   const generation = segmenterGeneration;
   const pending = (async () => {
     const vision = await FilesetResolver.forVisionTasks(WASM_BASE_URL);
-    const canvas = document.createElement('canvas');
     const created = await ImageSegmenter.createFromOptions(vision, {
-      canvas,
       baseOptions: { modelAssetPath: PERSON_MODEL_URL, delegate: 'CPU' },
       runningMode: 'IMAGE',
       outputCategoryMask: true,
@@ -123,26 +121,28 @@ export async function removePersonBackground(photo: Blob): Promise<Blob> {
         : Math.max(0, (result.confidenceMasks?.length ?? 1) - 1);
       const confidenceMask = result.confidenceMasks?.[personIndex];
       const categoryMask = result.categoryMask;
-      const mask = confidenceMask ?? categoryMask;
-      if (!mask) {
+      if (!confidenceMask && !categoryMask) {
         throw new Error(`The person segmentation model returned no usable mask (confidence masks: ${result.confidenceMasks?.length ?? 0}, category mask: ${Boolean(categoryMask)}).`);
       }
 
-      const maskValues = mask.hasFloat32Array()
-        ? mask.getAsFloat32Array()
-        : mask.hasWebGLTexture()
-          ? mask.getAsFloat32Array()
-          : mask.hasUint8Array()
-            ? mask.getAsUint8Array()
-            : null;
-      const values = maskValues && confidenceMask === mask
-        ? maskValues instanceof Uint8Array
-          ? Float32Array.from(maskValues, (value) => value / 255)
-          : maskValues
-        : maskValues
-          ? Float32Array.from(maskValues, (value) => Number(value) === personIndex ? 1 : 0)
-          : null;
-      if (!values) throw new Error('The person segmentation model returned no usable person mask.');
+      let mask: typeof confidenceMask | typeof categoryMask | null = null;
+      let values: Float32Array | null = null;
+      if (confidenceMask?.hasFloat32Array()) {
+        mask = confidenceMask;
+        values = confidenceMask.getAsFloat32Array();
+      } else if (confidenceMask?.hasUint8Array()) {
+        mask = confidenceMask;
+        values = Float32Array.from(confidenceMask.getAsUint8Array(), (value) => value / 255);
+      } else if (categoryMask?.hasUint8Array()) {
+        mask = categoryMask;
+        values = Float32Array.from(categoryMask.getAsUint8Array(), (value) => Number(value) === personIndex ? 1 : 0);
+      } else if (categoryMask?.hasFloat32Array()) {
+        mask = categoryMask;
+        values = Float32Array.from(categoryMask.getAsFloat32Array(), (value) => Number(value) === personIndex ? 1 : 0);
+      }
+      if (!mask || !values) {
+        throw new Error('The person mask is not available in CPU memory. GPU-only masks are not supported in this browser.');
+      }
       const maskWidth = mask.width;
       const maskHeight = mask.height;
       if (!maskWidth || !maskHeight || values.length !== maskWidth * maskHeight) {
