@@ -4,7 +4,7 @@ const TASKS_VISION_VERSION = '1.2.0';
 const WASM_BASE_URL = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${TASKS_VISION_VERSION}/wasm`;
 const PERSON_MODEL_URL =
   'https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_segmenter/float16/1/selfie_segmenter.tflite';
-const MAX_INFERENCE_EDGE = 1280;
+const MAX_INFERENCE_EDGE = 960;
 const MAX_OUTPUT_EDGE = 2048;
 
 let segmenter: ImageSegmenter | null = null;
@@ -34,7 +34,7 @@ async function getSegmenter() {
       canvas,
       baseOptions: { modelAssetPath: PERSON_MODEL_URL, delegate: 'CPU' },
       runningMode: 'IMAGE',
-      outputCategoryMask: false,
+      outputCategoryMask: true,
       outputConfidenceMasks: true,
     });
     if (generation !== segmenterGeneration) {
@@ -121,18 +121,27 @@ export async function removePersonBackground(photo: Blob): Promise<Blob> {
       const personIndex = personIndexFromLabels >= 0
         ? personIndexFromLabels
         : Math.max(0, (result.confidenceMasks?.length ?? 1) - 1);
-      const mask = result.confidenceMasks?.[personIndex];
+      const confidenceMask = result.confidenceMasks?.[personIndex];
+      const categoryMask = result.categoryMask;
+      const mask = confidenceMask ?? categoryMask;
       if (!mask) {
-        throw new Error('The person segmentation model returned no usable person mask.');
+        throw new Error(`The person segmentation model returned no usable mask (confidence masks: ${result.confidenceMasks?.length ?? 0}, category mask: ${Boolean(categoryMask)}).`);
       }
 
-      const values = mask.hasFloat32Array()
+      const maskValues = mask.hasFloat32Array()
         ? mask.getAsFloat32Array()
         : mask.hasWebGLTexture()
           ? mask.getAsFloat32Array()
           : mask.hasUint8Array()
-            ? Float32Array.from(mask.getAsUint8Array(), (value) => value / 255)
+            ? mask.getAsUint8Array()
             : null;
+      const values = maskValues && confidenceMask === mask
+        ? maskValues instanceof Uint8Array
+          ? Float32Array.from(maskValues, (value) => value / 255)
+          : maskValues
+        : maskValues
+          ? Float32Array.from(maskValues, (value) => Number(value) === personIndex ? 1 : 0)
+          : null;
       if (!values) throw new Error('The person segmentation model returned no usable person mask.');
       const maskWidth = mask.width;
       const maskHeight = mask.height;
@@ -148,8 +157,8 @@ export async function removePersonBackground(photo: Blob): Promise<Blob> {
       const alphaPixels = new Uint8ClampedArray(values.length * 4);
       for (let index = 0; index < values.length; index += 1) {
         const confidence = Math.max(0, Math.min(1, values[index]));
-        if (confidence >= 0.45) foreground += 1;
-        if (confidence > 0.32) {
+        if (confidence >= 0.4) foreground += 1;
+        if (confidence > 0.24) {
           const x = index % maskWidth;
           const y = Math.floor(index / maskWidth);
           if (x < maskLeft) maskLeft = x;
@@ -166,7 +175,17 @@ export async function removePersonBackground(photo: Blob): Promise<Blob> {
       }
 
       const personRatio = foreground / values.length;
-      if (personRatio < 0.002 || personRatio > 0.985) {
+      if (import.meta.env.DEV) {
+        console.debug('[person-segmentation] mask result', {
+          labels,
+          confidenceMaskCount: result.confidenceMasks?.length ?? 0,
+          hasCategoryMask: Boolean(categoryMask),
+          maskWidth,
+          maskHeight,
+          personRatio,
+        });
+      }
+      if (personRatio < 0.0005 || personRatio > 0.998) {
         throw new Error('No clear person was found. Choose a photo with one visible person and a distinct background.');
       }
 

@@ -276,7 +276,6 @@ export default function DeviationId() {
       const matting = await import('./deviationId/personMatting');
       personMattingRef.current = matting;
       if (requestId !== segmentationRequestRef.current || !mountedRef.current) {
-        matting.disposePersonSegmenter();
         return false;
       }
       const cutout = await matting.removePersonBackground(blob);
