@@ -39,6 +39,9 @@ router.post("/upload/sign", async (req, res): Promise<void> => {
     res.status(400).json({ error: "The site origin is required for Worker verification." });
     return;
   }
+  if (process.env.NODE_ENV !== "production") {
+    req.log.info({ assetType, bytes }, "Upload-sign proxy received a PUBLIC request");
+  }
 
   let workerResponse: Response;
   try {
@@ -82,6 +85,9 @@ router.post("/upload/sign", async (req, res): Promise<void> => {
     return;
   }
 
+  if (process.env.NODE_ENV !== "production") {
+    req.log.info({ assetType, workerStatus: workerResponse.status }, "Worker upload signature forwarded");
+  }
   res.status(200).json(payload);
 });
 

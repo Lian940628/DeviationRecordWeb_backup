@@ -33,6 +33,7 @@ const ZH: Record<string, string> = {
   'CLOUD UPLOAD SUCCESSFUL · NOT PUBLISHED.': '雲端上傳成功 · 尚未發布。',
   'Upload incomplete. Your downloads are still available.': '上傳未完成，下載檔案仍可使用。',
   'RETRY UPLOAD': '重試上傳',
+  'Cloud upload can continue, but its local receipt could not be saved. Keep this page open for retries.': '雲端上傳可繼續，但本機回執無法儲存。若需重試，請保持此頁開啟。',
   'IMAGE': '圖片',
   'VIDEO': '影片',
   'The subject number follows creation order in this browser only. Clearing browser data resets the local sequence; it is not a global site number.': '識別碼只依此瀏覽器的建立順序編號。清除瀏覽器資料會重設編號，這不是全站共用流水號。',

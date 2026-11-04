@@ -1,4 +1,5 @@
 import { getFirebaseAuth } from '../../auth/firebaseAuth';
+import { safeUploadMessage, uploadTrace } from './uploadDiagnostics';
 
 export type CloudinaryAssetType = 'image' | 'video';
 
@@ -42,6 +43,18 @@ const directWorker = import.meta.env.VITE_UPLOAD_SIGN_MODE === 'direct'
 const signUrl = directWorker
   ? `${workerBaseUrl}/upload/sign`
   : `${import.meta.env.BASE_URL.replace(/\/+$/, '')}/api/upload/sign`;
+
+export async function withUploadTimeout<T>(operation: Promise<T>, milliseconds: number, message: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      operation,
+      new Promise<never>((_resolve, reject) => { timer = setTimeout(() => reject(new Error(message)), milliseconds); }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -93,10 +106,9 @@ function toSignRequest(payload: unknown, expectedAssetType: CloudinaryAssetType)
     throw new Error('The signing service returned an unexpected Cloudinary destination.');
   }
   if (
-    Object.hasOwn(params, 'public_id')
-    && (typeof params.public_id !== 'string' || params.public_id !== publicId)
+    typeof params.public_id !== 'string' || params.public_id !== publicId
   ) {
-    throw new Error('The signed publicId does not match the upload parameters.');
+    throw new Error('Worker params must contain a signed public_id matching publicId. No unsigned public_id will be added.');
   }
   if (params.upload_preset !== uploadPreset) {
     throw new Error(`The signing service must sign the "${uploadPreset}" upload preset.`);
@@ -120,74 +132,71 @@ async function getSignedUpload(
   forceRefresh: boolean,
   signal: AbortSignal,
 ): Promise<UploadSignature> {
-  const auth = getFirebaseAuth();
-  await auth.authStateReady();
-  const user = auth.currentUser;
-  if (!user) throw new Error('There is no existing Firebase session. No sign-in was started.');
-  if (!user.isAnonymous) throw new Error('The saved Firebase session is not anonymous.');
-
-  const token = await user.getIdToken(forceRefresh);
-  let response: Response;
-  try {
-    response = await fetch(signUrl, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(request),
-      signal,
-    });
-  } catch (error) {
-    if (signal.aborted) throw new DOMException('Upload cancelled.', 'AbortError');
-    throw new Error(directWorker
-      ? 'Could not reach the signing service. Check the Worker origin allowlist for this site.'
-      : 'Could not reach the signing service through the application API.');
-  }
-
-  let payload: unknown;
-  try {
-    payload = await response.json();
-  } catch {
-    throw new Error(`The signing service returned an invalid response (HTTP ${response.status}).`);
-  }
-  if (response.status === 401 && !forceRefresh) {
-    const refreshed = await user.getIdToken(true);
-    let retry: Response;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    let token: string;
     try {
-      retry = await fetch(signUrl, {
+      const auth = getFirebaseAuth();
+      await withUploadTimeout(auth.authStateReady(), 15_000, 'Firebase Auth initialization timed out.');
+      signal.throwIfAborted();
+      const user = auth.currentUser;
+      if (!user) throw new Error('There is no existing Firebase session. No sign-in was started.');
+      if (!user.isAnonymous) throw new Error('The saved Firebase session is not anonymous.');
+      token = await withUploadTimeout(user.getIdToken(forceRefresh || attempt > 0), 15_000, 'Firebase token retrieval timed out.');
+      signal.throwIfAborted();
+      uploadTrace('TOKEN_OK', { assetType: request.assetType });
+    } catch (error) {
+      uploadTrace('TOKEN_FAILED', { assetType: request.assetType, message: safeUploadMessage(error) });
+      throw error;
+    }
+
+    const controller = new AbortController();
+    const abort = () => controller.abort();
+    signal.addEventListener('abort', abort, { once: true });
+    const timer = setTimeout(abort, 20_000);
+    let httpStatus: number | undefined;
+    try {
+      signal.throwIfAborted();
+      uploadTrace('SIGN_REQUEST', { assetType: request.assetType, message: `POST ${signUrl}` });
+      const response = await fetch(signUrl, {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${refreshed}`,
+          Authorization: `Bearer ${token}`,
           Accept: 'application/json',
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(request),
-        signal,
+        signal: controller.signal,
       });
-    } catch {
-      if (signal.aborted) throw new DOMException('Upload cancelled.', 'AbortError');
-      throw new Error('Could not reach the signing service after refreshing the Firebase token.');
+      httpStatus = response.status;
+      let payload: unknown;
+      try {
+        payload = await response.json();
+      } catch {
+        throw new Error(`Signing API returned non-JSON (HTTP ${response.status}). Check the /api/upload/sign route, not the Vite page fallback.`);
+      }
+      if (!response.ok) {
+        const reason = isRecord(payload) && typeof payload.error === 'string' ? safeUploadMessage(payload.error) : 'Request rejected.';
+        if (response.status === 401 && attempt === 0 && !forceRefresh) {
+          uploadTrace('SIGN_FAILED', { assetType: request.assetType, httpStatus, message: `${reason} Retrying once with a refreshed token.` });
+          continue;
+        }
+        throw new Error(`Signing API HTTP ${response.status}: ${reason}`);
+      }
+      const signature = toSignRequest(payload, request.assetType);
+      uploadTrace('SIGN_OK', { assetType: request.assetType, httpStatus });
+      return signature;
+    } catch (error) {
+      const failure = signal.aborted ? new DOMException('Upload cancelled.', 'AbortError')
+        : controller.signal.aborted ? new Error('Signing API timed out after 20 seconds.')
+          : error;
+      uploadTrace('SIGN_FAILED', { assetType: request.assetType, httpStatus, message: safeUploadMessage(failure) });
+      throw failure;
+    } finally {
+      clearTimeout(timer);
+      signal.removeEventListener('abort', abort);
     }
-    try {
-      payload = await retry.json();
-    } catch {
-      throw new Error(`The signing service returned an invalid response (HTTP ${retry.status}).`);
-    }
-    if (!retry.ok) {
-      throw new Error(isRecord(payload) && typeof payload.error === 'string'
-        ? payload.error
-        : `The signing service rejected the request (HTTP ${retry.status}).`);
-    }
-    return toSignRequest(payload, request.assetType);
   }
-  if (!response.ok) {
-    throw new Error(isRecord(payload) && typeof payload.error === 'string'
-      ? payload.error
-      : `The signing service rejected the request (HTTP ${response.status}).`);
-  }
-  return toSignRequest(payload, request.assetType);
+  throw new Error('Signing API authorization failed after refreshing the existing token.');
 }
 
 function uploadToCloudinary(
@@ -202,9 +211,6 @@ function uploadToCloudinary(
   form.append('file', blob, filename);
   form.append('api_key', signature.apiKey);
   form.append('signature', signature.signature);
-  if (signature.params.public_id === undefined) {
-    form.append('public_id', signature.publicId);
-  }
   for (const [key, value] of Object.entries(signature.params)) {
     if (key === 'api_key' || key === 'signature' || value === undefined || value === null) continue;
     form.append(key, String(value));
@@ -212,19 +218,25 @@ function uploadToCloudinary(
 
   return new Promise((resolve, reject) => {
     const request = new XMLHttpRequest();
+    const abort = () => request.abort();
+    const cleanup = () => signal.removeEventListener('abort', abort);
     request.open('POST', signature.uploadUrl);
     request.responseType = 'json';
+    request.timeout = 180_000;
     request.upload.onprogress = (event) => {
       if (event.lengthComputable) onProgress(event.loaded / event.total);
     };
     request.onload = () => {
+      cleanup();
       const payload: unknown = request.response;
+      uploadTrace('CLOUDINARY_RESPONSE', { assetType, httpStatus: request.status });
       if (request.status < 200 || request.status >= 300) {
         const errorMessage = isRecord(payload) && isRecord(payload.error)
           && typeof payload.error.message === 'string'
           ? payload.error.message
           : `Cloudinary rejected the ${assetType} upload (HTTP ${request.status}).`;
-        reject(new Error(errorMessage));
+        const safeError = safeUploadMessage(errorMessage.replaceAll(signature.signature, '[REDACTED SIGNATURE]'));
+        reject(new Error(`Cloudinary ${assetType} HTTP ${request.status}: ${safeError}`));
         return;
       }
       if (
@@ -250,13 +262,16 @@ function uploadToCloudinary(
         createdAt: typeof payload.created_at === 'string' ? payload.created_at : null,
       });
     };
-    request.onerror = () => reject(new Error('Network error while uploading to Cloudinary.'));
-    request.onabort = () => reject(new DOMException('Upload cancelled.', 'AbortError'));
-    signal.addEventListener('abort', () => request.abort(), { once: true });
+    request.onerror = () => { cleanup(); reject(new Error('Network error while uploading to Cloudinary (HTTP 0).')); };
+    request.ontimeout = () => { cleanup(); reject(new Error('Cloudinary upload timed out after 180 seconds (HTTP 0).')); };
+    request.onabort = () => { cleanup(); reject(new DOMException('Upload cancelled.', 'AbortError')); };
+    signal.addEventListener('abort', abort, { once: true });
     if (signal.aborted) {
-      request.abort();
+      cleanup();
+      reject(new DOMException('Upload cancelled.', 'AbortError'));
       return;
     }
+    uploadTrace('CLOUDINARY_REQUEST', { assetType });
     request.send(form);
   });
 }
@@ -284,14 +299,20 @@ export async function uploadFinishedAsset(
     bytes: blob.size,
     publicConsent: true,
   };
-  const signature = await getSignedUpload(signRequest, false, signal);
-  if (
-    signature.resourceType !== assetType
-    || !new URL(signature.uploadUrl).pathname.endsWith(`/${assetType}/upload`)
-  ) {
-    throw new Error(`The signing service returned a URL for the wrong ${assetType} resource type.`);
+  try {
+    const signature = await getSignedUpload(signRequest, false, signal);
+    signal.throwIfAborted();
+    if (
+      signature.resourceType !== assetType
+      || !new URL(signature.uploadUrl).pathname.endsWith(`/${assetType}/upload`)
+    ) {
+      throw new Error(`The signing service returned a URL for the wrong ${assetType} resource type.`);
+    }
+    return await uploadToCloudinary(blob, filename, assetType, signature, signal, onProgress);
+  } catch (error) {
+    uploadTrace(assetType === 'image' ? 'PNG_FAILED' : 'VIDEO_FAILED', { message: safeUploadMessage(error) });
+    throw error;
   }
-  return uploadToCloudinary(blob, filename, assetType, signature, signal, onProgress);
 }
 
 export function createUploadId(subjectId: string) {

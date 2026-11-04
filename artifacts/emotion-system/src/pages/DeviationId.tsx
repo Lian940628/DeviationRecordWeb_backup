@@ -24,9 +24,11 @@ import { renderPostcardPng } from './deviationId/imageExport';
 import {
   createUploadId,
   uploadFinishedAsset,
+  withUploadTimeout,
   type CloudinaryAssetType,
   type CloudinaryUploadResult,
 } from './deviationId/cloudinaryUpload';
+import { safeUploadMessage, subscribeUploadDiagnostics, uploadTrace, type UploadDiagnostic } from './deviationId/uploadDiagnostics';
 import {
   createDefaultDraft,
   createProjectKey,
@@ -40,7 +42,7 @@ const WEBM_TYPES = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 
 const MP4_TYPES = ['video/mp4;codecs=avc1.42E01E,mp4a.40.2', 'video/mp4'];
 const SHOW_DEV_FIREBASE_UID = import.meta.env.DEV;
 type CloudUploadStatus = 'idle' | 'waiting' | 'uploading' | 'complete' | 'error';
-type CachedCloudAsset = { contentHash: string; asset: CloudinaryUploadResult };
+type CachedCloudAsset = { submissionId: string; contentHash: string; asset: CloudinaryUploadResult };
 
 function getSupportedMime(format: 'webm' | 'mp4') {
   if (typeof MediaRecorder === 'undefined') return null;
@@ -154,6 +156,9 @@ export default function DeviationId() {
   const [webmAvailable] = useState(() => getSupportedMime('webm') !== null);
   const [mp4Available] = useState(() => Boolean(getSupportedMime('mp4')));
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
+  const [uploadEpoch, setUploadEpoch] = useState(0);
+  const [cloudUploadWarning, setCloudUploadWarning] = useState('');
+  const [uploadDiagnostics, setUploadDiagnostics] = useState<UploadDiagnostic[]>([]);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -179,6 +184,8 @@ export default function DeviationId() {
   const uploadRunningRef = useRef(false);
   const autoUploadAttemptRef = useRef<{ subjectId: string; imageBlob: Blob; videoBlob: Blob } | null>(null);
   const uploadedResultsRef = useRef<Partial<Record<CloudinaryAssetType, CachedCloudAsset>>>({});
+  const uploadGateRef = useRef('');
+  const completedFilesRef = useRef({ generated, imageBlob, videoBlob });
   const lastCanvasRenderAtRef = useRef(0);
   const audioContextRef = useRef<AudioContext | null>(null);
   const mountedRef = useRef(false);
@@ -190,6 +197,7 @@ export default function DeviationId() {
   languageRef.current = language;
   currentProjectIdRef.current = currentProjectId;
   createdAtRef.current = createdAt;
+  completedFilesRef.current = { generated, imageBlob, videoBlob };
 
   const outputFormat = useMemo(() => {
     if (draft.output.format === 'mp4' && mp4Available) return 'mp4' as const;
@@ -200,6 +208,7 @@ export default function DeviationId() {
   const updateDraft = useCallback((patch: Partial<DeviationDraft>) => {
     const patchKeys = Object.keys(patch);
     const visibilityOnly = patchKeys.length > 0 && patchKeys.every((key) => key === 'datasetVisibility');
+    if (!visibilityOnly || patch.datasetVisibility === 'PRIVATE') uploadControllerRef.current?.abort();
     setDraft((current) => {
       const next = { ...current, ...patch };
       draftRef.current = next;
@@ -280,6 +289,10 @@ export default function DeviationId() {
       if (photoUrlRef.current) URL.revokeObjectURL(photoUrlRef.current);
     };
   }, [refreshProjects]);
+
+  useEffect(() => subscribeUploadDiagnostics((event) => {
+    setUploadDiagnostics((events) => [...events.slice(-19), event]);
+  }), []);
 
   useEffect(() => {
     const urls: Record<string, string> = {};
@@ -826,9 +839,24 @@ export default function DeviationId() {
     const controller = new AbortController();
     uploadControllerRef.current = controller;
     uploadRunningRef.current = true;
+    // Mark only an acquired execution slot as attempted. A busy/aborting run must
+    // not consume the automatic attempt for the newly completed files.
+    autoUploadAttemptRef.current = { subjectId, imageBlob: image, videoBlob: video };
     setCloudUploadStatus('uploading');
     setCloudUploadError('');
+    setCloudUploadWarning('');
     setCloudUploadProgress({ image: 0, video: 0 });
+    uploadTrace('PUBLIC_START', { imageReady: true, videoReady: true });
+    const assertCurrent = () => {
+      if (controller.signal.aborted
+        || draftRef.current.datasetVisibility !== 'PUBLIC'
+        || draftRef.current.subjectId !== subjectId
+        || !completedFilesRef.current.generated
+        || completedFilesRef.current.imageBlob !== image
+        || completedFilesRef.current.videoBlob !== video) {
+        throw new DOMException('Upload cancelled.', 'AbortError');
+      }
+    };
 
     const files: Array<{
       assetType: CloudinaryAssetType;
@@ -850,24 +878,29 @@ export default function DeviationId() {
     try {
       const submissionId = createUploadId(subjectId);
       for (const file of files) {
-        if (
-          controller.signal.aborted
-          || draftRef.current.datasetVisibility !== 'PUBLIC'
-          || draftRef.current.subjectId !== subjectId
-        ) {
-          throw new DOMException('Upload cancelled.', 'AbortError');
-        }
+        assertCurrent();
 
         const contentHash = await hashBlob(file.blob);
-        const savedReceipt = await getCloudinaryUploadReceipt(submissionId, file.assetType);
+        // Local receipt persistence is an optimization, never a network prerequisite.
+        let savedReceipt: Awaited<ReturnType<typeof getCloudinaryUploadReceipt>> = null;
+        try {
+          savedReceipt = await withUploadTimeout(
+            getCloudinaryUploadReceipt(submissionId, file.assetType), 2500,
+            'Local upload receipt lookup timed out.',
+          );
+        } catch (receiptError) {
+          uploadTrace('RECEIPT_READ_WARNING', { assetType: file.assetType, message: safeUploadMessage(receiptError) });
+        }
+        assertCurrent();
         const inMemoryResult = uploadedResultsRef.current[file.assetType];
-        let asset = inMemoryResult?.contentHash === contentHash
+        let asset = inMemoryResult?.submissionId === submissionId && inMemoryResult.contentHash === contentHash
           ? inMemoryResult.asset
           : savedReceipt?.contentHash === contentHash
             ? savedReceipt.asset
             : null;
 
         if (!asset) {
+          uploadTrace(file.assetType === 'image' ? 'PNG_START' : 'VIDEO_START');
           asset = await uploadFinishedAsset(
             file.blob,
             file.filename,
@@ -882,13 +915,16 @@ export default function DeviationId() {
               }));
             },
           );
-          uploadedResultsRef.current[file.assetType] = { contentHash, asset };
+          uploadedResultsRef.current[file.assetType] = { submissionId, contentHash, asset };
+          uploadTrace(file.assetType === 'image' ? 'PNG_OK' : 'VIDEO_OK', { results: { [file.assetType]: asset } });
         } else {
-          uploadedResultsRef.current[file.assetType] = { contentHash, asset };
+          uploadedResultsRef.current[file.assetType] = { submissionId, contentHash, asset };
+          uploadTrace('ASSET_ALREADY_UPLOADED', { assetType: file.assetType });
         }
 
         if (savedReceipt?.contentHash !== contentHash) {
-          await saveCloudinaryUploadReceipt({
+          try {
+            await withUploadTimeout(saveCloudinaryUploadReceipt({
             submissionId,
             assetType: file.assetType,
             asset,
@@ -899,7 +935,11 @@ export default function DeviationId() {
             cardName: uploadDraft.cardName,
             subjectId,
             deviationLevel: uploadDraft.deviationLevel,
-          });
+            }), 2500, 'Local upload receipt save timed out.');
+          } catch (receiptError) {
+            uploadTrace('RECEIPT_SAVE_WARNING', { assetType: file.assetType, message: safeUploadMessage(receiptError) });
+            if (mountedRef.current) setCloudUploadWarning(t('Cloud upload can continue, but its local receipt could not be saved. Keep this page open for retries.'));
+          }
         }
         if (mountedRef.current) {
           setCloudUploadProgress((current) => ({ ...current, [file.assetType]: 1 }));
@@ -913,6 +953,9 @@ export default function DeviationId() {
         && draftRef.current.subjectId === subjectId
       ) {
         setCloudUploadStatus('complete');
+        uploadTrace('PUBLIC_COMPLETE', {
+          results: { image: uploadedResultsRef.current.image?.asset, video: uploadedResultsRef.current.video?.asset },
+        });
       }
     } catch (uploadError) {
       const cancelled = controller.signal.aborted
@@ -923,14 +966,17 @@ export default function DeviationId() {
           setCloudUploadStatus('idle');
         } else {
           setCloudUploadStatus('error');
-          setCloudUploadError(localError(uploadError, language));
+          setCloudUploadError(localError(new Error(safeUploadMessage(uploadError)), language));
+          uploadTrace('PUBLIC_FAILED', { message: safeUploadMessage(uploadError) });
         }
       }
     } finally {
       uploadRunningRef.current = false;
       if (uploadControllerRef.current === controller) uploadControllerRef.current = null;
+      // Wake the completion effect if newer files/consent arrived during an abort.
+      if (mountedRef.current) setUploadEpoch((epoch) => epoch + 1);
     }
-  }, [generated, imageBlob, imageFilename, language, videoBlob, videoFilename]);
+  }, [generated, imageBlob, imageFilename, language, t, videoBlob, videoFilename]);
 
   useEffect(() => {
     if (draft.datasetVisibility !== 'PUBLIC') {
@@ -938,10 +984,20 @@ export default function DeviationId() {
       autoUploadAttemptRef.current = null;
       if (cloudUploadStatus !== 'idle') setCloudUploadStatus('idle');
       if (cloudUploadError) setCloudUploadError('');
+      setCloudUploadWarning('');
       setCloudUploadProgress({ image: 0, video: 0 });
+      uploadGateRef.current = '';
       return;
     }
 
+    const gateKey = `${draft.subjectId}:${generated}:${Boolean(imageBlob)}:${Boolean(videoBlob)}`;
+    if (uploadGateRef.current !== gateKey) {
+      uploadGateRef.current = gateKey;
+      uploadTrace('PUBLIC_READINESS', {
+        imageReady: Boolean(imageBlob), videoReady: Boolean(videoBlob),
+        message: generated ? 'Waiting for both exported final files before signing.' : 'Postcard has not been generated.',
+      });
+    }
     if (!generated || !imageBlob || !videoBlob || !draft.subjectId) {
       uploadControllerRef.current?.abort();
       autoUploadAttemptRef.current = null;
@@ -958,11 +1014,7 @@ export default function DeviationId() {
       && previousAttempt.videoBlob === videoBlob
     ) return;
 
-    autoUploadAttemptRef.current = {
-      subjectId: draft.subjectId,
-      imageBlob,
-      videoBlob,
-    };
+    if (uploadRunningRef.current) return;
     void runCloudUpload();
   }, [
     cloudUploadError,
@@ -973,6 +1025,7 @@ export default function DeviationId() {
     imageBlob,
     runCloudUpload,
     videoBlob,
+    uploadEpoch,
   ]);
 
   const handleDownloadImage = useCallback(() => {
@@ -1168,6 +1221,12 @@ export default function DeviationId() {
                 <i><b style={{ width: `${Math.round(cloudUploadProgress.video * 100)}%` }} /></i>
               </div>
               {cloudUploadError && <p className="deviation-error-message">{cloudUploadError}</p>}
+              {cloudUploadWarning && <p className="deviation-status-message">{cloudUploadWarning}</p>}
+              {cloudUploadStatus === 'waiting' && (
+                <p className="deviation-status-message">
+                  PNG: {imageBlob ? 'READY' : 'NOT EXPORTED'} · VIDEO: {videoBlob ? 'READY' : 'NOT EXPORTED'}
+                </p>
+              )}
               {cloudUploadStatus === 'error' && imageBlob && videoBlob && generated && (
                 <button
                   type="button"
@@ -1176,6 +1235,19 @@ export default function DeviationId() {
                 >
                   <RotateCcw size={13} />{t('RETRY UPLOAD')}
                 </button>
+              )}
+              {import.meta.env.DEV && (
+                <details>
+                  <summary>UPLOAD DEBUG · DEVELOPMENT ONLY</summary>
+                  {uploadDiagnostics.map((event, index) => (
+                    <p key={`${event.time}-${index}`} className="deviation-status-message">
+                      {event.time.slice(11, 19)} · {event.stage}
+                      {event.assetType ? ` · ${event.assetType}` : ''}
+                      {event.httpStatus !== undefined ? ` · HTTP ${event.httpStatus}` : ''}
+                      {event.message ? ` · ${event.message}` : ''}
+                    </p>
+                  ))}
+                </details>
               )}
             </div>
           )}
