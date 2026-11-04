@@ -118,6 +118,8 @@ export function VideoArtworkCanvas({
       return;
     }
 
+    host.style.backgroundColor = '';
+    if (errorRef.current) errorRef.current.textContent = '';
     const rendererOptions = {
         alpha: false,
         antialias: false,
@@ -138,6 +140,7 @@ export function VideoArtworkCanvas({
       }
     }
     if (!renderer) {
+      if (rendererCompatibilityMode) host.style.backgroundColor = '#030b15';
       if (errorRef.current) {
         errorRef.current.textContent = 'WEBGL UNAVAILABLE · ENABLE BROWSER GRAPHICS ACCELERATION';
       }
@@ -437,6 +440,7 @@ export function VideoArtworkCanvas({
       canvasReadyCallbackRef.current?.(null);
       transitionRef.current = null;
       uniformsRef.current = null;
+      host.style.backgroundColor = '';
       videoTexture.dispose();
       geometry.dispose();
       material.dispose();
@@ -444,7 +448,7 @@ export function VideoArtworkCanvas({
       renderer.domElement.remove();
       fpsCallbackRef.current(0);
     };
-  }, [videoRef, running]);
+  }, [videoRef, running, rendererCompatibilityMode]);
 
   useEffect(() => {
     const uniforms = uniformsRef.current;
