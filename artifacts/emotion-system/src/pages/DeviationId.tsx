@@ -689,7 +689,7 @@ export default function DeviationId() {
         recorderFailure = new Error(t('The browser encoder stopped unexpectedly. Try a shorter export or another format.'));
       };
       recorder.onstop = () => {
-        const blob = new Blob(chunks, { type: recorder?.mimeType || mimeType || 'video/webm' });
+        const blob = new Blob(chunks, { type: recorder?.mimeType || mimeType || 'video/mp4' });
         if (recorderFailure) failRecording(recorderFailure);
         else if (blob.size > 1024) finishRecording(blob);
         else failRecording(new Error(t('The encoder produced an empty video. Please try again.')));
@@ -717,9 +717,7 @@ export default function DeviationId() {
       });
       if (recorder.state !== 'inactive') recorder.stop();
       const blob = await recordingDone;
-      const actualMime = blob.type || recorder.mimeType || 'video/webm';
-      const extension = actualMime.includes('mp4') ? 'mp4' : 'webm';
-      const filename = `DEVIATION_ID_${safeFilePart(exportDraft.subjectId)}.${extension}`;
+      const filename = `DEVIATION_ID_${safeFilePart(exportDraft.subjectId)}.mp4`;
       if (mountedRef.current) {
         setVideoBlob(blob);
         setVideoFilename(filename);
