@@ -576,7 +576,6 @@ function drawCardHud(
   const name = (draft.cardName.trim() || 'SUBJECT').slice(0, 40);
   const id = (draft.subjectId.trim() || 'PENDING').slice(0, 30);
   const selfDefinition = draft.selfDefinition.trim().replace(/\s+/g, ' ').slice(0, 64);
-  const bio = draft.bio.trim().replace(/\s+/g, ' ').slice(0, 92);
   const top = height * 0.045;
   const footer = height * 0.835;
 
@@ -621,17 +620,14 @@ function drawCardHud(
   context.fillText(name.toUpperCase(), marginX + 2, footer + nameSize * 1.35, width - marginX * 2);
   context.font = `500 ${labelSize}px ${mono}`;
   context.fillStyle = accent;
-  context.fillText(`SUBJECT ID  ${id}`, marginX + 2, footer + nameSize * 2.05, width * 0.64);
+  context.fillText(`USER ID  ${id}`, marginX + 2, footer + nameSize * 2.05, width * 0.64);
   context.textAlign = 'right';
   context.fillText(`DEVIATION  ${draft.deviationLevel.toString().padStart(2, '0')}`, width - marginX - 2, footer + nameSize * 2.05);
 
   context.globalAlpha = 0.65;
   context.textAlign = 'left';
-  context.fillStyle = '#c1d9d8';
-  if (bio) context.fillText(bio, marginX + 2, footer + nameSize * 2.65, width - marginX * 2);
-  context.globalAlpha = 0.75;
   context.fillStyle = secondary;
-  if (selfDefinition) context.fillText(selfDefinition.toUpperCase(), marginX + 2, footer + nameSize * 3.28, width - marginX * 2);
+  if (selfDefinition) context.fillText(selfDefinition.toUpperCase(), marginX + 2, footer + nameSize * 2.85, width - marginX * 2);
   context.restore();
 }
 

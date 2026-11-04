@@ -8,7 +8,6 @@ export const MAX_PHOTO_BYTES = 24 * 1024 * 1024;
 const currentDeviationDraftSchema = z.object({
   cardName: z.string().trim().min(1).max(80),
   selfDefinition: z.string().trim().max(80),
-  bio: z.string().trim().max(240),
   subjectId: z.string().trim().max(48),
   datasetVisibility: z.enum(['PUBLIC', 'PRIVATE']).default('PRIVATE'),
   deviationLevel: z.number().int().min(1).max(100),
@@ -40,19 +39,23 @@ const currentDeviationDraftSchema = z.object({
     reconstructionSpeed: z.number().int().min(20).max(100).default(60),
   }),
   audio: z.object({
-    includeTechCues: z.boolean(),
+    includeTechCues: z.boolean().default(true),
   }),
   output: z.object({
     resolution: z.enum(['720p', '1080p']),
-    format: z.enum(['webm', 'mp4']),
+    format: z.literal('mp4'),
   }),
 });
 
 export const deviationDraftSchema = z.preprocess((input) => {
   if (!input || typeof input !== 'object' || Array.isArray(input)) return input;
   const legacy = input as Record<string, unknown>;
+  const legacyOutput = legacy.output && typeof legacy.output === 'object' && !Array.isArray(legacy.output)
+    ? legacy.output as Record<string, unknown>
+    : undefined;
   return {
     ...legacy,
+    output: legacyOutput ? { ...legacyOutput, format: 'mp4' } : legacy.output,
     cardName: typeof legacy.cardName === 'string'
       ? legacy.cardName
       : typeof legacy.profileName === 'string' && legacy.profileName.trim()
@@ -101,7 +104,6 @@ export function createDefaultDraft(): DeviationDraft {
   return {
     cardName: '',
     selfDefinition: '',
-    bio: '',
     subjectId: '',
     datasetVisibility: 'PRIVATE',
     deviationLevel: 42,
@@ -123,7 +125,7 @@ export function createDefaultDraft(): DeviationDraft {
       flashIntensity: 18,
       reconstructionSpeed: 60,
     },
-    audio: { includeTechCues: false },
-    output: { resolution: '720p', format: 'webm' },
+    audio: { includeTechCues: true },
+    output: { resolution: '720p', format: 'mp4' },
   };
 }

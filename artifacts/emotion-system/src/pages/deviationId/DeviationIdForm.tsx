@@ -3,15 +3,9 @@ import {
   ArrowLeft,
   ArrowRight,
   Download,
-  FilePlus2,
-  FolderOpen,
   Image,
   ImageUp,
-  LockKeyhole,
   RotateCcw,
-  Save,
-  ShieldCheck,
-  Sparkles,
   Video,
 } from 'lucide-react';
 import type { AppLanguage } from '../../i18n';
@@ -28,7 +22,6 @@ interface DeviationIdFormProps {
   personSegmentationStatus: 'idle' | 'loading' | 'ready' | 'error';
   step: DeviationWorkflowStep;
   mp4Supported: boolean;
-  webmSupported: boolean;
   outputFormat: DeviationDraft['output']['format'];
   busy: boolean;
   generated: boolean;
@@ -49,10 +42,6 @@ interface DeviationIdFormProps {
   onDownloadImage: () => void;
   onSaveVideo: () => void;
   onDownloadVideo: () => void;
-  onNewProject: () => void;
-  onSaveProject: () => void;
-  onExportProject: () => void;
-  onImportFile: (file: File) => void;
 }
 
 const workflowSteps: Array<{ step: DeviationWorkflowStep; label: string }> = [
@@ -70,7 +59,6 @@ export function DeviationIdForm({
   personSegmentationStatus,
   step,
   mp4Supported,
-  webmSupported,
   outputFormat,
   busy,
   generated,
@@ -91,13 +79,8 @@ export function DeviationIdForm({
   onDownloadImage,
   onSaveVideo,
   onDownloadVideo,
-  onNewProject,
-  onSaveProject,
-  onExportProject,
-  onImportFile,
 }: DeviationIdFormProps) {
   const photoInputRef = useRef<HTMLInputElement>(null);
-  const importInputRef = useRef<HTMLInputElement>(null);
   const t = (value: string) => tx(language, value);
   const stepIndex = step - 1;
   const canContinueProfile = Boolean(draft.cardName.trim() && photoReady && personSegmentationStatus === 'ready');
@@ -163,10 +146,10 @@ export function DeviationIdForm({
               <span>{t('SELF-DEFINITION')}</span>
               <input maxLength={80} value={draft.selfDefinition} onChange={(event) => onDraftChange({ selfDefinition: event.currentTarget.value })} placeholder="HOW DO YOU DEFINE YOURSELF?" />
             </label>
-            <label className="deviation-field deviation-field--wide">
-              <span>{t('INTRODUCTION')}</span>
-              <textarea maxLength={240} rows={4} value={draft.bio} onChange={(event) => onDraftChange({ bio: event.currentTarget.value })} placeholder="A SHORT INTRODUCTION…" />
-            </label>
+            <div className="deviation-field deviation-field--wide">
+              <span>{t('USER ID')}</span>
+              <div className="deviation-readonly-value">{draft.subjectId || t('ASSIGNED AUTOMATICALLY')}</div>
+            </div>
           </div>
 
           <label className="deviation-slider deviation-self-check">
@@ -197,8 +180,7 @@ export function DeviationIdForm({
               />
               <span className="deviation-visibility-copy">
                 <strong>{t('PUBLIC · SHARE WITH THE DATASET')}</strong>
-                <small>{t('I agree to publicly share the completed postcard image, video, and selected profile details.')}</small>
-                <small>{t('Public fields: card name, self-definition, introduction, subject ID, and deviation level. The finished postcard includes the processed person image; the original photo file is not uploaded separately.')}</small>
+                <small>{t('Public contributors receive one lottery entry. I agree to publicly share the completed postcard image, video, and selected profile details.')}</small>
               </span>
             </label>
             <label className={`deviation-visibility-option${draft.datasetVisibility === 'PRIVATE' ? ' is-selected' : ''}`}>
@@ -215,14 +197,6 @@ export function DeviationIdForm({
               </span>
             </label>
           </fieldset>
-          <div className="deviation-local-choice-note">
-            <LockKeyhole size={16} />
-            <span>{t('Only the completed PNG and exported video are uploaded after both are ready. The original photo stays on this device.')}</span>
-          </div>
-          <div className="deviation-local-choice-note">
-            <ShieldCheck size={16} />
-            <span>{t('The subject number follows creation order in this browser only. Clearing browser data resets the local sequence; it is not a global site number.')}</span>
-          </div>
           <div className="deviation-workflow-actions deviation-workflow-actions--split">
             <button type="button" className="deviation-button" onClick={() => onStepChange(1)} disabled={busy}><ArrowLeft size={13} />{t('BACK')}</button>
             <button type="button" className="deviation-button deviation-button--primary" onClick={onContinueDatasetChoice} disabled={busy || !photoReady || personSegmentationStatus !== 'ready'}>
@@ -235,9 +209,9 @@ export function DeviationIdForm({
       {step === 3 && (
         <div className="deviation-workflow-content">
           <div className="deviation-id-readout">
-            <span>{t('LOCAL SUBJECT ID')}</span>
+            <span>{t('USER ID')}</span>
             <strong>{draft.subjectId || '—'}</strong>
-            <small>{t('This number is stored only in this browser.')}</small>
+            <small>{t('ASSIGNED AUTOMATICALLY')}</small>
           </div>
           <div className="deviation-section-label">{t('PHOTO CROP')}</div>
           <div className="deviation-crop-controls">
@@ -293,16 +267,14 @@ export function DeviationIdForm({
               <label className="deviation-field">
                 <span>{t('FORMAT')}</span>
                 <select value={outputFormat} onChange={(event) => onDraftChange({ output: { ...draft.output, format: event.currentTarget.value as DeviationDraft['output']['format'] } })}>
-                  {webmSupported && <option value="webm">WebM · {t('RECOMMENDED')}</option>}
-                  {mp4Supported && <option value="mp4">MP4 · H.264</option>}
-                  {!webmSupported && !mp4Supported && <option value={draft.output.format} disabled>{t('NO VIDEO FORMAT SUPPORTED')}</option>}
+                  <option value="mp4" disabled={!mp4Supported}>{mp4Supported ? 'MP4 · H.264' : t('MP4 EXPORT NOT SUPPORTED')}</option>
                 </select>
               </label>
             </div>
-            <label className="deviation-checkbox">
-              <input type="checkbox" checked={draft.audio.includeTechCues} onChange={(event) => onDraftChange({ audio: { includeTechCues: event.currentTarget.checked } })} />
-              <span>{t('INCLUDE TECH CUES')}</span><small>01 / 05 · 02 / 05 · 03 / 05 · 04 / 05 · 05 / 05</small>
-            </label>
+            <div className="deviation-checkbox deviation-checkbox--locked" aria-label={t('TECH CUES ALWAYS INCLUDED')}>
+              <span aria-hidden="true">✓</span>
+              <span>{t('TECH CUES ALWAYS INCLUDED')}</span><small>01 / 05 · 02 / 05 · 03 / 05 · 04 / 05 · 05 / 05</small>
+            </div>
           </div>
 
           <div className="deviation-workflow-actions deviation-workflow-actions--split">
@@ -318,7 +290,7 @@ export function DeviationIdForm({
       {step === 4 && (
         <div className="deviation-workflow-content">
           <div className="deviation-id-readout">
-            <span>{t('LOCAL SUBJECT ID')}</span>
+            <span>{t('USER ID')}</span>
             <strong>{draft.subjectId || '—'}</strong>
             <small>{videoReady ? videoFilename : t('A video file has not been exported yet.')}</small>
           </div>
@@ -334,10 +306,10 @@ export function DeviationIdForm({
             </div>
           </div>
           <div className="deviation-download-card">
-            <div className="deviation-download-card-title"><Video size={17} /><div><strong>{t('DOWNLOAD AREA')}</strong><small>{videoReady ? t('VIDEO READY · DOWNLOAD AVAILABLE.') : t('Exporting a video is separate from saving a project.')}</small></div></div>
+            <div className="deviation-download-card-title"><Video size={17} /><div><strong>{t('DOWNLOAD AREA')}</strong><small>{videoReady ? t('VIDEO READY · DOWNLOAD AVAILABLE.') : t('PREPARING MP4 WITH TECH CUES…')}</small></div></div>
             {busy && exportProgress > 0 && <div className="deviation-export-progress"><span style={{ width: `${Math.round(exportProgress * 100)}%` }} /><small>{Math.round(exportProgress * 100)}%</small></div>}
             <div className="deviation-workflow-actions">
-              <button type="button" className="deviation-button deviation-button--primary" onClick={onSaveVideo} disabled={busy || !generated || !photoReady || !draft.subjectId || !webmSupported && !mp4Supported}>
+              <button type="button" className="deviation-button deviation-button--primary" onClick={onSaveVideo} disabled={busy || !generated || !photoReady || !draft.subjectId || !mp4Supported}>
                 <Video size={14} />{t(busy ? 'EXPORTING VIDEO…' : videoReady ? 'SAVE VIDEO AGAIN' : 'SAVE VIDEO')}
               </button>
               <button type="button" className="deviation-button" onClick={onDownloadVideo} disabled={!videoReady || busy}>
@@ -349,29 +321,6 @@ export function DeviationIdForm({
             <button type="button" className="deviation-button" onClick={() => onStepChange(3)} disabled={busy}><ArrowLeft size={13} />{t('BACK TO EFFECTS')}</button>
             <button type="button" className="deviation-button" onClick={() => onStepChange(1)} disabled={busy}>{t('EDIT PROFILE')}</button>
           </div>
-          <div className="deviation-project-actions">
-            <div className="deviation-section-label">{t('LOCAL PROJECT')}</div>
-            <div className="deviation-action-row">
-              <button type="button" className="deviation-button deviation-button--primary" onClick={onSaveProject} disabled={busy}><Save size={13} />{t('SAVE PROJECT')}</button>
-              <button type="button" className="deviation-button" onClick={onNewProject} disabled={busy}><FilePlus2 size={13} />{t('NEW PROJECT')}</button>
-            </div>
-            <div className="deviation-action-row">
-              <button type="button" className="deviation-button" onClick={onExportProject} disabled={busy}><Download size={13} />{t('EXPORT PROJECT')}</button>
-              <button type="button" className="deviation-button" onClick={() => importInputRef.current?.click()} disabled={busy}><FolderOpen size={13} />{t('IMPORT PROJECT')}</button>
-              <input
-                ref={importInputRef}
-                className="deviation-visually-hidden"
-                type="file"
-                accept=".json,.deviation.json,application/json"
-                onChange={(event) => {
-                  const file = event.currentTarget.files?.[0];
-                  if (file) onImportFile(file);
-                  event.currentTarget.value = '';
-                }}
-              />
-            </div>
-          </div>
-          <p className="deviation-separation-note"><LockKeyhole size={12} />{t('PROJECTS AND PHOTOS ARE STORED ONLY IN THIS BROWSER.')}</p>
         </div>
       )}
     </section>

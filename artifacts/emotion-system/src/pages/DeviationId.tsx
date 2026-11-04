@@ -1,23 +1,13 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowUpRight, Play, RotateCcw, Square } from 'lucide-react';
 import { useAppLanguage } from '../i18n';
 import { DeviationIdForm } from './deviationId/DeviationIdForm';
-import { DeviationArchive } from './deviationId/DeviationArchive';
 import { DevFirebaseUid } from './deviationId/DevFirebaseUid';
 import { deviationText as tx } from './deviationId/copy';
 import {
-  deleteAllProjects,
-  deleteProject,
-  exportProjectFile,
   getCloudinaryUploadReceipt,
-  getProject,
-  importProjectFile,
   getNextLocalSubjectId,
-  listProjects,
   saveCloudinaryUploadReceipt,
-  saveProject,
-  type StoredProject,
-  type StoredProjectSummary,
 } from './deviationId/projectStore';
 import { renderPersonFrame } from './deviationId/renderPersonFrame';
 import { renderPostcardPng } from './deviationId/imageExport';
@@ -32,38 +22,21 @@ import { safeUploadMessage, subscribeUploadDiagnostics, uploadTrace, type Upload
 import { enterStepFourExports, isVideoDownloadAllowed } from './deviationId/stepFourExports';
 import {
   createDefaultDraft,
-  createProjectKey,
   MAX_PHOTO_BYTES,
   type DeviationDraft,
 } from './deviationId/types';
 import type { DeviationWorkflowStep } from './deviationId/DeviationIdForm';
 import './DeviationId.css';
 
-const WEBM_TYPES = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'];
 const MP4_TYPES = ['video/mp4;codecs=avc1.42E01E,mp4a.40.2', 'video/mp4'];
 const SHOW_DEV_FIREBASE_UID = import.meta.env.DEV;
 type CloudUploadStatus = 'idle' | 'waiting' | 'uploading' | 'complete' | 'error';
 type CachedCloudAsset = { submissionId: string; contentHash: string; asset: CloudinaryUploadResult };
 
-function getSupportedMime(format: 'webm' | 'mp4') {
+function getSupportedMime() {
   if (typeof MediaRecorder === 'undefined') return null;
-  const candidates = format === 'webm' ? WEBM_TYPES : MP4_TYPES;
-  if (typeof MediaRecorder.isTypeSupported !== 'function') return format === 'webm' ? '' : null;
-  return candidates.find((mime) => MediaRecorder.isTypeSupported(mime)) ?? null;
-}
-
-function makeThumbnail(draft: DeviationDraft, image: HTMLImageElement | null) {
-  const canvas = document.createElement('canvas');
-  canvas.width = 360;
-  canvas.height = 640;
-  const context = canvas.getContext('2d');
-  if (!context) return Promise.reject(new Error('This browser could not create a project thumbnail.'));
-  renderPersonFrame(context, canvas.width, canvas.height, draft, image, draft.animation.durationSeconds * .94);
-  return new Promise<Blob>((resolve, reject) => {
-    canvas.toBlob((blob) => blob
-      ? resolve(blob)
-      : reject(new Error('This browser could not save a project thumbnail.')), 'image/webp', .82);
-  });
+  if (typeof MediaRecorder.isTypeSupported !== 'function') return null;
+  return MP4_TYPES.find((mime) => MediaRecorder.isTypeSupported(mime)) ?? null;
 }
 
 function downloadBlob(blob: Blob, filename: string) {
@@ -89,7 +62,7 @@ async function hashBlob(blob: Blob) {
 
 function localError(error: unknown, language: 'en' | 'zh') {
   if (error instanceof DOMException && error.name === 'QuotaExceededError') {
-    return tx(language, 'LOCAL STORAGE IS FULL. Export a project backup or remove an archive item.');
+    return tx(language, 'BROWSER STORAGE IS FULL.');
   }
   if (error instanceof Error) {
     if (error.message.toLowerCase().includes('indexeddb is not available')) return tx(language, 'INDEXEDDB UNAVAILABLE IN THIS BROWSER.');
@@ -126,7 +99,6 @@ export default function DeviationId() {
   const { language } = useAppLanguage();
   const t = useCallback((value: string) => tx(language, value), [language]);
   const [draft, setDraft] = useState<DeviationDraft>(() => createDefaultDraft());
-  const [photoBlob, setPhotoBlob] = useState<Blob | null>(null);
   const [photoImage, setPhotoImage] = useState<HTMLImageElement | null>(null);
   const [photoName, setPhotoName] = useState('');
   const [personSegmentationStatus, setPersonSegmentationStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
@@ -148,14 +120,8 @@ export default function DeviationId() {
   });
   const [status, setStatus] = useState('');
   const [error, setError] = useState('');
-  const [projects, setProjects] = useState<StoredProjectSummary[]>([]);
-  const [thumbnailUrls, setThumbnailUrls] = useState<Record<string, string>>({});
-  const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
-  const [createdAt, setCreatedAt] = useState<number>(() => Date.now());
-  const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
-  const [webmAvailable] = useState(() => getSupportedMime('webm') !== null);
-  const [mp4Available] = useState(() => Boolean(getSupportedMime('mp4')));
+  const [mp4Available] = useState(() => Boolean(getSupportedMime()));
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [uploadEpoch, setUploadEpoch] = useState(0);
   const [cloudUploadWarning, setCloudUploadWarning] = useState('');
@@ -172,8 +138,6 @@ export default function DeviationId() {
   const playingRef = useRef(false);
   const playbackStartRef = useRef(0);
   const previewTimeRef = useRef(0);
-  const currentProjectIdRef = useRef<string | null>(currentProjectId);
-  const createdAtRef = useRef(createdAt);
   const photoUrlRef = useRef<string | null>(null);
   const personMattingRef = useRef<{ disposePersonSegmenter: () => void } | null>(null);
   const segmentationRequestRef = useRef(0);
@@ -198,15 +162,9 @@ export default function DeviationId() {
   imageRef.current = photoImage;
   videoBlobRef.current = videoBlob;
   languageRef.current = language;
-  currentProjectIdRef.current = currentProjectId;
-  createdAtRef.current = createdAt;
   completedFilesRef.current = { generated, imageBlob, videoBlob };
 
-  const outputFormat = useMemo(() => {
-    if (draft.output.format === 'mp4' && mp4Available) return 'mp4' as const;
-    if (draft.output.format === 'webm' && webmAvailable) return 'webm' as const;
-    return webmAvailable ? 'webm' as const : 'mp4' as const;
-  }, [draft.output.format, mp4Available, webmAvailable]);
+  const outputFormat = 'mp4' as const;
 
   const updateDraft = useCallback((patch: Partial<DeviationDraft>) => {
     const patchKeys = Object.keys(patch);
@@ -231,16 +189,8 @@ export default function DeviationId() {
     setError('');
   }, []);
 
-  const refreshProjects = useCallback(async () => {
-    const next = await listProjects();
-    setProjects(next);
-  }, []);
-
   useEffect(() => {
     mountedRef.current = true;
-    void refreshProjects().catch((loadError: unknown) => {
-      if (mountedRef.current) setError(localError(loadError, languageRef.current));
-    });
     const draw = (now: number) => {
       const canvas = canvasRef.current;
       const context = canvas?.getContext('2d');
@@ -291,20 +241,11 @@ export default function DeviationId() {
       void audioContextRef.current?.close();
       if (photoUrlRef.current) URL.revokeObjectURL(photoUrlRef.current);
     };
-  }, [refreshProjects]);
+  }, []);
 
   useEffect(() => subscribeUploadDiagnostics((event) => {
     setUploadDiagnostics((events) => [...events.slice(-19), event]);
   }), []);
-
-  useEffect(() => {
-    const urls: Record<string, string> = {};
-    for (const project of projects) {
-      if (project.thumbnailBlob) urls[project.id] = URL.createObjectURL(project.thumbnailBlob);
-    }
-    setThumbnailUrls(urls);
-    return () => Object.values(urls).forEach((url) => URL.revokeObjectURL(url));
-  }, [projects]);
 
   useEffect(() => {
     if (!videoBlob) {
@@ -322,7 +263,6 @@ export default function DeviationId() {
       URL.revokeObjectURL(photoUrlRef.current);
       photoUrlRef.current = null;
     }
-    setPhotoBlob(blob);
     setPhotoImage(null);
     imageRef.current = null;
     setPhotoName(name);
@@ -432,7 +372,7 @@ export default function DeviationId() {
       return;
     }
     if (file.size > MAX_PHOTO_BYTES) {
-      setError(t('Photos must be 24 MB or smaller for local project storage.'));
+      setError(t('Photos must be 24 MB or smaller.'));
       return;
     }
     setBusy(true);
@@ -453,216 +393,6 @@ export default function DeviationId() {
     }
   }, [language, setPhoto, t]);
 
-  const handleSaveProject = useCallback(async () => {
-    if (!draftRef.current.cardName.trim()) {
-      setError(t('CARD NAME IS REQUIRED.'));
-      return;
-    }
-    setBusy(true);
-    setError('');
-    try {
-      const projectDraft = draftRef.current.subjectId
-        ? draftRef.current
-        : { ...draftRef.current, subjectId: await getNextLocalSubjectId() };
-      const projectKey = currentProjectIdRef.current ?? createProjectKey();
-      const projectCreatedAt = createdAtRef.current || Date.now();
-      const thumbnailBlob = await makeThumbnail(projectDraft, imageRef.current);
-      const project: StoredProject = {
-        id: projectKey,
-        draft: projectDraft,
-        photoBlob,
-        thumbnailBlob,
-        createdAt: projectCreatedAt,
-        updatedAt: Date.now(),
-      };
-      await saveProject(project);
-      currentProjectIdRef.current = projectKey;
-      createdAtRef.current = projectCreatedAt;
-      setCurrentProjectId(projectKey);
-      setCreatedAt(projectCreatedAt);
-      setLastSavedAt(project.updatedAt);
-      setDraft(projectDraft);
-      draftRef.current = projectDraft;
-      await refreshProjects();
-      setStatus(t('PROJECT SAVED TO THIS DEVICE.'));
-    } catch (saveError) {
-      setError(localError(saveError, language));
-    } finally {
-      setBusy(false);
-    }
-  }, [language, photoBlob, refreshProjects, t]);
-
-  const handleLoadProject = useCallback(async (id: string) => {
-    setBusy(true);
-    setError('');
-    try {
-      const project = await getProject(id);
-      if (!project) throw new Error('This archive item is no longer available.');
-      videoRef.current?.pause();
-      setDraft(project.draft);
-      draftRef.current = project.draft;
-      setCurrentProjectId(project.id);
-      currentProjectIdRef.current = project.id;
-      setCreatedAt(project.createdAt);
-      createdAtRef.current = project.createdAt;
-      setLastSavedAt(project.updatedAt);
-      setImageBlob(null);
-      setImageFilename('');
-      if (project.photoBlob) await setPhoto(project.photoBlob, 'LOCAL PHOTO');
-      else await setPhoto(null, '');
-      setGenerated(Boolean(project.draft.subjectId));
-      setVideoBlob(null);
-      setVideoFilename('');
-      playingRef.current = false;
-      setPreviewPlaying(false);
-      previewTimeRef.current = Math.max(0, project.draft.animation.durationSeconds - .1);
-      setPreviewProgress(1);
-      setStatus(t('PROJECT LOADED. VIDEO EXPORT IS SEPARATE.'));
-      await editorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    } catch (loadError) {
-      setError(localError(loadError, language));
-    } finally {
-      setBusy(false);
-    }
-  }, [language, setPhoto, t]);
-
-  const handleDeleteProject = useCallback(async (id: string) => {
-    if (!window.confirm(t('Delete this project from this device?'))) return;
-    setBusy(true);
-    try {
-      await deleteProject(id);
-      if (currentProjectIdRef.current === id) {
-        currentProjectIdRef.current = null;
-        setCurrentProjectId(null);
-        setLastSavedAt(null);
-      }
-      await refreshProjects();
-      setStatus(t('Project deleted from this device.'));
-    } catch (deleteError) {
-      setError(localError(deleteError, language));
-    } finally {
-      setBusy(false);
-    }
-  }, [language, refreshProjects, t]);
-
-  const handleDeleteAll = useCallback(async () => {
-    if (!window.confirm(t('Delete every saved project and image from this browser? This cannot be undone.'))) return;
-    setBusy(true);
-    try {
-      await deleteAllProjects();
-      currentProjectIdRef.current = null;
-      setCurrentProjectId(null);
-      setLastSavedAt(null);
-      await refreshProjects();
-      setStatus(t('All saved projects were deleted from this device.'));
-    } catch (deleteError) {
-      setError(localError(deleteError, language));
-    } finally {
-      setBusy(false);
-    }
-  }, [language, refreshProjects, t]);
-
-  const handleNewProject = useCallback(() => {
-    if (!window.confirm(t('Start a new project? Unsaved changes will be cleared.'))) return;
-    const nextDraft = createDefaultDraft();
-    const nextCreatedAt = Date.now();
-    draftRef.current = nextDraft;
-    setDraft(nextDraft);
-    setCurrentProjectId(null);
-    currentProjectIdRef.current = null;
-    setCreatedAt(nextCreatedAt);
-    createdAtRef.current = nextCreatedAt;
-    setLastSavedAt(null);
-    void setPhoto(null, '');
-    setGenerated(false);
-    setImageBlob(null);
-    setImageFilename('');
-    setVideoBlob(null);
-    setVideoFilename('');
-    playingRef.current = false;
-    setPreviewPlaying(false);
-    previewTimeRef.current = 0;
-    setPreviewProgress(0);
-    videoRef.current?.pause();
-    setError('');
-    setStatus('');
-  }, [setPhoto, t]);
-
-  const handleExportProject = useCallback(async () => {
-    if (!draftRef.current.cardName.trim()) {
-      setError(t('CARD NAME IS REQUIRED.'));
-      return;
-    }
-    setBusy(true);
-    setError('');
-    try {
-      const projectDraft = draftRef.current.subjectId
-        ? draftRef.current
-        : { ...draftRef.current, subjectId: await getNextLocalSubjectId() };
-      const thumbnailBlob = await makeThumbnail(projectDraft, imageRef.current);
-      const file = await exportProjectFile(
-        projectDraft,
-        photoBlob,
-        thumbnailBlob,
-        createdAtRef.current || Date.now(),
-      );
-      downloadBlob(file, `DEVIATION_PROJECT_${safeFilePart(projectDraft.subjectId)}.json`);
-      setDraft(projectDraft);
-      draftRef.current = projectDraft;
-      setStatus(t('PROJECT FILE EXPORTED.'));
-    } catch (exportError) {
-      setError(localError(exportError, language));
-    } finally {
-      setBusy(false);
-    }
-  }, [language, photoBlob, t]);
-
-  const handleImportFile = useCallback(async (file: File) => {
-    setBusy(true);
-    setError('');
-    try {
-      const imported = await importProjectFile(file);
-      const newKey = createProjectKey();
-      const parsedDate = Date.parse(imported.createdAt);
-      const importedCreatedAt = Number.isFinite(parsedDate) ? parsedDate : Date.now();
-      if (imported.photoBlob) await setPhoto(imported.photoBlob, 'IMPORTED PHOTO');
-      else await setPhoto(null, '');
-      const saved: StoredProject = {
-        id: newKey,
-        draft: imported.draft,
-        photoBlob: imported.photoBlob,
-        thumbnailBlob: imported.thumbnailBlob ?? await makeThumbnail(imported.draft, null),
-        createdAt: importedCreatedAt,
-        updatedAt: Date.now(),
-      };
-      await saveProject(saved);
-      setDraft(imported.draft);
-      draftRef.current = imported.draft;
-      setCurrentProjectId(newKey);
-      currentProjectIdRef.current = newKey;
-      setCreatedAt(importedCreatedAt);
-      createdAtRef.current = importedCreatedAt;
-      setLastSavedAt(saved.updatedAt);
-      setImageBlob(null);
-      setImageFilename('');
-      setGenerated(Boolean(imported.draft.subjectId));
-      setVideoBlob(null);
-      setVideoFilename('');
-      playingRef.current = false;
-      setPreviewPlaying(false);
-      videoRef.current?.pause();
-      previewTimeRef.current = Math.max(0, imported.draft.animation.durationSeconds - .1);
-      setPreviewProgress(1);
-      await refreshProjects();
-      setStatus(t('PROJECT IMPORTED TO THIS DEVICE.'));
-      await editorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    } catch (importError) {
-      setError(localError(importError, language));
-    } finally {
-      setBusy(false);
-    }
-  }, [language, refreshProjects, setPhoto, t]);
-
   const handleSaveVideo = useCallback(async () => {
     if (!photoImage) {
       setError(t('A portrait image is required to export video.'));
@@ -676,9 +406,9 @@ export default function DeviationId() {
       setError(t('Video recording is unavailable in this browser.'));
       return;
     }
-    const mimeType = getSupportedMime(outputFormat);
+    const mimeType = getSupportedMime();
     if (mimeType === null) {
-      setError(outputFormat === 'mp4' ? t('This browser does not support MP4 export.') : t('Video recording is unavailable in this browser.'));
+      setError(t('This browser does not support MP4 export.'));
       return;
     }
     setExporting(true);
@@ -712,14 +442,12 @@ export default function DeviationId() {
       renderPersonFrame(context, exportCanvas.width, exportCanvas.height, exportDraft, imageRef.current, 0);
       videoStream = exportCanvas.captureStream(30);
       const exportTracks = [...videoStream.getVideoTracks()];
-      if (exportDraft.audio.includeTechCues) {
-        audioContext = newAudioContext();
-        if (!audioContext) throw new Error(t('Audio cues are unavailable in this browser. Turn off tech cues to export without sound.'));
-        await audioContext.resume();
-        audioDestination = audioContext.createMediaStreamDestination();
-        scheduleTechCues(audioContext, audioDestination, audioContext.currentTime + .1, duration);
-        exportTracks.push(...audioDestination.stream.getAudioTracks());
-      }
+      audioContext = newAudioContext();
+      if (!audioContext) throw new Error(t('This browser cannot export the required tech cues.'));
+      await audioContext.resume();
+      audioDestination = audioContext.createMediaStreamDestination();
+      scheduleTechCues(audioContext, audioDestination, audioContext.currentTime + .1, duration);
+      exportTracks.push(...audioDestination.stream.getAudioTracks());
       const mixedStream = new MediaStream(exportTracks);
       const recorderOptions: MediaRecorderOptions = mimeType ? { mimeType } : {};
       recorderOptions.videoBitsPerSecond = resolution === '1080p' ? 12_000_000 : 6_000_000;
@@ -739,10 +467,10 @@ export default function DeviationId() {
         if (event.data.size) chunks.push(event.data);
       };
       recorder.onerror = () => {
-        recorderFailure = new Error(t('The browser encoder stopped unexpectedly. Try a shorter export or another format.'));
+        recorderFailure = new Error(t('The browser encoder stopped unexpectedly. Try again or use a browser that supports MP4.'));
       };
       recorder.onstop = () => {
-        const blob = new Blob(chunks, { type: recorder?.mimeType || mimeType || 'video/webm' });
+        const blob = new Blob(chunks, { type: recorder?.mimeType || mimeType || 'video/mp4' });
         if (recorderFailure) failRecording(recorderFailure);
         else if (blob.size > 1024) finishRecording(blob);
         else failRecording(new Error(t('The encoder produced an empty video. Please try again.')));
@@ -770,9 +498,9 @@ export default function DeviationId() {
       });
       if (recorder.state !== 'inactive') recorder.stop();
       const blob = await recordingDone;
-      const actualMime = blob.type || recorder.mimeType || 'video/webm';
-      const extension = actualMime.includes('mp4') ? 'mp4' : 'webm';
-      const filename = `DEVIATION_ID_${safeFilePart(exportDraft.subjectId)}.${extension}`;
+      const actualMime = blob.type || recorder.mimeType || 'video/mp4';
+      if (!actualMime.includes('mp4')) throw new Error(t('The browser did not produce an MP4 file.'));
+      const filename = `DEVIATION_ID_${safeFilePart(exportDraft.subjectId)}.mp4`;
       if (mountedRef.current) {
         setVideoBlob(blob);
         setVideoFilename(filename);
@@ -873,7 +601,7 @@ export default function DeviationId() {
       {
         assetType: 'video',
         blob: video,
-        filename: videoFilename || `DEVIATION_ID_${safeFilePart(subjectId)}.${video.type.includes('mp4') ? 'mp4' : 'webm'}`,
+            filename: videoFilename || `DEVIATION_ID_${safeFilePart(subjectId)}.mp4`,
       },
     ];
 
@@ -1071,7 +799,7 @@ export default function DeviationId() {
     void startPreview().catch((regenerationError: unknown) => setError(localError(regenerationError, language)));
   }, [language, startPreview]);
 
-  const handleContinueProfile = useCallback(() => {
+  const handleContinueProfile = useCallback(async () => {
     if (!draftRef.current.cardName.trim()) {
       setError(t('CARD NAME IS REQUIRED.'));
       return;
@@ -1080,10 +808,22 @@ export default function DeviationId() {
       setError(t('RUN PERSON SEGMENTATION BEFORE GENERATING.'));
       return;
     }
+    setBusy(true);
     setError('');
-    stepRef.current = 2;
-    setStep(2);
-  }, [personSegmentationStatus, t]);
+    try {
+      if (!draftRef.current.subjectId) {
+        const nextDraft = { ...draftRef.current, subjectId: await getNextLocalSubjectId() };
+        draftRef.current = nextDraft;
+        setDraft(nextDraft);
+      }
+      stepRef.current = 2;
+      setStep(2);
+    } catch (sequenceError) {
+      setError(localError(sequenceError, language));
+    } finally {
+      setBusy(false);
+    }
+  }, [language, personSegmentationStatus, t]);
 
   const handleContinueDownload = useCallback(() => {
     if (!imageRef.current || !draftRef.current.subjectId) {
@@ -1111,11 +851,11 @@ export default function DeviationId() {
     <main className="deviation-id-page">
       <header className="deviation-page-heading">
         <div>
-          <div className="deviation-kicker">EMOTION / SYSTEM · LOCAL IDENTITY RECORD</div>
+          <div className="deviation-kicker">EMOTION / SYSTEM · IDENTITY RECORD</div>
           <h1>{t('DEVIATION ID')}<span> /</span> <small>偏差名片</small></h1>
-          <p>{t('GENERATE A LOCAL SUBJECT RECORD')}</p>
+          <p>{t('BUILD YOUR DEVIATION ID')}</p>
         </div>
-        <div className="deviation-status-badge"><i />{t('Saved image and profile stay on this device.')}</div>
+        <div className="deviation-status-badge"><i />{t('PERSON EXTRACTION RUNS LOCALLY.')}</div>
       </header>
 
       {SHOW_DEV_FIREBASE_UID && <DevFirebaseUid />}
@@ -1129,7 +869,6 @@ export default function DeviationId() {
           personSegmentationStatus={personSegmentationStatus}
           step={step}
           mp4Supported={mp4Available}
-          webmSupported={webmAvailable}
           outputFormat={outputFormat}
           busy={busy || exporting}
           generated={generated}
@@ -1148,10 +887,6 @@ export default function DeviationId() {
           onContinueDatasetChoice={() => { void handleContinueLocal(); }}
           onContinueDownload={handleContinueDownload}
           onPhotoChange={(file) => { void handlePhotoChange(file); }}
-          onNewProject={handleNewProject}
-          onSaveProject={() => { void handleSaveProject(); }}
-          onExportProject={() => { void handleExportProject(); }}
-          onImportFile={(file) => { void handleImportFile(file); }}
           onGenerate={() => { void handleGenerate(); }}
           onSaveImage={() => { void handleSaveImage(); }}
           onDownloadImage={handleDownloadImage}
@@ -1258,25 +993,14 @@ export default function DeviationId() {
             </div>
           )}
 
-          {lastSavedAt !== null && <div className="deviation-saved-time">{t('SAVED AT')} · {new Intl.DateTimeFormat(language === 'zh' ? 'zh-TW' : 'en-US', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(lastSavedAt))}</div>}
           {status && <p className="deviation-status-message" role="status">{status}</p>}
           {error && <p className="deviation-error-message" role="alert">{error}</p>}
-          <p className="deviation-privacy-note">{t('PROJECT STATE ONLY · VIDEO EXPORT IS SEPARATE')}<br />{t('Projects are stored in this browser, not uploaded. Browser data can be cleared; export a project backup to move it or keep it long term.')}<br />{t('NO FACE ANALYSIS DATA IS STORED IN PROJECTS.')}</p>
         </section>
       </div>
 
-      <DeviationArchive
-        projects={projects}
-        thumbnailUrls={thumbnailUrls}
-        language={language}
-        busy={busy || exporting}
-        onLoad={(id) => { void handleLoadProject(id); }}
-        onDelete={(id) => { void handleDeleteProject(id); }}
-        onDeleteAll={() => { void handleDeleteAll(); }}
-      />
       <footer className="deviation-footer">
-        <span>LOCAL FIRST / INDEXEDDB</span>
-        <span>PROJECT FILE V3 · NO ACCOUNT · NO SYNC</span>
+        <span>LOCAL IMAGE PROCESSING</span>
+        <span>NO ACCOUNT · MP4 EXPORT</span>
         <span>DEVIATION RECORD</span>
       </footer>
     </main>

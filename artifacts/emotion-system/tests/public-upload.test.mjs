@@ -10,11 +10,11 @@ const require = createRequire(import.meta.url);
 const { build } = createRequire(require.resolve('vite/package.json'))('esbuild');
 const root = new URL('../', import.meta.url).pathname;
 const png = new Blob(['finished-png'], { type: 'image/png' });
-const video = new Blob(['finished-video'], { type: 'video/webm' });
+const video = new Blob(['finished-video'], { type: 'video/mp4' });
 const draft = {
   cardName: 'Offline fixture', subjectId: 'DR-000001', datasetVisibility: 'PUBLIC',
-  deviationLevel: 42, output: { format: 'webm', resolution: '720p' },
-  animation: { durationSeconds: 5 }, audio: {},
+  deviationLevel: 42, output: { format: 'mp4', resolution: '720p' },
+  animation: { durationSeconds: 5 }, audio: { includeTechCues: false },
 };
 const asset = (type) => ({
   assetId: `asset-${type}`, publicId: `test/${type}`, secureUrl: `https://res.cloudinary.com/test/${type}`,
@@ -24,8 +24,9 @@ class TestMediaStream {
   constructor(tracks = []) { this.tracks = tracks; }
   getTracks() { return this.tracks; }
   getVideoTracks() { return this.tracks; }
+  getAudioTracks() { return this.tracks.filter((track) => track.kind === 'audio'); }
 }
-const testTrack = { stop() {} };
+const testTrack = { kind: 'video', stop() {} };
 const tick = () => new Promise((resolve) => setTimeout(resolve, 1));
 
 async function compile(entry, mocks, sourceTransform = (source) => source) {
@@ -76,7 +77,15 @@ async function pageHarness({ visibility = 'PUBLIC', step = 1, generated = true, 
   const logs = [];
   const downloads = [];
   let syntheticNow = 0;
-  const overrides = { 0: { ...draft, datasetVisibility: visibility }, 2: {}, 4: 'ready', 5: generated, 6: step, 11: imageReady ? png : null, 12: imageReady ? 'finished.png' : '', 13: videoReady ? video : null, 14: videoReady ? 'finished.webm' : '' };
+  let recordedAudioTracks = 0;
+  const overrides = {
+    0: { ...draft, datasetVisibility: visibility },
+    1: {}, 3: 'ready', 4: generated, 5: step,
+    10: imageReady ? png : null,
+    11: imageReady ? 'finished.png' : '',
+    12: videoReady ? video : null,
+    13: videoReady ? 'finished.mp4' : '',
+  };
   const same = (left, right) => left && right && left.length === right.length && left.every((v, i) => Object.is(v, right[i]));
   const react = {
     useState(initial) {
@@ -115,7 +124,6 @@ async function pageHarness({ visibility = 'PUBLIC', step = 1, generated = true, 
     'lucide-react': Object.fromEntries(['ArrowDownToLine', 'ArrowUpRight', 'Play', 'RotateCcw', 'Square', 'Video'].map((name) => [name, name])),
     '../i18n': { useAppLanguage: () => ({ language: 'en' }) },
     './deviationId/DeviationIdForm': { DeviationIdForm: 'form' },
-    './deviationId/DeviationArchive': { DeviationArchive: 'archives' },
     './deviationId/DevFirebaseUid': { DevFirebaseUid: 'uid' },
     './deviationId/copy': { deviationText: (_language, text) => text },
     './deviationId/projectStore': {
@@ -156,6 +164,27 @@ async function pageHarness({ visibility = 'PUBLIC', step = 1, generated = true, 
         return 1;
       },
       cancelAnimationFrame: no, setTimeout, location: { hostname: 'test.replit.dev' },
+      AudioContext: class {
+        currentTime = 0;
+        async resume() {}
+        async close() {}
+        createMediaStreamDestination() {
+          const track = { kind: 'audio', stop: no };
+          return { stream: { getAudioTracks: () => [track], getTracks: () => [track] } };
+        }
+        createOscillator() {
+          return {
+            type: 'triangle', frequency: { setValueAtTime: no },
+            connect: no, start: no, stop: no,
+          };
+        }
+        createGain() {
+          return {
+            gain: { setValueAtTime: no, exponentialRampToValueAtTime: no },
+            connect: no,
+          };
+        }
+      },
     },
     performance: { now: () => syntheticNow },
     document: {
@@ -169,7 +198,11 @@ async function pageHarness({ visibility = 'PUBLIC', step = 1, generated = true, 
     MediaStream: TestMediaStream,
     MediaRecorder: class {
       static isTypeSupported = () => true;
-      constructor(_stream, options = {}) { this.state = 'inactive'; this.mimeType = options.mimeType ?? 'video/webm'; }
+      constructor(stream, options = {}) {
+        this.state = 'inactive';
+        this.mimeType = options.mimeType ?? 'video/mp4';
+        recordedAudioTracks = stream.getAudioTracks().length;
+      }
       start() { this.state = 'recording'; }
       stop() {
         this.state = 'inactive';
@@ -193,7 +226,7 @@ async function pageHarness({ visibility = 'PUBLIC', step = 1, generated = true, 
     for (let i = 0; i < 330; i++) { if (dirty) render(); await tick(); }
   };
   await flush();
-  return { context, uploadCalls, logs, downloads, flush, flushExports, inspect: () => context.__inspect };
+  return { context, uploadCalls, logs, downloads, flush, flushExports, getRecordedAudioTracks: () => recordedAudioTracks, inspect: () => context.__inspect };
 }
 
 test('PUBLIC sends both finished assets even if optional receipt reads fail', async () => {
@@ -219,10 +252,10 @@ test('video downloads are blocked in steps 1–3, allowed only in step 4, then b
     assert.deepEqual(page.downloads, []);
     page.inspect().stepRef.current = 4;
     page.inspect().handleDownloadVideo();
-    assert.deepEqual(page.downloads, ['finished.webm']);
+    assert.deepEqual(page.downloads, ['finished.mp4']);
     page.inspect().stepRef.current = step;
     page.inspect().handleDownloadVideo();
-    assert.deepEqual(page.downloads, ['finished.webm']);
+    assert.deepEqual(page.downloads, ['finished.mp4']);
   }
 });
 
@@ -243,9 +276,10 @@ test('entering step 4 starts each missing export without requiring a download cl
   });
   assert.equal(selectedStep, 4);
   assert.deepEqual(calls, ['png', 'video']);
-  for (const step of [1, 2, 3]) assert.equal(isVideoDownloadAllowed(step, video, 'finished.webm'), false);
-  assert.equal(isVideoDownloadAllowed(4, video, 'finished.webm'), true);
-  assert.equal(isVideoDownloadAllowed(4, null, 'finished.webm'), false);
+  for (const step of [1, 2, 3]) assert.equal(isVideoDownloadAllowed(step, video, 'finished.mp4'), false);
+  assert.equal(isVideoDownloadAllowed(4, video, 'finished.mp4'), true);
+  assert.equal(isVideoDownloadAllowed(4, null, 'finished.mp4'), false);
+  assert.equal(isVideoDownloadAllowed(4, new Blob(['webm'], { type: 'video/webm' }), 'finished.webm'), false);
 });
 
 test('the actual step-4 action works without playing preview, generates both assets and PUBLIC uploads', async () => {
@@ -257,6 +291,7 @@ test('the actual step-4 action works without playing preview, generates both ass
   assert.equal(page.inspect().previewPlaying, false);
   assert.ok(page.inspect().imageBlob instanceof Blob);
   assert.ok(page.inspect().videoBlob instanceof Blob, JSON.stringify({ error: page.inspect().error, status: page.inspect().status, raw: String(page.context.__rawError) }));
+  assert.equal(page.getRecordedAudioTracks(), 1, 'tech cue audio is included even when the saved draft flag is false');
   assert.deepEqual(page.uploadCalls.map((args) => args[2]), ['image', 'video']);
   assert.deepEqual(page.downloads, []);
 });
@@ -384,7 +419,7 @@ async function helperHarness({ currentUser = true, signStatuses = [200], cloudSt
   }));
   vm.runInContext(await compile('src/pages/deviationId/cloudinaryUpload.ts', mocks), context);
   const upload = (type = 'image', signal = new AbortController().signal) => context.module.exports.uploadFinishedAsset(
-    type === 'image' ? png : video, `finished.${type === 'image' ? 'png' : 'webm'}`,
+    type === 'image' ? png : video, `finished.${type === 'image' ? 'png' : 'mp4'}`,
     type, '00000000-0000-4000-8000-000000000001', signal, () => {},
   );
   return { upload, fetches, xhrs, logs, tokenRefreshes };
@@ -400,7 +435,7 @@ test('existing Firebase token, signing contract, separate URLs, FormData and ret
     assert.equal(signed.options.headers.Authorization, 'Bearer offline-private-firebase-token');
     assert.deepEqual(request, {
       submissionId: '00000000-0000-4000-8000-000000000001', assetType: type,
-      mimeType: type === 'image' ? 'image/png' : 'video/webm',
+      mimeType: type === 'image' ? 'image/png' : 'video/mp4',
       bytes: (type === 'image' ? png : video).size, publicConsent: true,
     });
     const cloud = helper.xhrs.at(-1);

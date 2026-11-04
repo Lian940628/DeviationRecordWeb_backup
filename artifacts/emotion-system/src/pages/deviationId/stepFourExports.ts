@@ -1,5 +1,7 @@
 export function isVideoDownloadAllowed(step: number, video: Blob | null, filename: string): video is Blob {
-  return step === 4 && Boolean(video && filename);
+  return step === 4
+    && Boolean(video && video.type.toLowerCase().includes('mp4'))
+    && filename.toLowerCase().endsWith('.mp4');
 }
 
 export function enterStepFourExports(options: {
