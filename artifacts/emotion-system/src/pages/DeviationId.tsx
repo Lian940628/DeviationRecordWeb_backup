@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowDownToLine, ArrowUpRight, Play, RotateCcw, Square, Video } from 'lucide-react';
+import { ArrowUpRight, Play, RotateCcw, Square } from 'lucide-react';
 import { useAppLanguage } from '../i18n';
 import { DeviationIdForm } from './deviationId/DeviationIdForm';
 import { DeviationArchive } from './deviationId/DeviationArchive';
@@ -29,6 +29,7 @@ import {
   type CloudinaryUploadResult,
 } from './deviationId/cloudinaryUpload';
 import { safeUploadMessage, subscribeUploadDiagnostics, uploadTrace, type UploadDiagnostic } from './deviationId/uploadDiagnostics';
+import { enterStepFourExports, isVideoDownloadAllowed } from './deviationId/stepFourExports';
 import {
   createDefaultDraft,
   createProjectKey,
@@ -164,6 +165,7 @@ export default function DeviationId() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const editorRef = useRef<HTMLElement | null>(null);
   const draftRef = useRef(draft);
+  const stepRef = useRef<number>(step);
   const imageRef = useRef(photoImage);
   const videoBlobRef = useRef(videoBlob);
   const languageRef = useRef(language);
@@ -192,6 +194,7 @@ export default function DeviationId() {
   const lastPreviewUpdateRef = useRef(0);
 
   draftRef.current = draft;
+  stepRef.current = step;
   imageRef.current = photoImage;
   videoBlobRef.current = videoBlob;
   languageRef.current = language;
@@ -414,6 +417,7 @@ export default function DeviationId() {
         draftRef.current = nextDraft;
         setDraft(nextDraft);
       }
+      stepRef.current = 3;
       setStep(3);
     } catch (sequenceError) {
       setError(localError(sequenceError, language));
@@ -774,7 +778,6 @@ export default function DeviationId() {
         setVideoFilename(filename);
         setExportProgress(1);
         setStatus(t('VIDEO READY · DOWNLOAD AVAILABLE.'));
-        downloadBlob(blob, filename);
       }
     } catch (exportError) {
       if (recorder && recorder.state !== 'inactive') {
@@ -815,7 +818,6 @@ export default function DeviationId() {
       const filename = `DEVIATION_ID_${safeFilePart(exportDraft.subjectId)}.png`;
       setImageBlob(blob);
       setImageFilename(filename);
-      downloadBlob(blob, filename);
       setStatus(t('IMAGE READY · DOWNLOAD AVAILABLE.'));
     } catch (imageError) {
       setError(localError(imageError, language));
@@ -1034,7 +1036,7 @@ export default function DeviationId() {
   }, [imageBlob, imageFilename]);
 
   const handleDownloadVideo = useCallback(() => {
-    if (!videoBlob || !videoFilename) return;
+    if (!isVideoDownloadAllowed(stepRef.current, videoBlob, videoFilename)) return;
     downloadBlob(videoBlob, videoFilename);
   }, [videoBlob, videoFilename]);
 
@@ -1079,6 +1081,7 @@ export default function DeviationId() {
       return;
     }
     setError('');
+    stepRef.current = 2;
     setStep(2);
   }, [personSegmentationStatus, t]);
 
@@ -1088,11 +1091,19 @@ export default function DeviationId() {
       return;
     }
     setError('');
-    setStep(4);
-  }, [generated, t]);
+    enterStepFourExports({
+      setStep: (nextStep) => {
+        stepRef.current = nextStep;
+        setStep(nextStep);
+      },
+      imageReady: Boolean(imageBlob),
+      videoReady: Boolean(videoBlob),
+      generateImage: () => { void handleSaveImage(); },
+      generateVideo: () => { void handleSaveVideo(); },
+    });
+  }, [generated, handleSaveImage, handleSaveVideo, imageBlob, t, videoBlob]);
 
   const previewStage = Math.min(5, Math.floor(previewProgress * 5) + 1);
-  const canExportVideo = webmAvailable || mp4Available;
   return (
     <main className="deviation-id-page">
       <header className="deviation-page-heading">
@@ -1126,7 +1137,10 @@ export default function DeviationId() {
           exportProgress={exportProgress}
           editorRef={editorRef}
           onDraftChange={updateDraft}
-          onStepChange={setStep}
+          onStepChange={(nextStep) => {
+            stepRef.current = nextStep;
+            setStep(nextStep);
+          }}
           onContinueProfile={handleContinueProfile}
           onContinueDatasetChoice={() => { void handleContinueLocal(); }}
           onContinueDownload={handleContinueDownload}
@@ -1153,7 +1167,9 @@ export default function DeviationId() {
                   ref={videoRef}
                   className="deviation-exported-video"
                   src={videoUrl}
-                  controls
+                  controls={step === 4}
+                  controlsList={step === 4 ? undefined : 'nodownload'}
+                  onContextMenu={(event) => { if (stepRef.current !== 4) event.preventDefault(); }}
                   playsInline
                   preload="metadata"
                   aria-label={t('PREVIEW VIDEO')}
@@ -1183,21 +1199,8 @@ export default function DeviationId() {
               {previewPlaying ? <Square size={13} /> : <Play size={13} />}
               {t(previewPlaying ? 'PAUSE PREVIEW' : 'PREVIEW VIDEO')}
             </button>
-            <button type="button" className="deviation-button" onClick={handleRegenerate} disabled={busy || exporting || !generated}><RotateCcw size={13} />{t('REGENERATE')}</button>
+            {step !== 4 && <button type="button" className="deviation-button" onClick={handleRegenerate} disabled={busy || exporting || !generated}><RotateCcw size={13} />{t('REGENERATE')}</button>}
             <button type="button" className="deviation-button" onClick={handleEditProfile}><ArrowUpRight size={13} />{t('EDIT PROFILE')}</button>
-          </div>
-
-          <div className="deviation-video-export">
-            <div className="deviation-video-export-heading"><Video size={14} /><span>{t('SAVE VIDEO')}</span><small>{draft.output.resolution.toUpperCase()} · 9:16 · {outputFormat.toUpperCase()}</small></div>
-            <button type="button" className="deviation-button deviation-button--primary deviation-export-button" onClick={() => { void handleSaveVideo(); }} disabled={exporting || busy || !generated || !canExportVideo}>
-              <Video size={14} />{t(exporting ? 'EXPORTING VIDEO…' : 'SAVE VIDEO')}
-            </button>
-            {videoBlob && (
-              <button type="button" className="deviation-button deviation-download-button" onClick={handleDownloadVideo}>
-                <ArrowDownToLine size={13} />{t('DOWNLOAD VIDEO')}
-              </button>
-            )}
-            {exporting && <div className="deviation-export-progress"><span style={{ width: `${Math.round(exportProgress * 100)}%` }} /><small>{Math.round(exportProgress * 100)}%</small></div>}
           </div>
 
           {draft.datasetVisibility === 'PUBLIC' && (

@@ -60,7 +60,7 @@ function sandbox(mocks, extra = {}) {
   };
 }
 
-async function pageHarness({ visibility = 'PUBLIC', imageReady = true, videoReady = true, readReceipt, saveReceipt, upload } = {}) {
+async function pageHarness({ visibility = 'PUBLIC', step = 1, imageReady = true, videoReady = true, readReceipt, saveReceipt, upload } = {}) {
   let cursor = 0;
   let stateCursor = 0;
   let dirty = true;
@@ -68,7 +68,9 @@ async function pageHarness({ visibility = 'PUBLIC', imageReady = true, videoRead
   const effects = [];
   const uploadCalls = [];
   const logs = [];
-  const overrides = { 0: { ...draft, datasetVisibility: visibility }, 2: {}, 4: 'ready', 5: true, 11: imageReady ? png : null, 13: videoReady ? video : null };
+  const downloads = [];
+  let syntheticNow = 0;
+  const overrides = { 0: { ...draft, datasetVisibility: visibility }, 2: {}, 4: 'ready', 5: true, 6: step, 11: imageReady ? png : null, 12: imageReady ? 'finished.png' : '', 13: videoReady ? video : null, 14: videoReady ? 'finished.webm' : '' };
   const same = (left, right) => left && right && left.length === right.length && left.every((v, i) => Object.is(v, right[i]));
   const react = {
     useState(initial) {
@@ -129,13 +131,47 @@ async function pageHarness({ visibility = 'PUBLIC', imageReady = true, videoRead
     },
   };
   const code = await compile('src/pages/DeviationId.tsx', mocks, (source) => source.replace(
-    '  const canExportVideo =',
-    '  globalThis.__inspect = { runCloudUpload, updateDraft, cloudUploadStatus, cloudUploadError, cloudUploadProgress };\n  const canExportVideo =',
+    '  return (\n    <main className="deviation-id-page">',
+    '  globalThis.__inspect = { runCloudUpload, updateDraft, cloudUploadStatus, cloudUploadError, cloudUploadProgress, handleContinueDownload, handleDownloadVideo, stepRef, imageBlob, videoBlob, step, error, status, exportProgress };\n  return (\n    <main className="deviation-id-page">',
   ));
   const context = vm.createContext(sandbox(mocks, {
     console: { info: (...args) => logs.push(args), warn: (...args) => logs.push(args), error: (...args) => logs.push(args) },
-    window: { requestAnimationFrame: () => 1, cancelAnimationFrame: no, location: { hostname: 'test.replit.dev' } },
-    MediaRecorder: { isTypeSupported: () => true },
+    window: {
+      requestAnimationFrame: (callback) => {
+        if (callback.name === 'drawExportFrame') {
+          syntheticNow += 1000;
+          queueMicrotask(() => callback(syntheticNow));
+        }
+        return 1;
+      },
+      cancelAnimationFrame: no, setTimeout, location: { hostname: 'test.replit.dev' },
+    },
+    performance: { now: () => syntheticNow },
+    document: {
+      body: { appendChild: (anchor) => { anchor.click = () => downloads.push(anchor.download); } },
+      createElement: (tag) => tag === 'canvas' ? {
+        width: 0, height: 0, getContext: () => ({}),
+        captureStream: () => new MediaStream([{}]),
+      } : ({ style: {}, remove: no }),
+    },
+    HTMLCanvasElement: class { captureStream() {} },
+    MediaStream: class {
+      constructor(tracks = []) { this.tracks = tracks; }
+      getTracks() { return this.tracks; }
+      getVideoTracks() { return this.tracks; }
+    },
+    MediaRecorder: class {
+      static isTypeSupported = () => true;
+      constructor(_stream, options = {}) { this.state = 'inactive'; this.mimeType = options.mimeType ?? 'video/webm'; }
+      start() { this.state = 'recording'; }
+      stop() {
+        this.state = 'inactive';
+        queueMicrotask(() => {
+          this.ondataavailable?.({ data: new Blob([new Uint8Array(2048)], { type: this.mimeType }) });
+          this.onstop?.();
+        });
+      }
+    },
   }));
   vm.runInContext(code, context);
   const render = () => {
@@ -146,8 +182,11 @@ async function pageHarness({ visibility = 'PUBLIC', imageReady = true, videoRead
   const flush = async () => {
     for (let i = 0; i < 30; i++) { if (dirty) render(); await tick(); }
   };
+  const flushExports = async () => {
+    for (let i = 0; i < 330; i++) { if (dirty) render(); await tick(); }
+  };
   await flush();
-  return { context, uploadCalls, logs, flush, inspect: () => context.__inspect };
+  return { context, uploadCalls, logs, downloads, flush, flushExports, inspect: () => context.__inspect };
 }
 
 test('PUBLIC sends both finished assets even if optional receipt reads fail', async () => {
@@ -164,6 +203,64 @@ test('a receipt write failure cannot prevent the video upload', async () => {
 test('PRIVATE does not call upload or token/signing code', async () => {
   const page = await pageHarness({ visibility: 'PRIVATE' });
   assert.equal(page.uploadCalls.length, 0);
+});
+
+test('video downloads are blocked in steps 1–3, allowed only in step 4, then blocked after returning', async () => {
+  for (const step of [1, 2, 3]) {
+    const page = await pageHarness({ visibility: 'PRIVATE', step });
+    page.inspect().handleDownloadVideo();
+    assert.deepEqual(page.downloads, []);
+    page.inspect().stepRef.current = 4;
+    page.inspect().handleDownloadVideo();
+    assert.deepEqual(page.downloads, ['finished.webm']);
+    page.inspect().stepRef.current = step;
+    page.inspect().handleDownloadVideo();
+    assert.deepEqual(page.downloads, ['finished.webm']);
+  }
+});
+
+test('entering step 4 starts each missing export without requiring a download click', async () => {
+  const output = await build({
+    entryPoints: [root + 'src/pages/deviationId/stepFourExports.ts'],
+    bundle: true, write: false, format: 'cjs', platform: 'node',
+  });
+  const context = vm.createContext({ module: { exports: {} }, exports: {} });
+  vm.runInContext(output.outputFiles[0].text, context);
+  const { enterStepFourExports, isVideoDownloadAllowed } = context.module.exports;
+  const calls = [];
+  let selectedStep = 3;
+  enterStepFourExports({
+    setStep: (value) => { selectedStep = value; },
+    imageReady: false, videoReady: false,
+    generateImage: () => calls.push('png'), generateVideo: () => calls.push('video'),
+  });
+  assert.equal(selectedStep, 4);
+  assert.deepEqual(calls, ['png', 'video']);
+  for (const step of [1, 2, 3]) assert.equal(isVideoDownloadAllowed(step, video, 'finished.webm'), false);
+  assert.equal(isVideoDownloadAllowed(4, video, 'finished.webm'), true);
+  assert.equal(isVideoDownloadAllowed(4, null, 'finished.webm'), false);
+});
+
+test('the actual step-4 action auto-generates both assets and PUBLIC uploads without downloading', async () => {
+  const page = await pageHarness({ step: 3, imageReady: false, videoReady: false });
+  page.inspect().handleContinueDownload();
+  await page.flushExports();
+  assert.equal(page.inspect().step, 4);
+  assert.ok(page.inspect().imageBlob instanceof Blob);
+  assert.ok(page.inspect().videoBlob instanceof Blob, JSON.stringify({ error: page.inspect().error, status: page.inspect().status }));
+  assert.deepEqual(page.uploadCalls.map((args) => args[2]), ['image', 'video']);
+  assert.deepEqual(page.downloads, []);
+});
+
+test('the actual step-4 action generates PRIVATE downloads but never starts cloud upload', async () => {
+  const page = await pageHarness({ visibility: 'PRIVATE', step: 3, imageReady: false, videoReady: false });
+  page.inspect().handleContinueDownload();
+  await page.flushExports();
+  assert.equal(page.inspect().step, 4);
+  assert.ok(page.inspect().imageBlob instanceof Blob);
+  assert.ok(page.inspect().videoBlob instanceof Blob, JSON.stringify({ error: page.inspect().error, status: page.inspect().status }));
+  assert.equal(page.uploadCalls.length, 0);
+  assert.deepEqual(page.downloads, []);
 });
 
 test('PUBLIC toggle while an aborted attempt is settling starts a fresh attempt', async () => {
