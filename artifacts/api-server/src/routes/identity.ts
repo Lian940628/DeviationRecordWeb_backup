@@ -36,11 +36,13 @@ router.post("/identity/verify", async (req, res): Promise<void> => {
 
   let workerResponse: Response;
   try {
+    const origin = req.get("origin");
     workerResponse = await fetch(workerVerifyUrl, {
       method: "POST",
       headers: {
         Authorization: authorization,
         Accept: "application/json",
+        ...(origin ? { Origin: origin } : {}),
       },
       signal: AbortSignal.timeout(9_000),
     });
@@ -64,20 +66,32 @@ router.post("/identity/verify", async (req, res): Promise<void> => {
     return;
   }
 
+  if (!workerResponse.ok) {
+    const workerError = isRecord(payload) && typeof payload.error === "string"
+      ? payload.error
+      : "";
+    const originRejected = workerResponse.status === 403
+      && /origin\s+not\s+allowed/i.test(workerError);
+    const status = workerResponse.status === 401 ? 401 : workerResponse.status === 403 ? 403 : 502;
+    req.log.warn({ workerStatus: workerResponse.status }, "Cloudflare Worker rejected identity verification");
+    res.status(status).json({ error: originRejected
+      ? "This site origin is not allowed by the Cloudflare Worker."
+      : status === 401
+        ? "The identity verifier rejected this Firebase ID token."
+        : status === 403
+          ? "The identity verifier rejected this request. Check the Worker origin allowlist and token validation."
+          : "The identity verifier returned an unexpected response.",
+    });
+    return;
+  }
   if (
-    !workerResponse.ok
-    || !isRecord(payload)
+    !isRecord(payload)
     || payload.verified !== true
     || typeof payload.uid !== "string"
     || payload.anonymous !== true
   ) {
-    const status = workerResponse.status === 401 || workerResponse.status === 403 ? 401 : 502;
-    req.log.warn({ workerStatus: workerResponse.status }, "Cloudflare Worker rejected identity verification");
-    res.status(status).json({
-      error: status === 401
-        ? "The identity verifier rejected this Firebase ID token."
-        : "The identity verifier returned an unexpected response.",
-    });
+    req.log.warn({ workerStatus: workerResponse.status }, "Cloudflare Worker returned an unexpected verification response");
+    res.status(502).json({ error: "The identity verifier returned an unexpected response." });
     return;
   }
 

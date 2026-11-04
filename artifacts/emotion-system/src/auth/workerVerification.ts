@@ -59,10 +59,10 @@ async function postVerification(idToken: string, expectedUid: string): Promise<W
   }
 
   if (!response.ok) {
-    throw new VerificationError(
-      `The identity verifier rejected the request (HTTP ${response.status}).`,
-      response.status,
-    );
+    const message = isRecord(payload) && typeof payload.error === 'string'
+      ? payload.error
+      : `The identity verifier rejected the request (HTTP ${response.status}).`;
+    throw new VerificationError(message, response.status);
   }
   if (
     !isRecord(payload)
@@ -90,7 +90,7 @@ async function verify(forceRefresh: boolean): Promise<WorkerVerification> {
   try {
     return await postVerification(idToken, user.uid);
   } catch (error) {
-    if (!(error instanceof VerificationError) || (error.status !== 401 && error.status !== 403)) {
+    if (!(error instanceof VerificationError) || error.status !== 401) {
       throw error;
     }
     const refreshedToken = await user.getIdToken(true);
