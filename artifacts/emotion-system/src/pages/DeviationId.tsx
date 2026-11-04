@@ -3,6 +3,7 @@ import { ArrowDownToLine, ArrowUpRight, Play, RotateCcw, Square, Video } from 'l
 import { useAppLanguage } from '../i18n';
 import { DeviationIdForm } from './deviationId/DeviationIdForm';
 import { DeviationArchive } from './deviationId/DeviationArchive';
+import { DevFirebaseUid } from './deviationId/DevFirebaseUid';
 import { deviationText as tx } from './deviationId/copy';
 import {
   deleteAllProjects,
@@ -29,6 +30,7 @@ import './DeviationId.css';
 
 const WEBM_TYPES = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'];
 const MP4_TYPES = ['video/mp4;codecs=avc1.42E01E,mp4a.40.2', 'video/mp4'];
+const SHOW_DEV_FIREBASE_UID = import.meta.env.DEV;
 
 function getSupportedMime(format: 'webm' | 'mp4') {
   if (typeof MediaRecorder === 'undefined') return null;
@@ -858,6 +860,8 @@ export default function DeviationId() {
         </div>
         <div className="deviation-status-badge"><i />{t('Saved image and profile stay on this device.')}</div>
       </header>
+
+      {SHOW_DEV_FIREBASE_UID && <DevFirebaseUid />}
 
       <div className="deviation-builder-grid">
         <DeviationIdForm
