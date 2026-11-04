@@ -252,6 +252,7 @@ function Experience() {
                   renderScale={visualSettings.settings.transitions.renderScale}
                   settings={visualSettings.settings}
                   onRenderingFps={setArtworkFps}
+                  rendererCompatibilityMode
                 />
               )}
               {camera.stream && (

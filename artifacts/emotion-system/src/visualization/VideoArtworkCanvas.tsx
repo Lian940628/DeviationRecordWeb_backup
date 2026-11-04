@@ -26,6 +26,7 @@ interface VideoArtworkCanvasProps {
   renderScale: number;
   settings: VisualSettings;
   onRenderingFps: (fps: number) => void;
+  rendererCompatibilityMode?: boolean;
   renderSize?: { width: number; height: number } | null;
   onCanvasReady?: (canvas: HTMLCanvasElement | null) => void;
 }
@@ -79,6 +80,7 @@ export function VideoArtworkCanvas({
   renderScale,
   settings,
   onRenderingFps,
+  rendererCompatibilityMode = false,
   renderSize = null,
   onCanvasReady,
 }: VideoArtworkCanvasProps) {
@@ -116,18 +118,31 @@ export function VideoArtworkCanvas({
       return;
     }
 
-    let renderer: THREE.WebGLRenderer;
-    try {
-      renderer = new THREE.WebGLRenderer({
+    const rendererOptions = {
         alpha: false,
         antialias: false,
-        powerPreference: 'high-performance',
         stencil: false,
         depth: false,
-      });
-    } catch {
+    } as const;
+    const powerPreferences = rendererCompatibilityMode
+      ? ['default', 'high-performance'] as const
+      : ['high-performance'] as const;
+    let renderer: THREE.WebGLRenderer | null = null;
+    let rendererError: unknown;
+    for (const powerPreference of powerPreferences) {
+      try {
+        renderer = new THREE.WebGLRenderer({ ...rendererOptions, powerPreference });
+        break;
+      } catch (error) {
+        rendererError = error;
+      }
+    }
+    if (!renderer) {
       if (errorRef.current) {
-        errorRef.current.textContent = 'WEBGL UNAVAILABLE · CAMERA PREVIEW CONTINUES';
+        errorRef.current.textContent = 'WEBGL UNAVAILABLE · ENABLE BROWSER GRAPHICS ACCELERATION';
+      }
+      if (import.meta.env.DEV) {
+        console.error('[visualization] WebGL renderer initialization failed', rendererError);
       }
       fpsCallbackRef.current(0);
       return;
