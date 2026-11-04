@@ -20,6 +20,12 @@ const asset = (type) => ({
   assetId: `asset-${type}`, publicId: `test/${type}`, secureUrl: `https://res.cloudinary.com/test/${type}`,
   resourceType: type,
 });
+class TestMediaStream {
+  constructor(tracks = []) { this.tracks = tracks; }
+  getTracks() { return this.tracks; }
+  getVideoTracks() { return this.tracks; }
+}
+const testTrack = { stop() {} };
 const tick = () => new Promise((resolve) => setTimeout(resolve, 1));
 
 async function compile(entry, mocks, sourceTransform = (source) => source) {
@@ -130,10 +136,15 @@ async function pageHarness({ visibility = 'PUBLIC', step = 1, imageReady = true,
       },
     },
   };
-  const code = await compile('src/pages/DeviationId.tsx', mocks, (source) => source.replace(
-    '  return (\n    <main className="deviation-id-page">',
-    '  globalThis.__inspect = { runCloudUpload, updateDraft, cloudUploadStatus, cloudUploadError, cloudUploadProgress, handleContinueDownload, handleDownloadVideo, stepRef, imageBlob, videoBlob, step, error, status, exportProgress };\n  return (\n    <main className="deviation-id-page">',
-  ));
+  const code = await compile('src/pages/DeviationId.tsx', mocks, (source) => source
+    .replace(
+      "function localError(error: unknown, language: 'en' | 'zh') {",
+      "function localError(error: unknown, language: 'en' | 'zh') { globalThis.__rawError = error;",
+    )
+    .replace(
+      '  return (\n    <main className="deviation-id-page">',
+      '  globalThis.__inspect = { runCloudUpload, updateDraft, cloudUploadStatus, cloudUploadError, cloudUploadProgress, handleContinueDownload, handleDownloadVideo, stepRef, imageBlob, videoBlob, step, error, status, exportProgress };\n  return (\n    <main className="deviation-id-page">',
+    ));
   const context = vm.createContext(sandbox(mocks, {
     console: { info: (...args) => logs.push(args), warn: (...args) => logs.push(args), error: (...args) => logs.push(args) },
     window: {
@@ -151,15 +162,11 @@ async function pageHarness({ visibility = 'PUBLIC', step = 1, imageReady = true,
       body: { appendChild: (anchor) => { anchor.click = () => downloads.push(anchor.download); } },
       createElement: (tag) => tag === 'canvas' ? {
         width: 0, height: 0, getContext: () => ({}),
-        captureStream: () => new MediaStream([{}]),
+        captureStream: () => new TestMediaStream([testTrack]),
       } : ({ style: {}, remove: no }),
     },
     HTMLCanvasElement: class { captureStream() {} },
-    MediaStream: class {
-      constructor(tracks = []) { this.tracks = tracks; }
-      getTracks() { return this.tracks; }
-      getVideoTracks() { return this.tracks; }
-    },
+    MediaStream: TestMediaStream,
     MediaRecorder: class {
       static isTypeSupported = () => true;
       constructor(_stream, options = {}) { this.state = 'inactive'; this.mimeType = options.mimeType ?? 'video/webm'; }
@@ -247,7 +254,7 @@ test('the actual step-4 action auto-generates both assets and PUBLIC uploads wit
   await page.flushExports();
   assert.equal(page.inspect().step, 4);
   assert.ok(page.inspect().imageBlob instanceof Blob);
-  assert.ok(page.inspect().videoBlob instanceof Blob, JSON.stringify({ error: page.inspect().error, status: page.inspect().status }));
+  assert.ok(page.inspect().videoBlob instanceof Blob, JSON.stringify({ error: page.inspect().error, status: page.inspect().status, raw: String(page.context.__rawError) }));
   assert.deepEqual(page.uploadCalls.map((args) => args[2]), ['image', 'video']);
   assert.deepEqual(page.downloads, []);
 });
@@ -258,7 +265,7 @@ test('the actual step-4 action generates PRIVATE downloads but never starts clou
   await page.flushExports();
   assert.equal(page.inspect().step, 4);
   assert.ok(page.inspect().imageBlob instanceof Blob);
-  assert.ok(page.inspect().videoBlob instanceof Blob, JSON.stringify({ error: page.inspect().error, status: page.inspect().status }));
+  assert.ok(page.inspect().videoBlob instanceof Blob, JSON.stringify({ error: page.inspect().error, status: page.inspect().status, raw: String(page.context.__rawError) }));
   assert.equal(page.uploadCalls.length, 0);
   assert.deepEqual(page.downloads, []);
 });
