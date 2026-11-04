@@ -308,7 +308,7 @@ export function DeviationIdForm({
           <div className="deviation-workflow-actions deviation-workflow-actions--split">
             <button type="button" className="deviation-button" onClick={() => onStepChange(2)} disabled={busy}><ArrowLeft size={13} />{t('BACK')}</button>
             <button type="button" className="deviation-button" onClick={onGenerate} disabled={busy}><RotateCcw size={13} />{t('REGENERATE')}</button>
-            <button type="button" className="deviation-button deviation-button--primary" onClick={onContinueDownload} disabled={busy || !draft.subjectId || !generated}>
+            <button type="button" className="deviation-button deviation-button--primary" onClick={onContinueDownload} disabled={busy || !draft.subjectId}>
               {t('CONTINUE TO DOWNLOAD')}<ArrowRight size={14} />
             </button>
           </div>

@@ -668,7 +668,7 @@ export default function DeviationId() {
       setError(t('A portrait image is required to export video.'));
       return;
     }
-    if (!generated || !draftRef.current.subjectId) {
+    if (!draftRef.current.subjectId) {
       setError(t('Generate the deviation ID before exporting the video.'));
       return;
     }
@@ -796,7 +796,7 @@ export default function DeviationId() {
       if (mountedRef.current) setExporting(false);
       exportingRef.current = false;
     }
-  }, [generated, language, outputFormat, photoImage, t]);
+  }, [language, outputFormat, photoImage, t]);
 
   const handleSaveImage = useCallback(async () => {
     const image = imageRef.current;
@@ -804,7 +804,7 @@ export default function DeviationId() {
       setError(t('A portrait image is required to export a PNG image.'));
       return;
     }
-    if (!generated || !draftRef.current.subjectId) {
+    if (!draftRef.current.subjectId) {
       setError(t('Generate the deviation ID before exporting the image.'));
       return;
     }
@@ -824,7 +824,7 @@ export default function DeviationId() {
     } finally {
       setBusy(false);
     }
-  }, [generated, language, t]);
+  }, [language, t]);
 
   const runCloudUpload = useCallback(async () => {
     const uploadDraft = draftRef.current;
@@ -1086,11 +1086,14 @@ export default function DeviationId() {
   }, [personSegmentationStatus, t]);
 
   const handleContinueDownload = useCallback(() => {
-    if (!generated) {
+    if (!imageRef.current || !draftRef.current.subjectId) {
       setError(t('RUN PERSON SEGMENTATION BEFORE GENERATING.'));
       return;
     }
     setError('');
+    setGenerated(true);
+    playingRef.current = false;
+    setPreviewPlaying(false);
     enterStepFourExports({
       setStep: (nextStep) => {
         stepRef.current = nextStep;
@@ -1101,7 +1104,7 @@ export default function DeviationId() {
       generateImage: () => { void handleSaveImage(); },
       generateVideo: () => { void handleSaveVideo(); },
     });
-  }, [generated, handleSaveImage, handleSaveVideo, imageBlob, t, videoBlob]);
+  }, [handleSaveImage, handleSaveVideo, imageBlob, t, videoBlob]);
 
   const previewStage = Math.min(5, Math.floor(previewProgress * 5) + 1);
   return (

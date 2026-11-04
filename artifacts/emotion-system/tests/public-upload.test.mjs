@@ -66,7 +66,7 @@ function sandbox(mocks, extra = {}) {
   };
 }
 
-async function pageHarness({ visibility = 'PUBLIC', step = 1, imageReady = true, videoReady = true, readReceipt, saveReceipt, upload } = {}) {
+async function pageHarness({ visibility = 'PUBLIC', step = 1, generated = true, imageReady = true, videoReady = true, readReceipt, saveReceipt, upload } = {}) {
   let cursor = 0;
   let stateCursor = 0;
   let dirty = true;
@@ -76,7 +76,7 @@ async function pageHarness({ visibility = 'PUBLIC', step = 1, imageReady = true,
   const logs = [];
   const downloads = [];
   let syntheticNow = 0;
-  const overrides = { 0: { ...draft, datasetVisibility: visibility }, 2: {}, 4: 'ready', 5: true, 6: step, 11: imageReady ? png : null, 12: imageReady ? 'finished.png' : '', 13: videoReady ? video : null, 14: videoReady ? 'finished.webm' : '' };
+  const overrides = { 0: { ...draft, datasetVisibility: visibility }, 2: {}, 4: 'ready', 5: generated, 6: step, 11: imageReady ? png : null, 12: imageReady ? 'finished.png' : '', 13: videoReady ? video : null, 14: videoReady ? 'finished.webm' : '' };
   const same = (left, right) => left && right && left.length === right.length && left.every((v, i) => Object.is(v, right[i]));
   const react = {
     useState(initial) {
@@ -143,7 +143,7 @@ async function pageHarness({ visibility = 'PUBLIC', step = 1, imageReady = true,
     )
     .replace(
       '  return (\n    <main className="deviation-id-page">',
-      '  globalThis.__inspect = { runCloudUpload, updateDraft, cloudUploadStatus, cloudUploadError, cloudUploadProgress, handleContinueDownload, handleDownloadVideo, stepRef, imageBlob, videoBlob, step, error, status, exportProgress };\n  return (\n    <main className="deviation-id-page">',
+      '  globalThis.__inspect = { runCloudUpload, updateDraft, cloudUploadStatus, cloudUploadError, cloudUploadProgress, handleContinueDownload, handleDownloadVideo, stepRef, imageBlob, videoBlob, step, generated, previewPlaying, error, status, exportProgress };\n  return (\n    <main className="deviation-id-page">',
     ));
   const context = vm.createContext(sandbox(mocks, {
     console: { info: (...args) => logs.push(args), warn: (...args) => logs.push(args), error: (...args) => logs.push(args) },
@@ -248,11 +248,13 @@ test('entering step 4 starts each missing export without requiring a download cl
   assert.equal(isVideoDownloadAllowed(4, null, 'finished.webm'), false);
 });
 
-test('the actual step-4 action auto-generates both assets and PUBLIC uploads without downloading', async () => {
-  const page = await pageHarness({ step: 3, imageReady: false, videoReady: false });
+test('the actual step-4 action works without playing preview, generates both assets and PUBLIC uploads', async () => {
+  const page = await pageHarness({ step: 3, generated: false, imageReady: false, videoReady: false });
   page.inspect().handleContinueDownload();
   await page.flushExports();
   assert.equal(page.inspect().step, 4);
+  assert.equal(page.inspect().generated, true);
+  assert.equal(page.inspect().previewPlaying, false);
   assert.ok(page.inspect().imageBlob instanceof Blob);
   assert.ok(page.inspect().videoBlob instanceof Blob, JSON.stringify({ error: page.inspect().error, status: page.inspect().status, raw: String(page.context.__rawError) }));
   assert.deepEqual(page.uploadCalls.map((args) => args[2]), ['image', 'video']);
@@ -260,10 +262,12 @@ test('the actual step-4 action auto-generates both assets and PUBLIC uploads wit
 });
 
 test('the actual step-4 action generates PRIVATE downloads but never starts cloud upload', async () => {
-  const page = await pageHarness({ visibility: 'PRIVATE', step: 3, imageReady: false, videoReady: false });
+  const page = await pageHarness({ visibility: 'PRIVATE', step: 3, generated: false, imageReady: false, videoReady: false });
   page.inspect().handleContinueDownload();
   await page.flushExports();
   assert.equal(page.inspect().step, 4);
+  assert.equal(page.inspect().generated, true);
+  assert.equal(page.inspect().previewPlaying, false);
   assert.ok(page.inspect().imageBlob instanceof Blob);
   assert.ok(page.inspect().videoBlob instanceof Blob, JSON.stringify({ error: page.inspect().error, status: page.inspect().status, raw: String(page.context.__rawError) }));
   assert.equal(page.uploadCalls.length, 0);
