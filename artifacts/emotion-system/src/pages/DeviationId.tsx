@@ -9,16 +9,24 @@ import {
   deleteAllProjects,
   deleteProject,
   exportProjectFile,
+  getCloudinaryUploadReceipt,
   getProject,
   importProjectFile,
   getNextLocalSubjectId,
   listProjects,
+  saveCloudinaryUploadReceipt,
   saveProject,
   type StoredProject,
   type StoredProjectSummary,
 } from './deviationId/projectStore';
 import { renderPersonFrame } from './deviationId/renderPersonFrame';
 import { renderPostcardPng } from './deviationId/imageExport';
+import {
+  createUploadId,
+  uploadFinishedAsset,
+  type CloudinaryAssetType,
+  type CloudinaryUploadResult,
+} from './deviationId/cloudinaryUpload';
 import {
   createDefaultDraft,
   createProjectKey,
@@ -31,6 +39,8 @@ import './DeviationId.css';
 const WEBM_TYPES = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'];
 const MP4_TYPES = ['video/mp4;codecs=avc1.42E01E,mp4a.40.2', 'video/mp4'];
 const SHOW_DEV_FIREBASE_UID = import.meta.env.DEV;
+type CloudUploadStatus = 'idle' | 'waiting' | 'uploading' | 'complete' | 'error';
+type CachedCloudAsset = { contentHash: string; asset: CloudinaryUploadResult };
 
 function getSupportedMime(format: 'webm' | 'mp4') {
   if (typeof MediaRecorder === 'undefined') return null;
@@ -67,6 +77,11 @@ function downloadBlob(blob: Blob, filename: string) {
 
 function safeFilePart(value: string) {
   return value.trim().replace(/[^\p{L}\p{N}_-]+/gu, '_').replace(/^_+|_+$/g, '').slice(0, 48) || 'SUBJECT';
+}
+
+async function hashBlob(blob: Blob) {
+  const digest = await crypto.subtle.digest('SHA-256', await blob.arrayBuffer());
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
 function localError(error: unknown, language: 'en' | 'zh') {
@@ -122,6 +137,12 @@ export default function DeviationId() {
   const [imageFilename, setImageFilename] = useState('');
   const [videoBlob, setVideoBlob] = useState<Blob | null>(null);
   const [videoFilename, setVideoFilename] = useState('');
+  const [cloudUploadStatus, setCloudUploadStatus] = useState<CloudUploadStatus>('idle');
+  const [cloudUploadError, setCloudUploadError] = useState('');
+  const [cloudUploadProgress, setCloudUploadProgress] = useState<Record<CloudinaryAssetType, number>>({
+    image: 0,
+    video: 0,
+  });
   const [status, setStatus] = useState('');
   const [error, setError] = useState('');
   const [projects, setProjects] = useState<StoredProjectSummary[]>([]);
@@ -154,6 +175,10 @@ export default function DeviationId() {
   const recorderRef = useRef<MediaRecorder | null>(null);
   const exportStreamRef = useRef<MediaStream | null>(null);
   const exportingRef = useRef(false);
+  const uploadControllerRef = useRef<AbortController | null>(null);
+  const uploadRunningRef = useRef(false);
+  const autoUploadAttemptRef = useRef<{ subjectId: string; imageBlob: Blob; videoBlob: Blob } | null>(null);
+  const uploadedResultsRef = useRef<Partial<Record<CloudinaryAssetType, CachedCloudAsset>>>({});
   const lastCanvasRenderAtRef = useRef(0);
   const audioContextRef = useRef<AudioContext | null>(null);
   const mountedRef = useRef(false);
@@ -241,6 +266,7 @@ export default function DeviationId() {
     return () => {
       mountedRef.current = false;
       segmentationRequestRef.current += 1;
+      uploadControllerRef.current?.abort();
       exportingRef.current = false;
       personMattingRef.current?.disposePersonSegmenter();
       window.cancelAnimationFrame(animationFrameRef.current);
@@ -785,6 +811,170 @@ export default function DeviationId() {
     }
   }, [generated, language, t]);
 
+  const runCloudUpload = useCallback(async () => {
+    const uploadDraft = draftRef.current;
+    const image = imageBlob;
+    const video = videoBlob;
+    if (uploadDraft.datasetVisibility !== 'PUBLIC') return;
+    if (!generated || !image || !video || !uploadDraft.subjectId) {
+      setCloudUploadStatus('waiting');
+      return;
+    }
+    if (uploadRunningRef.current) return;
+
+    const subjectId = uploadDraft.subjectId;
+    const controller = new AbortController();
+    uploadControllerRef.current = controller;
+    uploadRunningRef.current = true;
+    setCloudUploadStatus('uploading');
+    setCloudUploadError('');
+    setCloudUploadProgress({ image: 0, video: 0 });
+
+    const files: Array<{
+      assetType: CloudinaryAssetType;
+      blob: Blob;
+      filename: string;
+    }> = [
+      {
+        assetType: 'image',
+        blob: image,
+        filename: imageFilename || `DEVIATION_ID_${safeFilePart(subjectId)}.png`,
+      },
+      {
+        assetType: 'video',
+        blob: video,
+        filename: videoFilename || `DEVIATION_ID_${safeFilePart(subjectId)}.${video.type.includes('mp4') ? 'mp4' : 'webm'}`,
+      },
+    ];
+
+    try {
+      const submissionId = createUploadId(subjectId);
+      for (const file of files) {
+        if (
+          controller.signal.aborted
+          || draftRef.current.datasetVisibility !== 'PUBLIC'
+          || draftRef.current.subjectId !== subjectId
+        ) {
+          throw new DOMException('Upload cancelled.', 'AbortError');
+        }
+
+        const contentHash = await hashBlob(file.blob);
+        const savedReceipt = await getCloudinaryUploadReceipt(submissionId, file.assetType);
+        const inMemoryResult = uploadedResultsRef.current[file.assetType];
+        let asset = inMemoryResult?.contentHash === contentHash
+          ? inMemoryResult.asset
+          : savedReceipt?.contentHash === contentHash
+            ? savedReceipt.asset
+            : null;
+
+        if (!asset) {
+          asset = await uploadFinishedAsset(
+            file.blob,
+            file.filename,
+            file.assetType,
+            submissionId,
+            controller.signal,
+            (progress) => {
+              if (!mountedRef.current) return;
+              setCloudUploadProgress((current) => ({
+                ...current,
+                [file.assetType]: Math.min(1, Math.max(0, progress)),
+              }));
+            },
+          );
+          uploadedResultsRef.current[file.assetType] = { contentHash, asset };
+        } else {
+          uploadedResultsRef.current[file.assetType] = { contentHash, asset };
+        }
+
+        if (savedReceipt?.contentHash !== contentHash) {
+          await saveCloudinaryUploadReceipt({
+            submissionId,
+            assetType: file.assetType,
+            asset,
+            contentHash,
+            filename: file.filename,
+            mimeType: file.blob.type,
+            bytes: file.blob.size,
+            cardName: uploadDraft.cardName,
+            subjectId,
+            deviationLevel: uploadDraft.deviationLevel,
+          });
+        }
+        if (mountedRef.current) {
+          setCloudUploadProgress((current) => ({ ...current, [file.assetType]: 1 }));
+        }
+      }
+
+      if (
+        mountedRef.current
+        && !controller.signal.aborted
+        && draftRef.current.datasetVisibility === 'PUBLIC'
+        && draftRef.current.subjectId === subjectId
+      ) {
+        setCloudUploadStatus('complete');
+      }
+    } catch (uploadError) {
+      const cancelled = controller.signal.aborted
+        || draftRef.current.datasetVisibility !== 'PUBLIC'
+        || (uploadError instanceof DOMException && uploadError.name === 'AbortError');
+      if (mountedRef.current) {
+        if (cancelled) {
+          setCloudUploadStatus('idle');
+        } else {
+          setCloudUploadStatus('error');
+          setCloudUploadError(localError(uploadError, language));
+        }
+      }
+    } finally {
+      uploadRunningRef.current = false;
+      if (uploadControllerRef.current === controller) uploadControllerRef.current = null;
+    }
+  }, [generated, imageBlob, imageFilename, language, videoBlob, videoFilename]);
+
+  useEffect(() => {
+    if (draft.datasetVisibility !== 'PUBLIC') {
+      uploadControllerRef.current?.abort();
+      autoUploadAttemptRef.current = null;
+      if (cloudUploadStatus !== 'idle') setCloudUploadStatus('idle');
+      if (cloudUploadError) setCloudUploadError('');
+      setCloudUploadProgress({ image: 0, video: 0 });
+      return;
+    }
+
+    if (!generated || !imageBlob || !videoBlob || !draft.subjectId) {
+      uploadControllerRef.current?.abort();
+      autoUploadAttemptRef.current = null;
+      setCloudUploadStatus('waiting');
+      if (cloudUploadError) setCloudUploadError('');
+      setCloudUploadProgress({ image: 0, video: 0 });
+      return;
+    }
+
+    const previousAttempt = autoUploadAttemptRef.current;
+    if (
+      previousAttempt?.subjectId === draft.subjectId
+      && previousAttempt.imageBlob === imageBlob
+      && previousAttempt.videoBlob === videoBlob
+    ) return;
+
+    autoUploadAttemptRef.current = {
+      subjectId: draft.subjectId,
+      imageBlob,
+      videoBlob,
+    };
+    void runCloudUpload();
+  }, [
+    cloudUploadError,
+    cloudUploadStatus,
+    draft.datasetVisibility,
+    draft.subjectId,
+    generated,
+    imageBlob,
+    runCloudUpload,
+    videoBlob,
+  ]);
+
   const handleDownloadImage = useCallback(() => {
     if (!imageBlob || !imageFilename) return;
     downloadBlob(imageBlob, imageFilename);
@@ -956,6 +1146,39 @@ export default function DeviationId() {
             )}
             {exporting && <div className="deviation-export-progress"><span style={{ width: `${Math.round(exportProgress * 100)}%` }} /><small>{Math.round(exportProgress * 100)}%</small></div>}
           </div>
+
+          {draft.datasetVisibility === 'PUBLIC' && (
+            <div className="deviation-cloud-upload" role="status" aria-live="polite">
+              <div className="deviation-cloud-upload-heading">
+                <span>{t('PUBLIC CLOUD UPLOAD')}</span>
+                <small>
+                  {cloudUploadStatus === 'uploading'
+                    ? t('Uploading finished postcard files…')
+                    : cloudUploadStatus === 'complete'
+                      ? t('CLOUD UPLOAD SUCCESSFUL · NOT PUBLISHED.')
+                      : cloudUploadStatus === 'error'
+                        ? t('Upload incomplete. Your downloads are still available.')
+                        : t('Waiting for completed PNG and video.')}
+                </small>
+              </div>
+              <div className="deviation-cloud-upload-progress">
+                <span>{t('IMAGE')}</span>
+                <i><b style={{ width: `${Math.round(cloudUploadProgress.image * 100)}%` }} /></i>
+                <span>{t('VIDEO')}</span>
+                <i><b style={{ width: `${Math.round(cloudUploadProgress.video * 100)}%` }} /></i>
+              </div>
+              {cloudUploadError && <p className="deviation-error-message">{cloudUploadError}</p>}
+              {cloudUploadStatus === 'error' && imageBlob && videoBlob && generated && (
+                <button
+                  type="button"
+                  className="deviation-button deviation-cloud-upload-retry"
+                  onClick={() => { void runCloudUpload(); }}
+                >
+                  <RotateCcw size={13} />{t('RETRY UPLOAD')}
+                </button>
+              )}
+            </div>
+          )}
 
           {lastSavedAt !== null && <div className="deviation-saved-time">{t('SAVED AT')} · {new Intl.DateTimeFormat(language === 'zh' ? 'zh-TW' : 'en-US', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(lastSavedAt))}</div>}
           {status && <p className="deviation-status-message" role="status">{status}</p>}

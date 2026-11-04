@@ -30,6 +30,7 @@ const ZH: Record<string, string> = {
   'Waiting for completed PNG and video.': '等待 PNG 圖片與影片完成。',
   'Uploading finished postcard files…': '正在上傳完成的明信片檔案…',
   'Both finished files are uploaded.': '兩個完成檔案都已上傳。',
+  'CLOUD UPLOAD SUCCESSFUL · NOT PUBLISHED.': '雲端上傳成功 · 尚未發布。',
   'Upload incomplete. Your downloads are still available.': '上傳未完成，下載檔案仍可使用。',
   'RETRY UPLOAD': '重試上傳',
   'IMAGE': '圖片',

@@ -1,4 +1,4 @@
-import { getOrCreateAnonymousUser } from '../../auth/firebaseAuth';
+import { getFirebaseAuth } from '../../auth/firebaseAuth';
 
 export type CloudinaryAssetType = 'image' | 'video';
 
@@ -120,7 +120,10 @@ async function getSignedUpload(
   forceRefresh: boolean,
   signal: AbortSignal,
 ): Promise<UploadSignature> {
-  const user = await getOrCreateAnonymousUser();
+  const auth = getFirebaseAuth();
+  await auth.authStateReady();
+  const user = auth.currentUser;
+  if (!user) throw new Error('There is no existing Firebase session. No sign-in was started.');
   if (!user.isAnonymous) throw new Error('The saved Firebase session is not anonymous.');
 
   const token = await user.getIdToken(forceRefresh);
