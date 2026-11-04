@@ -10,6 +10,8 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: identity
+    description: Firebase identity verification
 paths:
   /healthz:
     get:
@@ -24,7 +26,50 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /identity/verify:
+    post:
+      operationId: verifyFirebaseIdentity
+      tags: [identity]
+      summary: Verify a Firebase identity with the configured Worker
+      security:
+        - FirebaseBearer: []
+      responses:
+        "200":
+          description: Firebase anonymous identity verified
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IdentityVerification"
+        "401":
+          description: Missing, expired, or rejected Firebase ID token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "429":
+          description: Verification request rate limit reached
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "502":
+          description: Worker verification failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "504":
+          description: Worker verification timed out
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
 components:
+  securitySchemes:
+    FirebaseBearer:
+      type: http
+      scheme: bearer
+      bearerFormat: Firebase ID Token
   schemas:
     HealthStatus:
       type: object
@@ -33,4 +78,24 @@ components:
           type: string
       required:
         - status
+    IdentityVerification:
+      type: object
+      properties:
+        verified:
+          type: boolean
+        uid:
+          type: string
+        anonymous:
+          type: boolean
+      required:
+        - verified
+        - uid
+        - anonymous
+    ApiError:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
 

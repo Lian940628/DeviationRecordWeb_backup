@@ -1,0 +1,82 @@
+.identity-verification-error {
+  position: fixed;
+  z-index: 100;
+  left: 16px;
+  bottom: 16px;
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  width: min(520px, calc(100vw - 32px));
+  padding: 12px;
+  border: 1px solid rgba(255, 99, 99, .55);
+  background: rgba(7, 13, 12, .96);
+  color: #f2e9df;
+  box-shadow: 0 12px 42px rgba(0, 0, 0, .4);
+  font: 9px/1.5 var(--app-font-mono);
+  letter-spacing: .045em;
+}
+
+.identity-verification-error > svg {
+  color: #ff7979;
+}
+
+.identity-verification-copy {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.identity-verification-copy strong {
+  color: #ff9a91;
+  font-size: 9px;
+  letter-spacing: .11em;
+}
+
+.identity-verification-copy span {
+  color: #c5c9c3;
+  overflow-wrap: anywhere;
+}
+
+.identity-verification-error button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 9px;
+  border: 1px solid rgba(122, 236, 194, .4);
+  background: rgba(39, 130, 104, .1);
+  color: #b3f5d7;
+  cursor: pointer;
+  font: inherit;
+  letter-spacing: .08em;
+}
+
+.identity-verification-error button:disabled {
+  opacity: .6;
+  cursor: wait;
+}
+
+.identity-verification-spin {
+  animation: identity-verification-rotate .8s linear infinite;
+}
+
+@keyframes identity-verification-rotate {
+  to { transform: rotate(360deg); }
+}
+
+@media (max-width: 520px) {
+  .identity-verification-error {
+    left: 10px;
+    bottom: 10px;
+    grid-template-columns: 16px minmax(0, 1fr);
+    width: calc(100vw - 20px);
+  }
+  .identity-verification-error button {
+    grid-column: 2;
+    justify-self: start;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .identity-verification-spin { animation: none; }
+}

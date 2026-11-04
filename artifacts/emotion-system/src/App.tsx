@@ -25,6 +25,7 @@ import { LanguageProvider, useAppLanguage, useTranslation } from './i18n';
 import InteractiveLanding from './components/InteractiveLanding';
 import { SiteInteractionEffects } from './components/SiteInteractionEffects';
 import DeviationId from './pages/DeviationId';
+import { IdentityVerificationStatus } from './auth/IdentityVerificationStatus';
 
 function Header({ minimal = false }: { minimal?: boolean }) {
   const { language, setLanguage } = useAppLanguage();
@@ -430,6 +431,7 @@ export default function App() {
   return (
     <LanguageProvider>
       <SiteInteractionEffects />
+      <IdentityVerificationStatus />
       <Switch>
         <Route path="/" component={Home} />
         <Route path="/experience" component={Experience} />
