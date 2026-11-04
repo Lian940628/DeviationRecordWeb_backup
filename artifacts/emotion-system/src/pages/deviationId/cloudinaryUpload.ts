@@ -27,6 +27,8 @@ interface UploadSignature {
   apiKey: string;
   params: Record<string, string | number | boolean>;
   signature: string;
+  publicId: string;
+  resourceType: CloudinaryAssetType;
 }
 
 const workerBaseUrl = 'https://deviationvalueweb.wang-elaine628.workers.dev';
@@ -45,7 +47,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function toSignRequest(payload: unknown): UploadSignature {
+function toSignRequest(payload: unknown, expectedAssetType: CloudinaryAssetType): UploadSignature {
   if (!isRecord(payload)) {
     throw new Error('The signing service returned an invalid response.');
   }
@@ -56,13 +58,24 @@ function toSignRequest(payload: unknown): UploadSignature {
   const uploadUrl = payload.uploadUrl;
   const apiKey = payload.apiKey;
   const signature = payload.signature;
+  const publicId = payload.publicId;
+  const resourceType = payload.resourceType;
+  const validResourceType = resourceType === 'image' || resourceType === 'video'
+    ? resourceType
+    : null;
+  const validParams = params && Object.entries(params).every(([key, value]) =>
+    key.length > 0
+    && (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean'));
   if (
     typeof uploadUrl !== 'string'
     || typeof apiKey !== 'string'
     || typeof signature !== 'string'
-    || !params
+    || !validParams
+    || typeof publicId !== 'string'
+    || !publicId.trim()
+    || validResourceType !== expectedAssetType
   ) {
-    throw new Error('The signing service response is missing uploadUrl, apiKey, params, or signature.');
+    throw new Error('The signing service response is missing valid uploadUrl, apiKey, params, signature, publicId, or resourceType.');
   }
 
   let url: URL;
@@ -75,9 +88,15 @@ function toSignRequest(payload: unknown): UploadSignature {
     url.protocol !== 'https:'
     || url.hostname !== 'api.cloudinary.com'
     || !url.pathname.startsWith(`/v1_1/${cloudName}/`)
-    || !/\/(image|video)\/upload$/.test(url.pathname)
+    || !url.pathname.endsWith(`/${expectedAssetType}/upload`)
   ) {
     throw new Error('The signing service returned an unexpected Cloudinary destination.');
+  }
+  if (
+    Object.hasOwn(params, 'public_id')
+    && (typeof params.public_id !== 'string' || params.public_id !== publicId)
+  ) {
+    throw new Error('The signed publicId does not match the upload parameters.');
   }
   if (params.upload_preset !== uploadPreset) {
     throw new Error(`The signing service must sign the "${uploadPreset}" upload preset.`);
@@ -91,6 +110,8 @@ function toSignRequest(payload: unknown): UploadSignature {
     apiKey,
     params,
     signature,
+    publicId,
+    resourceType: validResourceType,
   };
 }
 
@@ -156,14 +177,14 @@ async function getSignedUpload(
         ? payload.error
         : `The signing service rejected the request (HTTP ${retry.status}).`);
     }
-    return toSignRequest(payload);
+    return toSignRequest(payload, request.assetType);
   }
   if (!response.ok) {
     throw new Error(isRecord(payload) && typeof payload.error === 'string'
       ? payload.error
       : `The signing service rejected the request (HTTP ${response.status}).`);
   }
-  return toSignRequest(payload);
+  return toSignRequest(payload, request.assetType);
 }
 
 function uploadToCloudinary(
@@ -178,6 +199,9 @@ function uploadToCloudinary(
   form.append('file', blob, filename);
   form.append('api_key', signature.apiKey);
   form.append('signature', signature.signature);
+  if (signature.params.public_id === undefined) {
+    form.append('public_id', signature.publicId);
+  }
   for (const [key, value] of Object.entries(signature.params)) {
     if (key === 'api_key' || key === 'signature' || value === undefined || value === null) continue;
     form.append(key, String(value));
@@ -205,7 +229,8 @@ function uploadToCloudinary(
         || typeof payload.asset_id !== 'string'
         || typeof payload.public_id !== 'string'
         || typeof payload.secure_url !== 'string'
-        || payload.resource_type !== assetType
+        || payload.resource_type !== signature.resourceType
+        || payload.public_id !== signature.publicId
       ) {
         reject(new Error('Cloudinary returned an incomplete asset record.'));
         return;
@@ -214,7 +239,7 @@ function uploadToCloudinary(
         assetId: payload.asset_id,
         publicId: payload.public_id,
         secureUrl: payload.secure_url,
-        resourceType: assetType,
+        resourceType: signature.resourceType,
         format: typeof payload.format === 'string' ? payload.format : null,
         bytes: typeof payload.bytes === 'number' ? payload.bytes : null,
         width: typeof payload.width === 'number' ? payload.width : null,
@@ -257,8 +282,10 @@ export async function uploadFinishedAsset(
     publicConsent: true,
   };
   const signature = await getSignedUpload(signRequest, false, signal);
-  const expectedPath = `/${assetType}/upload`;
-  if (!new URL(signature.uploadUrl).pathname.endsWith(expectedPath)) {
+  if (
+    signature.resourceType !== assetType
+    || !new URL(signature.uploadUrl).pathname.endsWith(`/${assetType}/upload`)
+  ) {
     throw new Error(`The signing service returned a URL for the wrong ${assetType} resource type.`);
   }
   return uploadToCloudinary(blob, filename, assetType, signature, signal, onProgress);
