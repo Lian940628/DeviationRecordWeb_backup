@@ -14,7 +14,7 @@ const firebaseOptions = {
 let authInstance: Auth | null = null;
 let anonymousUserPromise: Promise<User> | null = null;
 
-function getFirebaseAuth() {
+export function getFirebaseAuth() {
   if (!firebaseApiKey) {
     throw new Error('Firebase is not configured. Add VITE_FIREBASE_API_KEY to the deployment environment.');
   }
