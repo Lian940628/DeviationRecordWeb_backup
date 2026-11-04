@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 export const DEVIATION_PROJECT_FORMAT = 'emotion-system.deviation-id.project';
-export const DEVIATION_PROJECT_VERSION = 2;
+export const DEVIATION_PROJECT_VERSION = 3;
 export const MAX_PROJECT_FILE_BYTES = 40 * 1024 * 1024;
 export const MAX_PHOTO_BYTES = 24 * 1024 * 1024;
 
@@ -10,6 +10,7 @@ const currentDeviationDraftSchema = z.object({
   selfDefinition: z.string().trim().max(80),
   bio: z.string().trim().max(240),
   subjectId: z.string().trim().max(48),
+  datasetVisibility: z.enum(['PUBLIC', 'PRIVATE']).default('PRIVATE'),
   deviationLevel: z.number().int().min(1).max(100),
   crop: z.object({
     zoom: z.number().min(1).max(3),
@@ -70,7 +71,7 @@ export type DeviationDraft = z.infer<typeof deviationDraftSchema>;
 
 export const portableProjectSchema = z.object({
   format: z.literal(DEVIATION_PROJECT_FORMAT),
-  version: z.union([z.literal(1), z.literal(DEVIATION_PROJECT_VERSION)]),
+  version: z.union([z.literal(1), z.literal(2), z.literal(DEVIATION_PROJECT_VERSION)]),
   exportedAt: z.string().datetime(),
   createdAt: z.string().datetime(),
   draft: deviationDraftSchema,
@@ -102,6 +103,7 @@ export function createDefaultDraft(): DeviationDraft {
     selfDefinition: '',
     bio: '',
     subjectId: '',
+    datasetVisibility: 'PRIVATE',
     deviationLevel: 42,
     crop: { zoom: 1, x: 0, y: 0 },
     visualMode: 'ARCHIVE',

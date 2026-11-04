@@ -17,6 +17,7 @@ import {
   type StoredProjectSummary,
 } from './deviationId/projectStore';
 import { renderPersonFrame } from './deviationId/renderPersonFrame';
+import { renderPostcardPng } from './deviationId/imageExport';
 import {
   createDefaultDraft,
   createProjectKey,
@@ -115,6 +116,8 @@ export default function DeviationId() {
   const [previewProgress, setPreviewProgress] = useState(0);
   const [exportProgress, setExportProgress] = useState(0);
   const [exporting, setExporting] = useState(false);
+  const [imageBlob, setImageBlob] = useState<Blob | null>(null);
+  const [imageFilename, setImageFilename] = useState('');
   const [videoBlob, setVideoBlob] = useState<Blob | null>(null);
   const [videoFilename, setVideoFilename] = useState('');
   const [status, setStatus] = useState('');
@@ -168,12 +171,17 @@ export default function DeviationId() {
   }, [draft.output.format, mp4Available, webmAvailable]);
 
   const updateDraft = useCallback((patch: Partial<DeviationDraft>) => {
+    const patchKeys = Object.keys(patch);
+    const visibilityOnly = patchKeys.length > 0 && patchKeys.every((key) => key === 'datasetVisibility');
     setDraft((current) => {
       const next = { ...current, ...patch };
       draftRef.current = next;
       return next;
     });
+    if (visibilityOnly) return;
     setGenerated(false);
+    setImageBlob(null);
+    setImageFilename('');
     setVideoBlob(null);
     setVideoFilename('');
     setPreviewProgress(0);
@@ -320,7 +328,7 @@ export default function DeviationId() {
     }
   }, []);
 
-  const startPreview = useCallback(async (draftToUse = draftRef.current) => {
+  const startPreview = useCallback(async (draftToUse = draftRef.current, resetExports = true) => {
     videoRef.current?.pause();
     if (!draftToUse.subjectId) {
       const nextDraft = { ...draftToUse, subjectId: await getNextLocalSubjectId() };
@@ -329,8 +337,12 @@ export default function DeviationId() {
       draftToUse = nextDraft;
     }
     setGenerated(true);
-    setVideoBlob(null);
-    setVideoFilename('');
+    if (resetExports) {
+      setImageBlob(null);
+      setImageFilename('');
+      setVideoBlob(null);
+      setVideoFilename('');
+    }
     previewTimeRef.current = 0;
     playbackStartRef.current = performance.now();
     playingRef.current = true;
@@ -383,6 +395,8 @@ export default function DeviationId() {
       const isolated = await setPhoto(file, file.name);
       if (!isolated) return;
       setGenerated(false);
+      setImageBlob(null);
+      setImageFilename('');
       videoRef.current?.pause();
       setVideoBlob(null);
       playingRef.current = false;
@@ -447,6 +461,8 @@ export default function DeviationId() {
       setCreatedAt(project.createdAt);
       createdAtRef.current = project.createdAt;
       setLastSavedAt(project.updatedAt);
+      setImageBlob(null);
+      setImageFilename('');
       if (project.photoBlob) await setPhoto(project.photoBlob, 'LOCAL PHOTO');
       else await setPhoto(null, '');
       setGenerated(Boolean(project.draft.subjectId));
@@ -514,6 +530,8 @@ export default function DeviationId() {
     setLastSavedAt(null);
     void setPhoto(null, '');
     setGenerated(false);
+    setImageBlob(null);
+    setImageFilename('');
     setVideoBlob(null);
     setVideoFilename('');
     playingRef.current = false;
@@ -580,6 +598,8 @@ export default function DeviationId() {
       setCreatedAt(importedCreatedAt);
       createdAtRef.current = importedCreatedAt;
       setLastSavedAt(saved.updatedAt);
+      setImageBlob(null);
+      setImageFilename('');
       setGenerated(Boolean(imported.draft.subjectId));
       setVideoBlob(null);
       setVideoFilename('');
@@ -734,6 +754,40 @@ export default function DeviationId() {
     }
   }, [generated, language, outputFormat, photoImage, t]);
 
+  const handleSaveImage = useCallback(async () => {
+    const image = imageRef.current;
+    if (!image) {
+      setError(t('A portrait image is required to export a PNG image.'));
+      return;
+    }
+    if (!generated || !draftRef.current.subjectId) {
+      setError(t('Generate the deviation ID before exporting the image.'));
+      return;
+    }
+
+    setBusy(true);
+    setError('');
+    setStatus(t('EXPORTING IMAGE…'));
+    try {
+      const exportDraft = draftRef.current;
+      const blob = await renderPostcardPng(exportDraft, image);
+      const filename = `DEVIATION_ID_${safeFilePart(exportDraft.subjectId)}.png`;
+      setImageBlob(blob);
+      setImageFilename(filename);
+      downloadBlob(blob, filename);
+      setStatus(t('IMAGE READY · DOWNLOAD AVAILABLE.'));
+    } catch (imageError) {
+      setError(localError(imageError, language));
+    } finally {
+      setBusy(false);
+    }
+  }, [generated, language, t]);
+
+  const handleDownloadImage = useCallback(() => {
+    if (!imageBlob || !imageFilename) return;
+    downloadBlob(imageBlob, imageFilename);
+  }, [imageBlob, imageFilename]);
+
   const handleDownloadVideo = useCallback(() => {
     if (!videoBlob || !videoFilename) return;
     downloadBlob(videoBlob, videoFilename);
@@ -758,7 +812,7 @@ export default function DeviationId() {
       previewTimeRef.current = Math.min(draft.animation.durationSeconds, (performance.now() - playbackStartRef.current) / 1000);
       setPreviewPlaying(false);
     } else if (generated) {
-      void startPreview().catch((playbackError: unknown) => setError(localError(playbackError, language)));
+      void startPreview(draftRef.current, false).catch((playbackError: unknown) => setError(localError(playbackError, language)));
     } else {
       handleGenerate();
     }
@@ -818,6 +872,8 @@ export default function DeviationId() {
           outputFormat={outputFormat}
           busy={busy || exporting}
           generated={generated}
+          imageReady={Boolean(imageBlob)}
+          imageFilename={imageFilename}
           videoReady={Boolean(videoBlob)}
           videoFilename={videoFilename}
           exportProgress={exportProgress}
@@ -825,7 +881,7 @@ export default function DeviationId() {
           onDraftChange={updateDraft}
           onStepChange={setStep}
           onContinueProfile={handleContinueProfile}
-          onContinueLocal={() => { void handleContinueLocal(); }}
+          onContinueDatasetChoice={() => { void handleContinueLocal(); }}
           onContinueDownload={handleContinueDownload}
           onPhotoChange={(file) => { void handlePhotoChange(file); }}
           onNewProject={handleNewProject}
@@ -833,6 +889,8 @@ export default function DeviationId() {
           onExportProject={() => { void handleExportProject(); }}
           onImportFile={(file) => { void handleImportFile(file); }}
           onGenerate={() => { void handleGenerate(); }}
+          onSaveImage={() => { void handleSaveImage(); }}
+          onDownloadImage={handleDownloadImage}
           onSaveVideo={() => { void handleSaveVideo(); }}
           onDownloadVideo={handleDownloadVideo}
         />
@@ -913,7 +971,7 @@ export default function DeviationId() {
       />
       <footer className="deviation-footer">
         <span>LOCAL FIRST / INDEXEDDB</span>
-        <span>PROJECT FILE V1 · NO ACCOUNT · NO SYNC</span>
+        <span>PROJECT FILE V3 · NO ACCOUNT · NO SYNC</span>
         <span>DEVIATION RECORD</span>
       </footer>
     </main>

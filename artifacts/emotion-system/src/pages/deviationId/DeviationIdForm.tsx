@@ -5,6 +5,7 @@ import {
   Download,
   FilePlus2,
   FolderOpen,
+  Image,
   ImageUp,
   LockKeyhole,
   RotateCcw,
@@ -31,6 +32,8 @@ interface DeviationIdFormProps {
   outputFormat: DeviationDraft['output']['format'];
   busy: boolean;
   generated: boolean;
+  imageReady: boolean;
+  imageFilename: string;
   videoReady: boolean;
   videoFilename: string;
   exportProgress: number;
@@ -39,9 +42,11 @@ interface DeviationIdFormProps {
   onPhotoChange: (file: File) => void;
   onStepChange: (step: DeviationWorkflowStep) => void;
   onContinueProfile: () => void;
-  onContinueLocal: () => void;
+  onContinueDatasetChoice: () => void;
   onContinueDownload: () => void;
   onGenerate: () => void;
+  onSaveImage: () => void;
+  onDownloadImage: () => void;
   onSaveVideo: () => void;
   onDownloadVideo: () => void;
   onNewProject: () => void;
@@ -69,6 +74,8 @@ export function DeviationIdForm({
   outputFormat,
   busy,
   generated,
+  imageReady,
+  imageFilename,
   videoReady,
   videoFilename,
   exportProgress,
@@ -77,9 +84,11 @@ export function DeviationIdForm({
   onPhotoChange,
   onStepChange,
   onContinueProfile,
-  onContinueLocal,
+  onContinueDatasetChoice,
   onContinueDownload,
   onGenerate,
+  onSaveImage,
+  onDownloadImage,
   onSaveVideo,
   onDownloadVideo,
   onNewProject,
@@ -176,13 +185,39 @@ export function DeviationIdForm({
 
       {step === 2 && (
         <div className="deviation-workflow-content">
-          <div className="deviation-local-choice">
-            <div className="deviation-local-choice-icon"><LockKeyhole size={22} /></div>
-            <div>
-              <span className="deviation-section-label">{t('DATASET CONTRIBUTION')}</span>
-              <h3>{t('LOCAL ONLY · NO UPLOAD')}</h3>
-              <p>{t('Your card details and image stay in this browser. They are not sent to the deviation dataset or any server. No account is required.')}</p>
-            </div>
+          <fieldset className="deviation-visibility-fieldset">
+            <legend className="deviation-section-label">{t('DATASET CONTRIBUTION')}</legend>
+            <label className={`deviation-visibility-option${draft.datasetVisibility === 'PUBLIC' ? ' is-selected' : ''}`}>
+              <input
+                type="radio"
+                name="dataset-visibility"
+                value="PUBLIC"
+                checked={draft.datasetVisibility === 'PUBLIC'}
+                onChange={() => onDraftChange({ datasetVisibility: 'PUBLIC' })}
+              />
+              <span className="deviation-visibility-copy">
+                <strong>{t('PUBLIC · SHARE WITH THE DATASET')}</strong>
+                <small>{t('I agree to publicly share the completed postcard image, video, and selected profile details.')}</small>
+                <small>{t('Public fields: card name, self-definition, introduction, subject ID, and deviation level. The finished postcard includes the processed person image; the original photo file is not uploaded separately.')}</small>
+              </span>
+            </label>
+            <label className={`deviation-visibility-option${draft.datasetVisibility === 'PRIVATE' ? ' is-selected' : ''}`}>
+              <input
+                type="radio"
+                name="dataset-visibility"
+                value="PRIVATE"
+                checked={draft.datasetVisibility === 'PRIVATE'}
+                onChange={() => onDraftChange({ datasetVisibility: 'PRIVATE' })}
+              />
+              <span className="deviation-visibility-copy">
+                <strong>{t('PRIVATE · KEEP THIS DEVICE ONLY')}</strong>
+                <small>{t('Private keeps the finished work on this device. Nothing is published.')}</small>
+              </span>
+            </label>
+          </fieldset>
+          <div className="deviation-local-choice-note">
+            <LockKeyhole size={16} />
+            <span>{t('No cloud upload happens in this phase, even when PUBLIC is selected.')}</span>
           </div>
           <div className="deviation-local-choice-note">
             <ShieldCheck size={16} />
@@ -190,8 +225,8 @@ export function DeviationIdForm({
           </div>
           <div className="deviation-workflow-actions deviation-workflow-actions--split">
             <button type="button" className="deviation-button" onClick={() => onStepChange(1)} disabled={busy}><ArrowLeft size={13} />{t('BACK')}</button>
-            <button type="button" className="deviation-button deviation-button--primary" onClick={onContinueLocal} disabled={busy || !photoReady || personSegmentationStatus !== 'ready'}>
-              {t('CONFIRM LOCAL ONLY')}<ArrowRight size={14} />
+            <button type="button" className="deviation-button deviation-button--primary" onClick={onContinueDatasetChoice} disabled={busy || !photoReady || personSegmentationStatus !== 'ready'}>
+              {t('CONFIRM DATASET CHOICE')}<ArrowRight size={14} />
             </button>
           </div>
         </div>
@@ -286,6 +321,17 @@ export function DeviationIdForm({
             <span>{t('LOCAL SUBJECT ID')}</span>
             <strong>{draft.subjectId || '—'}</strong>
             <small>{videoReady ? videoFilename : t('A video file has not been exported yet.')}</small>
+          </div>
+          <div className="deviation-download-card">
+            <div className="deviation-download-card-title"><Image size={17} /><div><strong>{t('PNG IMAGE · SELECTED RESOLUTION · 9:16')}</strong><small>{imageReady ? imageFilename : t('A PNG image has not been exported yet.')}</small></div></div>
+            <div className="deviation-workflow-actions">
+              <button type="button" className="deviation-button deviation-button--primary" onClick={onSaveImage} disabled={busy || !generated || !photoReady || !draft.subjectId}>
+                <Image size={14} />{t(imageReady ? 'EXPORT IMAGE AGAIN' : 'EXPORT PNG IMAGE')}
+              </button>
+              <button type="button" className="deviation-button" onClick={onDownloadImage} disabled={!imageReady || busy}>
+                <Download size={14} />{t('DOWNLOAD IMAGE')}
+              </button>
+            </div>
           </div>
           <div className="deviation-download-card">
             <div className="deviation-download-card-title"><Video size={17} /><div><strong>{t('DOWNLOAD AREA')}</strong><small>{videoReady ? t('VIDEO READY · DOWNLOAD AVAILABLE.') : t('Exporting a video is separate from saving a project.')}</small></div></div>
