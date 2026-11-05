@@ -281,8 +281,8 @@ body.deviation-id-invitation-active .identity-verification-error {
   100% { transform: translateY(100%); opacity: 0; }
 }
 @keyframes di-personnel-enter {
-  0% { opacity: 0; transform: translateY(20px) scale(.985); filter: blur(2px); }
-  100% { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+  0% { opacity: 0; transform: translateY(16px) scale(.99); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
 }
 .deviation-personnel-form { animation: di-personnel-enter .92s cubic-bezier(.2,.72,.25,1) both; }
 .deviation-step-transition {
@@ -291,16 +291,17 @@ body.deviation-id-invitation-active .identity-verification-error {
   inset: 0;
   overflow: hidden;
   background:
-    linear-gradient(180deg, transparent 42%, rgba(103, 255, 231, .14) 49%, transparent 57%),
-    radial-gradient(ellipse at 50% 48%, rgba(52, 231, 213, .32), rgba(3, 17, 20, .48) 72%);
+    linear-gradient(180deg, transparent 42%, rgba(103, 255, 231, .12) 49%, transparent 57%),
+    radial-gradient(ellipse at 50% 48%, rgba(52, 231, 213, .26), rgba(3, 17, 20, .44) 72%);
   opacity: 0;
   pointer-events: none;
-  animation: deviation-step-crossfade .78s cubic-bezier(.2,.68,.2,1) both;
+  will-change: opacity;
+  animation: deviation-step-crossfade .68s cubic-bezier(.22,.68,.25,1) both;
 }
 @keyframes deviation-step-crossfade {
-  0% { opacity: 0; backdrop-filter: blur(0); }
-  25% { opacity: .74; backdrop-filter: blur(3px); }
-  100% { opacity: 0; backdrop-filter: blur(0); }
+  0%, 9% { opacity: 0; }
+  28%, 43% { opacity: .82; }
+  100% { opacity: 0; }
 }
 .deviation-personnel-preview {
   position: relative;

@@ -133,6 +133,7 @@ export default function DeviationId() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const editorRef = useRef<HTMLElement | null>(null);
   const stepTransitionTimerRef = useRef<number | null>(null);
+  const stepRef = useRef(step);
   const draftRef = useRef(draft);
   const imageRef = useRef(photoImage);
   const videoBlobRef = useRef(videoBlob);
@@ -159,6 +160,7 @@ export default function DeviationId() {
   imageRef.current = photoImage;
   videoBlobRef.current = videoBlob;
   languageRef.current = language;
+  stepRef.current = step;
   currentProjectIdRef.current = currentProjectId;
   createdAtRef.current = createdAt;
 
@@ -222,6 +224,7 @@ export default function DeviationId() {
         time = previewTimeRef.current;
       }
       if (
+        stepRef.current !== 1 &&
         canvas &&
         context &&
         !videoBlobRef.current &&
