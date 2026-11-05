@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowDownToLine, ArrowUpRight, Play, RotateCcw, Square, Video } from 'lucide-react';
+import { ArrowUpRight, Play, RotateCcw, Square } from 'lucide-react';
 import { useAppLanguage } from '../i18n';
 import { DeviationIdForm } from './deviationId/DeviationIdForm';
 import { deviationText as tx } from './deviationId/copy';
+import { IdentityIssuedStage } from './deviationId/IdentityIssuedStage';
 import {
   deleteAllProjects,
   deleteProject,
@@ -34,7 +35,7 @@ import {
   type CloudinaryUploadResult,
 } from './deviationId/cloudinaryUpload';
 import { safeUploadMessage, uploadTrace } from './deviationId/uploadDiagnostics';
-import { enterStepFourExports, isVideoDownloadAllowed } from './deviationId/stepFourExports';
+import { enterIdentityIssuedExports, isVideoDownloadAllowed } from './deviationId/identityIssuedExports';
 import './DeviationId.css';
 
 const MP4_TYPES = ['video/mp4;codecs=avc1.42E01E,mp4a.40.2', 'video/mp4'];
@@ -100,6 +101,14 @@ function newAudioContext() {
   return Constructor ? new Constructor() : null;
 }
 
+function advanceTypewriter(current: string, target: string) {
+  if (current === target) return current;
+  let commonLength = 0;
+  while (commonLength < current.length && commonLength < target.length && current[commonLength] === target[commonLength]) commonLength += 1;
+  if (commonLength < current.length) return current.slice(0, -1);
+  return target.slice(0, current.length + 1);
+}
+
 function scheduleTechCues(context: AudioContext, destination: MediaStreamAudioDestinationNode, startAt: number, duration: number) {
   const notes = [392, 523.25, 659.25, 783.99, 987.77];
   notes.forEach((frequency, index) => {
@@ -150,6 +159,8 @@ export default function DeviationId() {
   const [cloudUploadError, setCloudUploadError] = useState('');
   const [cloudUploadProgress, setCloudUploadProgress] = useState<Partial<Record<CloudinaryAssetType, number>>>({});
   const [cloudUploadResults, setCloudUploadResults] = useState<Partial<Record<CloudinaryAssetType, CloudinaryUploadResult>>>({});
+  const [typedPreview, setTypedPreview] = useState({ name: '', definition: '', deviation: '' });
+  const [identityArrivalComplete, setIdentityArrivalComplete] = useState(false);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -199,6 +210,26 @@ export default function DeviationId() {
 
   const outputFormat = 'mp4' as const;
 
+  useEffect(() => {
+    const target = {
+      name: draft.cardName,
+      definition: draft.selfDefinition,
+      deviation: String(draft.deviationLevel),
+    };
+    const timer = window.setInterval(() => {
+      setTypedPreview((current) => {
+        const next = {
+          name: advanceTypewriter(current.name, target.name),
+          definition: advanceTypewriter(current.definition, target.definition),
+          deviation: advanceTypewriter(current.deviation, target.deviation),
+        };
+        if (next.name === target.name && next.definition === target.definition && next.deviation === target.deviation) window.clearInterval(timer);
+        return next;
+      });
+    }, 24);
+    return () => window.clearInterval(timer);
+  }, [draft.cardName, draft.deviationLevel, draft.selfDefinition]);
+
   const cancelCloudUpload = useCallback((nextStatus?: 'waiting' | 'private') => {
     uploadRunIdRef.current += 1;
     uploadControllerRef.current?.abort();
@@ -217,8 +248,9 @@ export default function DeviationId() {
   }, [cancelCloudUpload]);
 
   const changeStep = useCallback((nextStep: DeviationWorkflowStep) => {
+    if (stepRef.current !== nextStep) setIdentityArrivalComplete(false);
     stepRef.current = nextStep;
-    if (nextStep !== 4) cancelCloudUpload(draftRef.current.datasetVisibility === 'PRIVATE' ? 'private' : 'waiting');
+    if (nextStep !== 5) cancelCloudUpload(draftRef.current.datasetVisibility === 'PRIVATE' ? 'private' : 'waiting');
     setStep(nextStep);
   }, [cancelCloudUpload]);
 
@@ -432,7 +464,11 @@ export default function DeviationId() {
     }
   }, [language, personSegmentationStatus, photoImage, startPreview, t]);
 
-  const handleContinueLocal = useCallback(async () => {
+  const handleContinueLocal = useCallback(() => {
+    changeStep(4);
+  }, [changeStep]);
+
+  const handleInvitationOpened = useCallback(async () => {
     setBusy(true);
     setError('');
     try {
@@ -441,7 +477,7 @@ export default function DeviationId() {
         draftRef.current = nextDraft;
         setDraft(nextDraft);
       }
-      changeStep(3);
+      changeStep(2);
     } catch (sequenceError) {
       setError(localError(sequenceError, language));
     } finally {
@@ -822,7 +858,7 @@ export default function DeviationId() {
         setVideoFilename(filename);
         setExportProgress(1);
         setStatus(t('VIDEO READY · DOWNLOAD AVAILABLE.'));
-        if (download && stepRef.current === 4) downloadBlob(blob, filename);
+        if (download && stepRef.current === 5) downloadBlob(blob, filename);
       }
     } catch (exportError) {
       if (recorder && recorder.state !== 'inactive') {
@@ -865,7 +901,7 @@ export default function DeviationId() {
       imageFilenameRef.current = filename;
       setImageBlob(blob);
       setImageFilename(filename);
-      if (download && stepRef.current === 4) downloadBlob(blob, filename);
+      if (download && stepRef.current === 5) downloadBlob(blob, filename);
       setStatus(t('IMAGE READY · DOWNLOAD AVAILABLE.'));
     } catch (imageError) {
       setError(localError(imageError, language));
@@ -887,7 +923,7 @@ export default function DeviationId() {
   }, [handleSaveVideo]);
 
   const runCloudUpload = useCallback(async () => {
-    if (stepRef.current !== 4 || draftRef.current.datasetVisibility !== 'PUBLIC') return;
+    if (stepRef.current !== 5 || draftRef.current.datasetVisibility !== 'PUBLIC') return;
     const finishedImage = imageBlobRef.current;
     const finishedVideo = videoBlobRef.current;
     if (!finishedImage || !finishedVideo) {
@@ -920,7 +956,7 @@ export default function DeviationId() {
 
     const isActive = () => runId === uploadRunIdRef.current
       && !controller.signal.aborted
-      && stepRef.current === 4
+      && stepRef.current === 5
       && draftRef.current.datasetVisibility === 'PUBLIC';
     const operation = (async () => {
       const uploaded: Partial<Record<CloudinaryAssetType, CloudinaryUploadResult>> = {};
@@ -1024,7 +1060,7 @@ export default function DeviationId() {
   }, []);
 
   useEffect(() => {
-    if (step !== 4) {
+    if (step !== 5) {
       if (cloudUploadStatus === 'uploading') {
         cancelCloudUpload(draft.datasetVisibility === 'PRIVATE' ? 'private' : 'waiting');
       }
@@ -1042,6 +1078,7 @@ export default function DeviationId() {
   }, [cancelCloudUpload, cloudUploadStatus, draft.datasetVisibility, imageBlob, runCloudUpload, step, videoBlob]);
 
   const handleDownloadImage = useCallback(() => {
+    if (stepRef.current !== 5) return;
     if (!imageBlob || !imageFilename) return;
     downloadBlob(imageBlob, imageFilename);
   }, [imageBlob, imageFilename]);
@@ -1054,9 +1091,12 @@ export default function DeviationId() {
   }, []);
 
   const handleEditProfile = useCallback(() => {
+    changeStep(2);
     editorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    editorRef.current?.querySelector<HTMLInputElement>('input')?.focus({ preventScroll: true });
-  }, []);
+    window.setTimeout(() => {
+      editorRef.current?.querySelector<HTMLInputElement>('input:not([type="file"])')?.focus({ preventScroll: true });
+    }, 0);
+  }, [changeStep]);
 
   const handlePreviewPlayback = useCallback(() => {
     if (videoBlob && videoRef.current) {
@@ -1087,15 +1127,23 @@ export default function DeviationId() {
   const handleContinueProfile = useCallback(() => {
     if (!draftRef.current.cardName.trim()) {
       setError(t('CARD NAME IS REQUIRED.'));
-      return;
+      return false;
     }
     if (!imageRef.current || personSegmentationStatus !== 'ready') {
       setError(t('RUN PERSON SEGMENTATION BEFORE GENERATING.'));
-      return;
+      return false;
     }
     setError('');
-    changeStep(2);
-  }, [changeStep, personSegmentationStatus, t]);
+    return true;
+  }, [personSegmentationStatus, t]);
+
+  const handleProfileCertified = useCallback(() => {
+    changeStep(3);
+  }, [changeStep]);
+
+  const handleIdentityArrivalComplete = useCallback(() => {
+    setIdentityArrivalComplete(true);
+  }, []);
 
   const handleContinueDownload = useCallback(async () => {
     if (!imageRef.current || personSegmentationStatus !== 'ready') {
@@ -1112,12 +1160,11 @@ export default function DeviationId() {
       setError(localError(subjectError, language));
       return;
     }
-    setGenerated(true);
     playingRef.current = false;
     setPreviewPlaying(false);
     videoRef.current?.pause();
     setError('');
-    enterStepFourExports({
+    enterIdentityIssuedExports({
       setStep: (nextStep) => changeStep(nextStep),
       imageReady: Boolean(imageBlobRef.current),
       videoReady: Boolean(videoBlobRef.current),
@@ -1127,7 +1174,54 @@ export default function DeviationId() {
   }, [changeStep, generateImageForStepFour, generateVideoForStepFour, language, personSegmentationStatus, t]);
 
   const previewStage = Math.min(5, Math.floor(previewProgress * 5) + 1);
-  const canExportVideo = mp4Available;
+  const previewVisual = step === 2
+    ? (
+      <article className="deviation-personnel-preview">
+        <div className="deviation-personnel-preview__portrait">
+          {photoImage
+            ? <img src={photoImage.src} alt={t('PERSON CUTOUT PREVIEW')} />
+            : <span>{t('PHOTO IS REQUIRED')}</span>}
+          <small>FIG. 01 / SUBJECT</small>
+        </div>
+        <div className="deviation-personnel-preview__record">
+          <div className="deviation-personnel-preview__serial">PERSONNEL RECORD · {draft.subjectId || 'PENDING'}</div>
+          <span className="deviation-personnel-preview__label">{t('CARD NAME')}</span>
+          <h3 aria-live="polite">{typedPreview.name || '—'}</h3>
+          <span className="deviation-personnel-preview__label">{t('SELF-DEFINITION')}</span>
+          <p aria-live="polite">{typedPreview.definition || '—'}</p>
+          <div className="deviation-personnel-preview__deviation">
+            <span>{t('SELF-DEVIATION CHECK')}</span>
+            <strong>{typedPreview.deviation || '—'}<small> / 100</small></strong>
+          </div>
+          <div className="deviation-personnel-preview__barcode" aria-hidden="true" />
+          <small className="deviation-personnel-preview__footer">TEMPORARY IDENTITY · NOT VERIFIED</small>
+        </div>
+      </article>
+    )
+    : videoBlob && videoUrl
+      ? <video
+          ref={videoRef}
+          className="deviation-exported-video"
+          src={videoUrl}
+          controls
+          playsInline
+          preload="metadata"
+          aria-label={t('PREVIEW VIDEO')}
+          onPlay={() => setPreviewPlaying(true)}
+          onPause={() => setPreviewPlaying(false)}
+          onEnded={() => { setPreviewPlaying(false); setPreviewProgress(1); }}
+          onTimeUpdate={(event) => {
+            const element = event.currentTarget;
+            if (element.duration) setPreviewProgress(element.currentTime / element.duration);
+          }}
+        />
+      : <canvas ref={canvasRef} className="deviation-card-canvas" width="720" height="1280" aria-label={t('Current card animation preview')} />;
+  const previewBody = (
+    <div className="deviation-canvas-wrap">
+      {previewVisual}
+      {step !== 2 && <div className="deviation-canvas-live"><i />{previewPlaying ? 'PLAYBACK / 30 FPS' : 'LOCAL RENDER / READY'}</div>}
+    </div>
+  );
   return (
     <main className="deviation-id-page">
       <header className="deviation-page-heading">
@@ -1139,7 +1233,7 @@ export default function DeviationId() {
         <div className="deviation-status-badge"><i />{t('Saved image and profile stay on this device.')}</div>
       </header>
 
-      <div className="deviation-builder-grid">
+      <div className={`deviation-builder-grid${step === 1 ? ' deviation-builder-grid--invitation' : ''}`}>
         <DeviationIdForm
           draft={draft}
           language={language}
@@ -1156,10 +1250,15 @@ export default function DeviationId() {
           videoReady={Boolean(videoBlob)}
           videoFilename={videoFilename}
           exportProgress={exportProgress}
+          invitationFileId={draft.subjectId || 'PENDING'}
+          errorMessage={error}
+          identityArrivalComplete={identityArrivalComplete}
           editorRef={editorRef}
           onDraftChange={updateDraft}
           onStepChange={changeStep}
+          onInvitationOpened={() => { void handleInvitationOpened(); }}
           onContinueProfile={handleContinueProfile}
+          onProfileCertified={handleProfileCertified}
           onContinueDatasetChoice={() => { void handleContinueLocal(); }}
           onContinueDownload={handleContinueDownload}
           onPhotoChange={(file) => { void handlePhotoChange(file); }}
@@ -1172,30 +1271,12 @@ export default function DeviationId() {
 
         <section className="deviation-panel deviation-preview-panel" aria-label={t('CURRENT PREVIEW')}>
           <div className="deviation-panel-heading">
-            <div><span className="deviation-kicker">02 / {t('CURRENT PREVIEW')}</span><h2>{t('PREVIEW VIDEO')}</h2></div>
+            <div><span className="deviation-kicker">{String(step).padStart(2, '0')} / {t('CURRENT PREVIEW')}</span><h2>{t(step === 2 ? 'PERSONNEL FILE PREVIEW' : 'PREVIEW VIDEO')}</h2></div>
             <span className="deviation-panel-index">{previewStage.toString().padStart(2, '0')} / 05</span>
           </div>
-          <div className="deviation-canvas-wrap">
-            {videoBlob && videoUrl
-              ? <video
-                  ref={videoRef}
-                  className="deviation-exported-video"
-                  src={videoUrl}
-                  controls
-                  playsInline
-                  preload="metadata"
-                  aria-label={t('PREVIEW VIDEO')}
-                  onPlay={() => setPreviewPlaying(true)}
-                  onPause={() => setPreviewPlaying(false)}
-                  onEnded={() => { setPreviewPlaying(false); setPreviewProgress(1); }}
-                  onTimeUpdate={(event) => {
-                    const element = event.currentTarget;
-                    if (element.duration) setPreviewProgress(element.currentTime / element.duration);
-                  }}
-                />
-              : <canvas ref={canvasRef} className="deviation-card-canvas" width="720" height="1280" aria-label={t('Current card animation preview')} />}
-            <div className="deviation-canvas-live"><i />{previewPlaying ? 'PLAYBACK / 30 FPS' : 'LOCAL RENDER / READY'}</div>
-          </div>
+          {step === 5
+            ? <IdentityIssuedStage active language={language} subjectId={draft.subjectId} onArrivalComplete={handleIdentityArrivalComplete}>{previewBody}</IdentityIssuedStage>
+            : previewBody}
           <div className="deviation-preview-progress" aria-label={t('EXPORT PROGRESS')}>
             <span style={{ width: `${Math.min(100, Math.max(0, (exporting ? exportProgress : previewProgress) * 100))}%` }} />
           </div>
@@ -1204,7 +1285,7 @@ export default function DeviationId() {
             <span>{Math.round((exporting ? exportProgress : previewProgress) * 100)}%</span>
           </div>
 
-          <div className="deviation-preview-actions">
+          {step >= 4 && <div className="deviation-preview-actions">
             <button type="button" className="deviation-button deviation-button--primary" onClick={() => {
               handlePreviewPlayback();
             }} disabled={busy || exporting}>
@@ -1213,22 +1294,9 @@ export default function DeviationId() {
             </button>
             <button type="button" className="deviation-button" onClick={handleRegenerate} disabled={busy || exporting || !generated}><RotateCcw size={13} />{t('REGENERATE')}</button>
             <button type="button" className="deviation-button" onClick={handleEditProfile}><ArrowUpRight size={13} />{t('EDIT PROFILE')}</button>
-          </div>
-
-          {step === 4 && <div className="deviation-video-export">
-            <div className="deviation-video-export-heading"><Video size={14} /><span>{t('SAVE VIDEO')}</span><small>{draft.output.resolution.toUpperCase()} · 9:16 · {outputFormat.toUpperCase()}</small></div>
-            <button type="button" className="deviation-button deviation-button--primary deviation-export-button" onClick={() => { void handleSaveVideo(); }} disabled={exporting || busy || !generated || !canExportVideo}>
-              <Video size={14} />{t(exporting ? 'EXPORTING VIDEO…' : 'SAVE VIDEO')}
-            </button>
-            {videoBlob && (
-              <button type="button" className="deviation-button deviation-download-button" onClick={handleDownloadVideo}>
-                <ArrowDownToLine size={13} />{t('DOWNLOAD VIDEO')}
-              </button>
-            )}
-            {exporting && <div className="deviation-export-progress"><span style={{ width: `${Math.round(exportProgress * 100)}%` }} /><small>{Math.round(exportProgress * 100)}%</small></div>}
           </div>}
 
-          {step === 4 && draft.datasetVisibility === 'PUBLIC' && (
+          {step === 5 && draft.datasetVisibility === 'PUBLIC' && (
             <aside className="deviation-cloud-upload" aria-live="polite">
               <div className="deviation-cloud-upload-heading">
                 <strong>{t('PUBLIC CLOUD UPLOAD')}</strong>

@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import {
   ArrowLeft,
   ArrowRight,
@@ -11,8 +11,10 @@ import {
 import type { AppLanguage } from '../../i18n';
 import { deviationText as tx } from './copy';
 import type { DeviationDraft } from './types';
+import { InvitationEnvelope } from './InvitationEnvelope';
+import { CertificationStamp } from './CertificationStamp';
 
-export type DeviationWorkflowStep = 1 | 2 | 3 | 4;
+export type DeviationWorkflowStep = 1 | 2 | 3 | 4 | 5;
 
 interface DeviationIdFormProps {
   draft: DeviationDraft;
@@ -30,11 +32,16 @@ interface DeviationIdFormProps {
   videoReady: boolean;
   videoFilename: string;
   exportProgress: number;
+  invitationFileId: string;
+  errorMessage: string;
+  identityArrivalComplete: boolean;
   editorRef: { current: HTMLElement | null };
   onDraftChange: (patch: Partial<DeviationDraft>) => void;
   onPhotoChange: (file: File) => void;
   onStepChange: (step: DeviationWorkflowStep) => void;
-  onContinueProfile: () => void;
+  onInvitationOpened: () => void;
+  onContinueProfile: () => boolean;
+  onProfileCertified: () => void;
   onContinueDatasetChoice: () => void;
   onContinueDownload: () => void;
   onGenerate: () => void;
@@ -45,10 +52,11 @@ interface DeviationIdFormProps {
 }
 
 const workflowSteps: Array<{ step: DeviationWorkflowStep; label: string }> = [
-  { step: 1, label: 'PROFILE' },
-  { step: 2, label: 'DATA SCOPE' },
-  { step: 3, label: 'VIDEO & EFFECTS' },
-  { step: 4, label: 'DOWNLOAD' },
+  { step: 1, label: 'THE INVITATION' },
+  { step: 2, label: 'PERSONNEL FILE' },
+  { step: 3, label: 'ACCESS CONTROL' },
+  { step: 4, label: 'DEVIATION PROCESS' },
+  { step: 5, label: 'IDENTITY ISSUED' },
 ];
 
 export function DeviationIdForm({
@@ -67,11 +75,16 @@ export function DeviationIdForm({
   videoReady,
   videoFilename,
   exportProgress,
+  invitationFileId,
+  errorMessage,
+  identityArrivalComplete,
   editorRef,
   onDraftChange,
   onPhotoChange,
   onStepChange,
+  onInvitationOpened,
   onContinueProfile,
+  onProfileCertified,
   onContinueDatasetChoice,
   onContinueDownload,
   onGenerate,
@@ -81,15 +94,28 @@ export function DeviationIdForm({
   onDownloadVideo,
 }: DeviationIdFormProps) {
   const photoInputRef = useRef<HTMLInputElement>(null);
+  const [stampActive, setStampActive] = useState(false);
   const t = (value: string) => tx(language, value);
   const stepIndex = step - 1;
   const canContinueProfile = Boolean(draft.cardName.trim() && photoReady && personSegmentationStatus === 'ready');
+  const handleProfileDraftChange = (patch: Partial<DeviationDraft>) => {
+    setStampActive(false);
+    onDraftChange(patch);
+  };
+  const submitForCertification = () => {
+    if (!canContinueProfile || stampActive) return;
+    if (onContinueProfile()) setStampActive(true);
+  };
+  const handleStepChange = (nextStep: DeviationWorkflowStep) => {
+    if (nextStep <= 2) setStampActive(false);
+    onStepChange(nextStep);
+  };
 
   return (
     <section className="deviation-panel deviation-editor" ref={editorRef} aria-label={t('DEVIATION ID WORKFLOW')}>
       <div className="deviation-panel-heading">
-        <div><span className="deviation-kicker">{String(step).padStart(2, '0')} / 04 · {t(workflowSteps[stepIndex].label)}</span><h2>{t('SUBJECT RECORD')}</h2></div>
-        <span className="deviation-panel-index">STEP {String(step).padStart(2, '0')} / 04</span>
+          <div><span className="deviation-kicker">{String(step).padStart(2, '0')} / 05 · {t(workflowSteps[stepIndex].label)}</span><h2>{t('SUBJECT RECORD')}</h2></div>
+          <span className="deviation-panel-index">STEP {String(step).padStart(2, '0')} / 05</span>
       </div>
 
       <nav className="deviation-workflow-steps" aria-label={t('DEVIATION ID WORKFLOW')}>
@@ -100,7 +126,7 @@ export function DeviationIdForm({
             className={itemStep === step ? 'is-active' : itemStep < step ? 'is-complete' : ''}
             aria-current={itemStep === step ? 'step' : undefined}
             disabled={busy || itemStep > step}
-            onClick={() => onStepChange(itemStep)}
+            onClick={() => handleStepChange(itemStep)}
           >
             <span>{String(itemStep).padStart(2, '0')}</span>
             <small>{t(label)}</small>
@@ -109,8 +135,16 @@ export function DeviationIdForm({
         ))}
       </nav>
 
+      {step === 1 && errorMessage && <p className="deviation-error-message" role="alert">{errorMessage}</p>}
+
       {step === 1 && (
-        <div className="deviation-workflow-content">
+        <div className="deviation-workflow-content deviation-invitation-step">
+          <InvitationEnvelope fileId={invitationFileId} language={language} onOpened={onInvitationOpened} />
+        </div>
+      )}
+
+      {step === 2 && (
+        <div className="deviation-workflow-content deviation-personnel-form">
           <div className="deviation-section-label">{t('PROFILE DATA')} · {t('PHOTO PROCESSING STAYS LOCAL')}</div>
           <input
             ref={photoInputRef}
@@ -119,11 +153,14 @@ export function DeviationIdForm({
             accept="image/png,image/jpeg,image/webp"
             onChange={(event) => {
               const file = event.currentTarget.files?.[0];
-              if (file) onPhotoChange(file);
+              if (file) {
+                setStampActive(false);
+                onPhotoChange(file);
+              }
               event.currentTarget.value = '';
             }}
           />
-          <button type="button" className="deviation-photo-upload" onClick={() => photoInputRef.current?.click()} disabled={busy}>
+          <button type="button" className="deviation-photo-upload" onClick={() => photoInputRef.current?.click()} disabled={busy || stampActive}>
             <ImageUp size={16} />
             <span><strong>{t('UPLOAD PHOTO')}</strong><small>{photoName || t('Choose a portrait image. It stays in this browser.')}</small></span>
           </button>
@@ -140,11 +177,11 @@ export function DeviationIdForm({
           <div className="deviation-form-grid">
             <label className="deviation-field deviation-field--wide">
               <span>{t('CARD NAME')}</span>
-              <input required maxLength={80} value={draft.cardName} onChange={(event) => onDraftChange({ cardName: event.currentTarget.value })} placeholder="NAME YOUR DEVIATION" />
+              <input required maxLength={80} value={draft.cardName} onChange={(event) => handleProfileDraftChange({ cardName: event.currentTarget.value })} placeholder="NAME YOUR DEVIATION" disabled={busy || stampActive} />
             </label>
             <label className="deviation-field deviation-field--wide">
               <span>{t('SELF-DEFINITION')}</span>
-              <input maxLength={80} value={draft.selfDefinition} onChange={(event) => onDraftChange({ selfDefinition: event.currentTarget.value })} placeholder="HOW DO YOU DEFINE YOURSELF?" />
+              <input maxLength={80} value={draft.selfDefinition} onChange={(event) => handleProfileDraftChange({ selfDefinition: event.currentTarget.value })} placeholder="HOW DO YOU DEFINE YOURSELF?" disabled={busy || stampActive} />
             </label>
             <div className="deviation-field deviation-field--wide">
               <span>{t('USER ID')}</span>
@@ -154,19 +191,23 @@ export function DeviationIdForm({
 
           <label className="deviation-slider deviation-self-check">
             <span><b>{t('SELF-DEVIATION CHECK')}</b><output>{draft.deviationLevel} / 100</output></span>
-            <input type="range" min="1" max="100" step="1" value={draft.deviationLevel} onChange={(event) => onDraftChange({ deviationLevel: Number(event.currentTarget.value) })} />
+            <input type="range" min="1" max="100" step="1" value={draft.deviationLevel} onChange={(event) => handleProfileDraftChange({ deviationLevel: Number(event.currentTarget.value) })} disabled={busy || stampActive} />
             <small>{t('Choose the number that best reflects your own sense of deviation.')}</small>
           </label>
 
-          <div className="deviation-workflow-actions">
-            <button type="button" className="deviation-button deviation-button--primary" onClick={onContinueProfile} disabled={busy || !canContinueProfile}>
-              {t('CONTINUE TO DATA SCOPE')}<ArrowRight size={14} />
+          <div className="deviation-workflow-actions deviation-certification-actions">
+            <CertificationStamp active={stampActive} language={language} onComplete={() => {
+              setStampActive(false);
+              onProfileCertified();
+            }} />
+            <button type="button" className="deviation-button deviation-button--primary" onClick={submitForCertification} disabled={busy || !canContinueProfile || stampActive}>
+              {t(stampActive ? 'CERTIFYING…' : 'SUBMIT FOR CERTIFICATION')}<ArrowRight size={14} />
             </button>
           </div>
         </div>
       )}
 
-      {step === 2 && (
+      {step === 3 && (
         <div className="deviation-workflow-content">
           <fieldset className="deviation-visibility-fieldset">
             <legend className="deviation-section-label">{t('DATASET CONTRIBUTION')}</legend>
@@ -197,8 +238,9 @@ export function DeviationIdForm({
               </span>
             </label>
           </fieldset>
+          <p className="deviation-access-note">{t('PUBLIC upload begins automatically after both final files are generated in the last step.')}</p>
           <div className="deviation-workflow-actions deviation-workflow-actions--split">
-            <button type="button" className="deviation-button" onClick={() => onStepChange(1)} disabled={busy}><ArrowLeft size={13} />{t('BACK')}</button>
+            <button type="button" className="deviation-button" onClick={() => handleStepChange(2)} disabled={busy}><ArrowLeft size={13} />{t('BACK')}</button>
             <button type="button" className="deviation-button deviation-button--primary" onClick={onContinueDatasetChoice} disabled={busy || !photoReady || personSegmentationStatus !== 'ready'}>
               {t('CONFIRM DATASET CHOICE')}<ArrowRight size={14} />
             </button>
@@ -206,8 +248,13 @@ export function DeviationIdForm({
         </div>
       )}
 
-      {step === 3 && (
+      {step === 4 && (
         <div className="deviation-workflow-content">
+          <div className="deviation-process-readout">
+            <div><span>{t('ANOMALY INDEX')}</span><strong>{draft.deviationLevel}<small> / 100</small></strong></div>
+            <div><span>{t('VISUAL MODE')}</span><strong>{t(draft.visualMode)}</strong></div>
+            <div><span>{t('GLITCH INTENSITY')}</span><strong>{draft.animation.glitchIntensity}<small> / 100</small></strong></div>
+          </div>
           <div className="deviation-id-readout">
             <span>{t('USER ID')}</span>
             <strong>{draft.subjectId || '—'}</strong>
@@ -278,22 +325,30 @@ export function DeviationIdForm({
           </div>
 
           <div className="deviation-workflow-actions deviation-workflow-actions--split">
-            <button type="button" className="deviation-button" onClick={() => onStepChange(2)} disabled={busy}><ArrowLeft size={13} />{t('BACK')}</button>
+            <button type="button" className="deviation-button" onClick={() => onStepChange(3)} disabled={busy}><ArrowLeft size={13} />{t('BACK')}</button>
             <button type="button" className="deviation-button" onClick={onGenerate} disabled={busy}><RotateCcw size={13} />{t('REGENERATE')}</button>
             <button type="button" className="deviation-button deviation-button--primary" onClick={onContinueDownload} disabled={busy || !draft.subjectId}>
-              {t('CONTINUE TO DOWNLOAD')}<ArrowRight size={14} />
+              {t('ISSUE TEMPORARY ID')}<ArrowRight size={14} />
             </button>
           </div>
         </div>
       )}
 
-      {step === 4 && (
+      {step === 5 && (
         <div className="deviation-workflow-content">
           <div className="deviation-id-readout">
             <span>{t('USER ID')}</span>
             <strong>{draft.subjectId || '—'}</strong>
             <small>{videoReady ? videoFilename : t('A video file has not been exported yet.')}</small>
           </div>
+          {!identityArrivalComplete && (
+            <div className="deviation-issue-wait" role="status">
+              <span>{t('ISSUING TEMPORARY ID…')}</span>
+              <i />
+            </div>
+          )}
+          {identityArrivalComplete && (
+            <>
           <div className="deviation-download-card">
             <div className="deviation-download-card-title"><Image size={17} /><div><strong>{t('PNG IMAGE · SELECTED RESOLUTION · 9:16')}</strong><small>{imageReady ? imageFilename : t('A PNG image has not been exported yet.')}</small></div></div>
             <div className="deviation-workflow-actions">
@@ -317,9 +372,11 @@ export function DeviationIdForm({
               </button>
             </div>
           </div>
+            </>
+          )}
           <div className="deviation-workflow-actions deviation-workflow-actions--split">
-            <button type="button" className="deviation-button" onClick={() => onStepChange(3)} disabled={busy}><ArrowLeft size={13} />{t('BACK TO EFFECTS')}</button>
-            <button type="button" className="deviation-button" onClick={() => onStepChange(1)} disabled={busy}>{t('EDIT PROFILE')}</button>
+            <button type="button" className="deviation-button" onClick={() => handleStepChange(4)} disabled={busy}><ArrowLeft size={13} />{t('BACK TO EFFECTS')}</button>
+            <button type="button" className="deviation-button" onClick={() => handleStepChange(2)} disabled={busy}>{t('EDIT PROFILE')}</button>
           </div>
         </div>
       )}
