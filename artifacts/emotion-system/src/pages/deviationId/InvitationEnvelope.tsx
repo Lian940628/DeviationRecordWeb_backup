@@ -412,6 +412,7 @@ export function InvitationEnvelope({ fileId, language, onOpened }: InvitationEnv
         <div ref={envelopeRef} className="di-story-envelope__object">
           <div className="di-story-envelope__body">
             <div className="di-story-envelope__paper-grain" />
+            <div className="di-story-envelope__chrome-ring" aria-hidden="true" />
             <svg className="di-story-envelope__circuit" viewBox="0 0 1000 600" preserveAspectRatio="none" aria-hidden="true">
               <g className="di-story-envelope__circuit-lines">
                 <path d="M0 70h110l30 30h132l24 24h93M1000 106h-92l-26 26h-118l-35 35h-86M0 492h104l25-25h126l40-40h84M1000 456h-110l-34-34H720l-26-26h-96M0 286h72l22-22h74M1000 308h-76l-25 25h-72" />
@@ -438,7 +439,23 @@ export function InvitationEnvelope({ fileId, language, onOpened }: InvitationEnv
                 <path className="di-story-envelope__postmark-scan" d="M72 16h37M72 76h37" />
               </svg>
             </div>
-            <div className="di-story-envelope__flap" aria-hidden="true" onAnimationEnd={handleFlapAnimationEnd} />
+            <div className="di-story-envelope__flap" aria-hidden="true" onAnimationEnd={handleFlapAnimationEnd}>
+              <svg className="di-story-envelope__flap-art" viewBox="0 0 1000 360" preserveAspectRatio="none">
+                <defs>
+                  <linearGradient id="envelope-flap-metal" x1="0" y1="0" x2="0" y2="1">
+                    <stop stopColor="#354d50" />
+                    <stop offset=".38" stopColor="#1c3033" />
+                    <stop offset=".78" stopColor="#102326" />
+                    <stop offset="1" stopColor="#263d40" />
+                  </linearGradient>
+                </defs>
+                <path
+                  className="di-story-envelope__flap-shell"
+                  d="M0 0H1000V10C996 108 943 151 864 170L790 190C770 230 727 254 668 262C625 303 566 326 500 332C434 326 375 303 332 262C273 254 230 230 210 190L136 170C57 151 4 108 0 10Z"
+                />
+                <path className="di-story-envelope__flap-highlight" d="M7 11H993C989 101 941 142 860 160" />
+              </svg>
+            </div>
             <svg className="di-story-envelope__edge-source" viewBox="0 0 1000 600" preserveAspectRatio="none" aria-hidden="true">
               <path ref={seamPathRef} d="M20 6 L980 6" />
             </svg>
