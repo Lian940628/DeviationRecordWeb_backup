@@ -270,7 +270,6 @@ export function InvitationEnvelope({ fileId, language, onOpened }: InvitationEnv
       x: fromCenterX * Math.cos(radians) - fromCenterY * Math.sin(radians),
       y: fromCenterX * Math.sin(radians) + fromCenterY * Math.cos(radians),
     };
-    if (grabOffset.x < bounds.width * 0.14) return;
     grabOffsetRef.current = grabOffset;
     pointerIdRef.current = event.pointerId;
     lastPathProjectionRef.current = null;
@@ -414,23 +413,36 @@ export function InvitationEnvelope({ fileId, language, onOpened }: InvitationEnv
         <div ref={envelopeRef} className="di-story-envelope__object">
           <div className="di-story-envelope__body">
             <div className="di-story-envelope__paper-grain" />
-            <div className="di-story-envelope__topline">EMOTION <i>/</i> SYSTEM <small>— EST. BETWEEN WORLDS —</small></div>
-            <div className="di-story-envelope__crest" aria-hidden="true">
-              <svg viewBox="0 0 52 52">
-                <path d="M26 7v38M26 31C15 27 12 19 15 13c7 4 11 10 11 18M26 29c9-6 12-12 10-18-7 4-10 10-10 18M14 39h24M18 44h16" />
-                <circle cx="26" cy="8" r="2" />
+            <svg className="di-story-envelope__circuit" viewBox="0 0 1000 600" preserveAspectRatio="none" aria-hidden="true">
+              <g className="di-story-envelope__circuit-lines">
+                <path d="M0 70h110l30 30h132l24 24h93M1000 106h-92l-26 26h-118l-35 35h-86M0 492h104l25-25h126l40-40h84M1000 456h-110l-34-34H720l-26-26h-96M0 286h72l22-22h74M1000 308h-76l-25 25h-72" />
+                <path d="M160 0v78l21 21v82M826 0v82l-22 22v48M219 600v-83l25-25v-58M773 600v-74l-27-27v-65M460 0v48l-18 18v48M548 600v-53l19-19v-50" />
+                <path d="M68 198h92l22 22h78M932 219h-84l-24 24h-84M65 397h90l21-21h72M934 382h-80l-26-26h-76" />
+              </g>
+              <g className="di-story-envelope__circuit-nodes">
+                <circle cx="110" cy="70" r="4" /><circle cx="389" cy="148" r="4" />
+                <circle cx="908" cy="106" r="4" /><circle cx="643" cy="202" r="4" />
+                <circle cx="104" cy="492" r="4" /><circle cx="379" cy="427" r="4" />
+                <circle cx="890" cy="456" r="4" /><circle cx="598" cy="396" r="4" />
+                <circle cx="160" cy="181" r="4" /><circle cx="826" cy="152" r="4" />
+                <circle cx="219" cy="434" r="4" /><circle cx="773" cy="434" r="4" />
+              </g>
+            </svg>
+            <div className="di-story-envelope__scan" aria-hidden="true" />
+            <div className="di-story-envelope__postmark" aria-hidden="true">
+              <svg viewBox="0 0 124 92">
+                <path className="di-story-envelope__postmark-wave" d="M4 28h54M2 36h51M4 44h49M5 52h47M8 60h43" />
+                <rect className="di-story-envelope__postmark-frame" x="66" y="11" width="49" height="70" rx="3" />
+                <circle className="di-story-envelope__postmark-orbit" cx="90.5" cy="37" r="17" />
+                <circle className="di-story-envelope__postmark-orbit" cx="90.5" cy="37" r="10" />
+                <path className="di-story-envelope__postmark-mark" d="m90.5 22 4 11 11 4-11 4-4 11-4-11-11-4 11-4zM76 63h29M76 68h22M76 73h26" />
+                <path className="di-story-envelope__postmark-scan" d="M72 16h37M72 76h37" />
               </svg>
             </div>
-            <div className="di-story-envelope__invitation">AN INVITATION<br /><em>to become otherwise</em></div>
-            <div className="di-story-envelope__reference">APPOINTMENT OF ENTRY <span>№ {fileId || '04—B'}</span></div>
             <div className="di-story-envelope__flap" aria-hidden="true" onAnimationEnd={handleFlapAnimationEnd} />
             <svg className="di-story-envelope__edge-source" viewBox="0 0 1000 600" preserveAspectRatio="none" aria-hidden="true">
               <path ref={seamPathRef} d="M20 6 L980 6" />
             </svg>
-            <div className="di-story-envelope__seal" aria-hidden="true">
-              <span>ES</span><small>04</small>
-              <i />
-            </div>
           </div>
           <div className="di-story-envelope__thickness" aria-hidden="true" />
         </div>
@@ -482,7 +494,6 @@ export function InvitationEnvelope({ fileId, language, onOpened }: InvitationEnv
             <circle cx="221" cy="24" r="3.4" fill="#315458" stroke="#d9ffff" strokeWidth="1.2" />
             <circle ref={bladeTipRef} cx="5" cy="24" r="2" fill="transparent" />
           </svg>
-          <span className="di-story-envelope__pickup">PICK UP</span>
         </button>
       </div>
 
