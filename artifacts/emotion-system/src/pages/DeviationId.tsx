@@ -162,6 +162,12 @@ export default function DeviationId() {
 
   const outputFormat = 'mp4' as const;
 
+  useEffect(() => {
+    if (step !== 1) return undefined;
+    document.body.classList.add('deviation-id-invitation-active');
+    return () => document.body.classList.remove('deviation-id-invitation-active');
+  }, [step]);
+
   const updateDraft = useCallback((patch: Partial<DeviationDraft>) => {
     const patchKeys = Object.keys(patch);
     const visibilityOnly = patchKeys.length > 0 && patchKeys.every((key) => key === 'datasetVisibility');
@@ -839,7 +845,7 @@ export default function DeviationId() {
   const previewStage = Math.min(5, Math.floor(previewProgress * 5) + 1);
   const canExportVideo = mp4Available;
   return (
-    <main className="deviation-id-page">
+    <main className={`deviation-id-page${step === 1 ? ' deviation-id-page--invitation' : ''}`}>
       <header className="deviation-page-heading">
         <div>
           <div className="deviation-kicker">EMOTION / SYSTEM · LOCAL IDENTITY RECORD</div>

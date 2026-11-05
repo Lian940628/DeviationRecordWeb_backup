@@ -8,6 +8,47 @@
     #02080b;
 }
 
+body.deviation-id-invitation-active {
+  overflow: hidden;
+}
+body.deviation-id-invitation-active .deviation-id-shell > .topbar,
+body.deviation-id-invitation-active .identity-verification-error {
+  display: none !important;
+}
+
+.deviation-id-page--invitation {
+  position: relative;
+  width: 100%;
+  min-height: 100dvh;
+  margin: 0;
+  padding: 0;
+  overflow: visible;
+  animation: none;
+}
+.deviation-id-page--invitation > .deviation-page-heading { display: none; }
+.deviation-id-page--invitation .deviation-builder-grid {
+  display: block;
+  width: 100%;
+  min-height: 100dvh;
+  margin: 0;
+}
+.deviation-id-page--invitation .deviation-editor {
+  position: static;
+  min-height: 100dvh;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.deviation-id-page--invitation .deviation-editor::before,
+.deviation-id-page--invitation .deviation-editor::after,
+.deviation-id-page--invitation .deviation-panel-heading,
+.deviation-id-page--invitation .deviation-workflow-steps,
+.deviation-id-page--invitation .deviation-preview-panel,
+.deviation-id-page--invitation .deviation-error-message { display: none; }
+.deviation-id-page--invitation .deviation-workflow-content { display: block; }
+.deviation-id-page--invitation .deviation-invitation-step { min-height: 100dvh; }
+
 .deviation-id-page {
   position: relative;
   z-index: 2;
