@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from 'react';
+import type { AnimationEvent as ReactAnimationEvent, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from 'react';
 import type { AppLanguage } from '../../i18n';
 import { deviationText as tx } from './copy';
 import './DeviationIdNarrative.css';
@@ -10,18 +10,23 @@ export interface InvitationEnvelopeProps {
   onOpened?: () => void;
 }
 
+type OpeningPhase = 'idle' | 'knife-picked-up' | 'cutting' | 'cut-complete' | 'paper-reveal' | 'envelope-fall' | 'step-02';
+
 export function InvitationEnvelope({ fileId, language, onOpened }: InvitationEnvelopeProps) {
   const t = (value: string) => tx(language, value);
   const [opened, setOpened] = useState(false);
   const [dragging, setDragging] = useState(false);
+  const [phase, setPhase] = useState<OpeningPhase>('idle');
   const sceneRef = useRef<HTMLElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const envelopeRef = useRef<HTMLDivElement>(null);
   const knifeRef = useRef<HTMLButtonElement>(null);
+  const topEdgeOverlayRef = useRef<SVGSVGElement>(null);
   const bladeTipRef = useRef<SVGCircleElement>(null);
   const seamPathRef = useRef<SVGPathElement>(null);
   const pointerIdRef = useRef<number | null>(null);
   const progressRef = useRef(0);
+  const phaseRef = useRef<OpeningPhase>('idle');
   const audioContextRef = useRef<AudioContext | null>(null);
   const lastScratchAtRef = useRef(0);
   const openedRef = useRef(false);
@@ -29,11 +34,12 @@ export function InvitationEnvelope({ fileId, language, onOpened }: InvitationEnv
   const keyboardRef = useRef(false);
   const pendingPointerRef = useRef<{ x: number; y: number } | null>(null);
   const frameRef = useRef<number | null>(null);
+  const edgeFrameRef = useRef<number | null>(null);
   const grabOffsetRef = useRef({ x: 0, y: 0 });
   const knifeAngleRef = useRef(-4);
   const lastPathProjectionRef = useRef<number | null>(null);
   const callbackRef = useRef(onOpened);
-  const completionTimerRef = useRef<number | null>(null);
+  const callbackIssuedRef = useRef(false);
   callbackRef.current = onOpened;
 
   const playPaperSound = useCallback((kind: 'cut' | 'slide' | 'confirm') => {
@@ -72,13 +78,19 @@ export function InvitationEnvelope({ fileId, language, onOpened }: InvitationEnv
     }
   }, []);
 
+  const transitionTo = useCallback((next: OpeningPhase) => {
+    if (phaseRef.current === next) return;
+    phaseRef.current = next;
+    setPhase(next);
+  }, []);
+
   useEffect(() => {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
       pointerIdRef.current = null;
       if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
-      if (completionTimerRef.current !== null) window.clearTimeout(completionTimerRef.current);
+      if (edgeFrameRef.current !== null) cancelAnimationFrame(edgeFrameRef.current);
       const audioContext = audioContextRef.current;
       audioContextRef.current = null;
       if (audioContext && audioContext.state !== 'closed') {
@@ -91,6 +103,32 @@ export function InvitationEnvelope({ fileId, language, onOpened }: InvitationEnv
     };
   }, []);
 
+  useEffect(() => {
+    const syncTopEdge = () => {
+      const stage = stageRef.current;
+      const source = seamPathRef.current;
+      const overlay = topEdgeOverlayRef.current;
+      const matrix = source?.getScreenCTM();
+      if (stage && source && overlay && matrix) {
+        const stageBounds = stage.getBoundingClientRect();
+        const length = source.getTotalLength();
+        const start = new DOMPoint(source.getPointAtLength(0).x, source.getPointAtLength(0).y).matrixTransform(matrix);
+        const end = new DOMPoint(source.getPointAtLength(length).x, source.getPointAtLength(length).y).matrixTransform(matrix);
+        const width = Math.max(1, stage.clientWidth);
+        const height = Math.max(1, stage.clientHeight);
+        const path = `M ${start.x - stageBounds.left} ${start.y - stageBounds.top} L ${end.x - stageBounds.left} ${end.y - stageBounds.top}`;
+        overlay.setAttribute('viewBox', `0 0 ${width} ${height}`);
+        overlay.querySelectorAll<SVGPathElement>('[data-top-edge-path]').forEach((element) => element.setAttribute('d', path));
+      }
+      edgeFrameRef.current = requestAnimationFrame(syncTopEdge);
+    };
+    edgeFrameRef.current = requestAnimationFrame(syncTopEdge);
+    return () => {
+      if (edgeFrameRef.current !== null) cancelAnimationFrame(edgeFrameRef.current);
+      edgeFrameRef.current = null;
+    };
+  }, []);
+
   const completeCut = useCallback(() => {
     if (openedRef.current || progressRef.current < 100) return;
     openedRef.current = true;
@@ -98,12 +136,15 @@ export function InvitationEnvelope({ fileId, language, onOpened }: InvitationEnv
     setDragging(false);
     pointerIdRef.current = null;
     keyboardRef.current = false;
+    transitionTo('cut-complete');
     playPaperSound('confirm');
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    completionTimerRef.current = window.setTimeout(() => {
-      if (mountedRef.current) callbackRef.current?.();
-    }, reduced ? 30 : 1850);
-  }, [playPaperSound]);
+    if (reduced && !callbackIssuedRef.current) {
+      callbackIssuedRef.current = true;
+      transitionTo('step-02');
+      callbackRef.current?.();
+    }
+  }, [playPaperSound, transitionTo]);
 
   const setCutProgress = useCallback((value: number) => {
     const next = Math.max(progressRef.current, Math.min(100, value));
@@ -113,8 +154,6 @@ export function InvitationEnvelope({ fileId, language, onOpened }: InvitationEnv
       sceneRef.current.style.setProperty('--cut-progress', `${next}%`);
       sceneRef.current.style.setProperty('--cut-dash-offset', `${1000 - next * 10}`);
       sceneRef.current.style.setProperty('--tear-lift', `${Math.min(9, next * 0.09)}px`);
-      const tearWidth = (envelopeRef.current?.offsetWidth ?? 0) * 0.79 * next / 100;
-      sceneRef.current.style.setProperty('--tear-width', `${tearWidth}px`);
       sceneRef.current.style.setProperty('--flap-angle', `${Math.min(18, next * 0.18)}deg`);
       const meter = sceneRef.current.querySelector<HTMLElement>('.di-story-envelope__meter');
       meter?.setAttribute('aria-valuenow', String(Math.round(next)));
@@ -162,15 +201,21 @@ export function InvitationEnvelope({ fileId, language, onOpened }: InvitationEnv
         ? screenEnd
         : null;
     if (snapPoint) {
-      const adjustedLeft = left + snapPoint.x - tipPoint.x;
-      const adjustedTop = top + snapPoint.y - tipPoint.y;
+      const correctionX = snapPoint.x - tipPoint.x;
+      const correctionY = snapPoint.y - tipPoint.y;
+      const adjustedLeft = left + correctionX;
+      const adjustedTop = top + correctionY;
       knife.style.left = `${adjustedLeft}px`;
       knife.style.top = `${adjustedTop}px`;
+      grabOffsetRef.current.x -= correctionX;
+      grabOffsetRef.current.y -= correctionY;
       const snappedMatrix = tip.getScreenCTM();
       if (snappedMatrix) {
         tipPoint = new DOMPoint(5, 24).matrixTransform(snappedMatrix);
         projection = ((tipPoint.x - screenStart.x) * vectorX + (tipPoint.y - screenStart.y) * vectorY) / lengthSquared;
       }
+      if (snapPoint === screenStart) projection = 0;
+      else if (snapPoint === screenEnd) projection = 1;
     }
     const clampedProjection = Math.max(0, Math.min(1, projection));
     const distance = Math.hypot(
@@ -180,35 +225,36 @@ export function InvitationEnvelope({ fileId, language, onOpened }: InvitationEnv
     const withinPath = projection >= 0 && projection <= 1 && distance <= 25;
     sceneRef.current?.classList.toggle('is-aligned', withinPath);
     if (!withinPath) {
-      lastPathProjectionRef.current = null;
+      lastPathProjectionRef.current = projection;
       return;
     }
 
     const next = projection * 100;
     const current = progressRef.current;
-    const atStart = current === 0 && next <= 5;
+    const previousProjection = lastPathProjectionRef.current;
+    const atStart = current === 0
+      && next <= 5
+      && (previousProjection === null || projection >= previousProjection);
     const resumingAtCut = current > 0 && lastPathProjectionRef.current === null && next <= current + 1;
-    const continuousRightwardCut = lastPathProjectionRef.current !== null && next >= current;
-    lastPathProjectionRef.current = projection;
-    if (atStart || resumingAtCut || continuousRightwardCut) {
+    const movingRight = previousProjection !== null
+      && projection >= previousProjection
+      && next >= current
+      && (current > 0 || previousProjection <= 0.05);
+    if (atStart || resumingAtCut || movingRight) {
+      lastPathProjectionRef.current = projection;
       if (next > current && Date.now() - lastScratchAtRef.current > 110) {
         lastScratchAtRef.current = Date.now();
         playPaperSound('cut');
       }
+      if (next > current && phaseRef.current !== 'cutting') transitionTo('cutting');
       setCutProgress(next);
+    } else {
+      lastPathProjectionRef.current = projection;
     }
-  }, [playPaperSound, setCutProgress]);
+  }, [playPaperSound, setCutProgress, transitionTo]);
 
   const updatePointer = useCallback((event: ReactPointerEvent<HTMLButtonElement>) => {
     if (pointerIdRef.current !== event.pointerId || openedRef.current) return;
-    const previous = pendingPointerRef.current;
-    if (previous) {
-      const deltaX = event.clientX - previous.x;
-      const deltaY = event.clientY - previous.y;
-      if (Math.hypot(deltaX, deltaY) > 1.5) {
-        knifeAngleRef.current = Math.max(-16, Math.min(16, Math.atan2(deltaY, deltaX) * 180 / Math.PI));
-      }
-    }
     pendingPointerRef.current = { x: event.clientX, y: event.clientY };
     if (frameRef.current === null) frameRef.current = requestAnimationFrame(processPointerFrame);
   }, [processPointerFrame]);
@@ -228,6 +274,7 @@ export function InvitationEnvelope({ fileId, language, onOpened }: InvitationEnv
     grabOffsetRef.current = grabOffset;
     pointerIdRef.current = event.pointerId;
     lastPathProjectionRef.current = null;
+    if (phaseRef.current === 'idle') transitionTo('knife-picked-up');
     event.currentTarget.classList.add('is-held');
     setDragging(true);
     event.currentTarget.setPointerCapture(event.pointerId);
@@ -245,6 +292,7 @@ export function InvitationEnvelope({ fileId, language, onOpened }: InvitationEnv
     pointerIdRef.current = null;
     lastPathProjectionRef.current = null;
     setDragging(false);
+    if (progressRef.current === 0 && phaseRef.current === 'knife-picked-up') transitionTo('idle');
     event.currentTarget.classList.remove('is-held');
     sceneRef.current?.classList.remove('is-aligned');
   };
@@ -279,12 +327,14 @@ export function InvitationEnvelope({ fileId, language, onOpened }: InvitationEnv
       if (!keyboardRef.current) {
         keyboardRef.current = true;
         setDragging(true);
+        if (phaseRef.current === 'idle') transitionTo('knife-picked-up');
         sceneRef.current?.classList.add('is-cutting');
         positionKnifeAtProjection(progressRef.current / 100);
       } else {
         const next = Math.min(100, progressRef.current + 8);
         positionKnifeAtProjection(next / 100);
         playPaperSound('cut');
+        if (next > progressRef.current && phaseRef.current !== 'cutting') transitionTo('cutting');
         setCutProgress(next);
         if (progressRef.current >= 100) setDragging(false);
       }
@@ -293,6 +343,7 @@ export function InvitationEnvelope({ fileId, language, onOpened }: InvitationEnv
       const next = Math.min(100, progressRef.current + 8);
       positionKnifeAtProjection(next / 100);
       playPaperSound('cut');
+      if (next > progressRef.current && phaseRef.current !== 'cutting') transitionTo('cutting');
       setCutProgress(next);
       if (progressRef.current >= 100) setDragging(false);
     } else if (event.key === 'Escape' && keyboardRef.current) {
@@ -300,6 +351,35 @@ export function InvitationEnvelope({ fileId, language, onOpened }: InvitationEnv
       setDragging(false);
       sceneRef.current?.classList.remove('is-cutting');
       sceneRef.current?.classList.remove('is-aligned');
+      if (progressRef.current === 0) transitionTo('idle');
+    }
+  };
+
+  const handleFlapAnimationEnd = (event: ReactAnimationEvent<HTMLDivElement>) => {
+    if (
+      event.target === event.currentTarget
+      && event.animationName === 'di-envelope-flap-separate'
+      && phaseRef.current === 'cut-complete'
+    ) {
+      playPaperSound('slide');
+      transitionTo('paper-reveal');
+    }
+  };
+
+  const handleDossierAnimationEnd = (event: ReactAnimationEvent<HTMLDivElement>) => {
+    if (event.target !== event.currentTarget) return;
+    if (event.animationName === 'di-paper-reveal' && phaseRef.current === 'paper-reveal') {
+      transitionTo('envelope-fall');
+      return;
+    }
+    if (
+      event.animationName === 'di-dossier-expand'
+      && phaseRef.current === 'envelope-fall'
+      && !callbackIssuedRef.current
+    ) {
+      callbackIssuedRef.current = true;
+      transitionTo('step-02');
+      callbackRef.current?.();
     }
   };
 
@@ -315,7 +395,8 @@ export function InvitationEnvelope({ fileId, language, onOpened }: InvitationEnv
   return (
     <section
       ref={sceneRef}
-      className={`di-story-envelope${opened ? ' is-opening' : ''}${dragging ? ' is-cutting' : ''}`}
+      className={`di-story-envelope${opened ? ' is-opening' : ''}${dragging ? ' is-cutting' : ''}${phase !== 'idle' ? ` is-${phase}` : ''}`}
+      data-opening-phase={phase}
       aria-label={t('Invitation envelope')}
       onPointerMove={handleScenePointerMove}
     >
@@ -324,13 +405,13 @@ export function InvitationEnvelope({ fileId, language, onOpened }: InvitationEnv
 
       <div className="di-story-envelope__stage" ref={stageRef}>
         <div className="di-story-envelope__shadow" aria-hidden="true" />
+        <div className="di-story-envelope__dossier" aria-hidden="true" onAnimationEnd={handleDossierAnimationEnd}>
+          <span>EMOTION / SYSTEM</span>
+          <b>PERSONNEL RECORD</b>
+          <i>ADMISSION  ·  {fileId || 'UNASSIGNED'}</i>
+          <small>NAME / SELF-DEFINITION / DEVIATION</small>
+        </div>
         <div ref={envelopeRef} className="di-story-envelope__object">
-          <div className="di-story-envelope__dossier" aria-hidden="true">
-            <span>EMOTION / SYSTEM</span>
-            <b>PERSONNEL RECORD</b>
-            <i>ADMISSION  ·  {fileId || 'UNASSIGNED'}</i>
-            <small>NAME / SELF-DEFINITION / DEVIATION</small>
-          </div>
           <div className="di-story-envelope__body">
             <div className="di-story-envelope__paper-grain" />
             <div className="di-story-envelope__topline">EMOTION <i>/</i> SYSTEM <small>— EST. BETWEEN WORLDS —</small></div>
@@ -342,13 +423,9 @@ export function InvitationEnvelope({ fileId, language, onOpened }: InvitationEnv
             </div>
             <div className="di-story-envelope__invitation">AN INVITATION<br /><em>to become otherwise</em></div>
             <div className="di-story-envelope__reference">APPOINTMENT OF ENTRY <span>№ {fileId || '04—B'}</span></div>
-            <div className="di-story-envelope__flap" aria-hidden="true">
-              <span className="di-story-envelope__tear-lift" />
-            </div>
-            <svg className="di-story-envelope__seam" viewBox="0 0 1000 600" preserveAspectRatio="none" aria-hidden="true">
-              <path className="di-story-envelope__seam-guide" d="M105 180 L895 180" />
-              <path className="di-story-envelope__cut-shadow" d="M105 180 L895 180" />
-              <path ref={seamPathRef} className="di-story-envelope__cut-line" pathLength="1000" d="M105 180 L895 180" />
+            <div className="di-story-envelope__flap" aria-hidden="true" onAnimationEnd={handleFlapAnimationEnd} />
+            <svg className="di-story-envelope__edge-source" viewBox="0 0 1000 600" preserveAspectRatio="none" aria-hidden="true">
+              <path ref={seamPathRef} d="M20 6 L980 6" />
             </svg>
             <div className="di-story-envelope__seal" aria-hidden="true">
               <span>ES</span><small>04</small>
@@ -357,6 +434,13 @@ export function InvitationEnvelope({ fileId, language, onOpened }: InvitationEnv
           </div>
           <div className="di-story-envelope__thickness" aria-hidden="true" />
         </div>
+        <svg ref={topEdgeOverlayRef} className="di-story-envelope__top-edge" viewBox="0 0 900 523" preserveAspectRatio="none" aria-hidden="true">
+          <path data-top-edge-path className="di-story-envelope__top-slot" d="M20 6 L880 6" />
+          <path data-top-edge-path className="di-story-envelope__top-back-lip" d="M20 1 L880 1" />
+          <path data-top-edge-path className="di-story-envelope__top-guide" d="M20 8 L880 8" />
+          <path data-top-edge-path className="di-story-envelope__top-front-mask" d="M20 6 L880 6" />
+          <path data-top-edge-path className="di-story-envelope__top-cut" pathLength="1000" d="M20 8 L880 8" />
+        </svg>
         <div className="di-story-envelope__stage-note" aria-hidden="true">A PLACE HAS BEEN HELD FOR YOU</div>
         <button
           ref={knifeRef}
@@ -372,6 +456,7 @@ export function InvitationEnvelope({ fileId, language, onOpened }: InvitationEnv
           onLostPointerCapture={() => {
             pointerIdRef.current = null;
             sceneRef.current?.classList.remove('is-aligned');
+            if (progressRef.current === 0 && phaseRef.current === 'knife-picked-up') transitionTo('idle');
             if (mountedRef.current) setDragging(false);
           }}
           onKeyDown={handleKeyboard}

@@ -12,3 +12,4 @@
 - [Processed video export](local-video-export.md) — pre-analyze local person tracks, then replay them during capture; keep model inference off the recording loop.
 - [Cloudflare Worker origin checks](cloudflare-worker-origin-allowlist.md) — the identity Worker requires an explicitly allow-listed Origin, including on server-to-server verification requests.
 - [Cloud upload receipts](cloud-upload-local-receipts.md) — local receipt storage is best-effort and must not block consenting visitors' finished-asset uploads.
+- [Invitation envelope cutting](deviation-envelope-opening.md) — track the blade tip along the physical top lip and advance steps on animation events.
