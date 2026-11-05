@@ -139,7 +139,11 @@ export function DeviationIdForm({
 
       {step === 1 && (
         <div className="deviation-workflow-content deviation-invitation-step">
-          <InvitationEnvelope fileId={invitationFileId} language={language} onOpened={onInvitationOpened} />
+          <InvitationEnvelope
+            fileId={invitationFileId}
+            language={language}
+            onOpened={typeof onInvitationOpened === 'function' ? onInvitationOpened : () => onStepChange(2)}
+          />
         </div>
       )}
 
@@ -198,7 +202,8 @@ export function DeviationIdForm({
           <div className="deviation-workflow-actions deviation-certification-actions">
             <CertificationStamp active={stampActive} language={language} onComplete={() => {
               setStampActive(false);
-              onProfileCertified();
+              if (typeof onProfileCertified === 'function') onProfileCertified();
+              else onStepChange(3);
             }} />
             <button type="button" className="deviation-button deviation-button--primary" onClick={submitForCertification} disabled={busy || !canContinueProfile || stampActive}>
               {t(stampActive ? 'CERTIFYING…' : 'SUBMIT FOR CERTIFICATION')}<ArrowRight size={14} />

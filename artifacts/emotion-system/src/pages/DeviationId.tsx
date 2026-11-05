@@ -1,19 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowUpRight, Play, RotateCcw, Square } from 'lucide-react';
+import { ArrowDownToLine, ArrowUpRight, Play, RotateCcw, Square, Video } from 'lucide-react';
 import { useAppLanguage } from '../i18n';
 import { DeviationIdForm } from './deviationId/DeviationIdForm';
 import { deviationText as tx } from './deviationId/copy';
-import { IdentityIssuedStage } from './deviationId/IdentityIssuedStage';
 import {
   deleteAllProjects,
   deleteProject,
   exportProjectFile,
   getProject,
-  getCloudinaryUploadReceipt,
   importProjectFile,
   getNextLocalSubjectId,
   listProjects,
-  saveCloudinaryUploadReceipt,
   saveProject,
   type StoredProject,
   type StoredProjectSummary,
@@ -27,15 +24,6 @@ import {
   type DeviationDraft,
 } from './deviationId/types';
 import type { DeviationWorkflowStep } from './deviationId/DeviationIdForm';
-import {
-  clearUploadId,
-  createUploadId,
-  uploadFinishedAsset,
-  type CloudinaryAssetType,
-  type CloudinaryUploadResult,
-} from './deviationId/cloudinaryUpload';
-import { safeUploadMessage, uploadTrace } from './deviationId/uploadDiagnostics';
-import { enterIdentityIssuedExports, isVideoDownloadAllowed } from './deviationId/identityIssuedExports';
 import './DeviationId.css';
 
 const MP4_TYPES = ['video/mp4;codecs=avc1.42E01E,mp4a.40.2', 'video/mp4'];
@@ -76,14 +64,6 @@ function safeFilePart(value: string) {
   return value.trim().replace(/[^\p{L}\p{N}_-]+/gu, '_').replace(/^_+|_+$/g, '').slice(0, 48) || 'SUBJECT';
 }
 
-async function hashFinishedBlob(blob: Blob) {
-  if (!globalThis.crypto?.subtle) {
-    return `${blob.type}:${blob.size}`;
-  }
-  const digest = await globalThis.crypto.subtle.digest('SHA-256', await blob.arrayBuffer());
-  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
-}
-
 function localError(error: unknown, language: 'en' | 'zh') {
   if (error instanceof DOMException && error.name === 'QuotaExceededError') {
     return tx(language, 'LOCAL STORAGE IS FULL. Export a project backup or remove an archive item.');
@@ -99,14 +79,6 @@ function newAudioContext() {
   const audioWindow = window as Window & { webkitAudioContext?: typeof AudioContext };
   const Constructor = window.AudioContext ?? audioWindow.webkitAudioContext;
   return Constructor ? new Constructor() : null;
-}
-
-function advanceTypewriter(current: string, target: string) {
-  if (current === target) return current;
-  let commonLength = 0;
-  while (commonLength < current.length && commonLength < target.length && current[commonLength] === target[commonLength]) commonLength += 1;
-  if (commonLength < current.length) return current.slice(0, -1);
-  return target.slice(0, current.length + 1);
 }
 
 function scheduleTechCues(context: AudioContext, destination: MediaStreamAudioDestinationNode, startAt: number, duration: number) {
@@ -155,12 +127,6 @@ export default function DeviationId() {
   const [busy, setBusy] = useState(false);
   const [mp4Available] = useState(() => Boolean(getSupportedMime()));
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
-  const [cloudUploadStatus, setCloudUploadStatus] = useState<'waiting' | 'uploading' | 'complete' | 'error' | 'private'>('waiting');
-  const [cloudUploadError, setCloudUploadError] = useState('');
-  const [cloudUploadProgress, setCloudUploadProgress] = useState<Partial<Record<CloudinaryAssetType, number>>>({});
-  const [cloudUploadResults, setCloudUploadResults] = useState<Partial<Record<CloudinaryAssetType, CloudinaryUploadResult>>>({});
-  const [typedPreview, setTypedPreview] = useState({ name: '', definition: '', deviation: '' });
-  const [identityArrivalComplete, setIdentityArrivalComplete] = useState(false);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -186,73 +152,15 @@ export default function DeviationId() {
   const audioContextRef = useRef<AudioContext | null>(null);
   const mountedRef = useRef(false);
   const lastPreviewUpdateRef = useRef(0);
-  const imageBlobRef = useRef(imageBlob);
-  const imageFilenameRef = useRef(imageFilename);
-  const videoFilenameRef = useRef(videoFilename);
-  const stepRef = useRef(step);
-  const uploadRunIdRef = useRef(0);
-  const uploadControllerRef = useRef<AbortController | null>(null);
-  const uploadPromiseRef = useRef<Promise<void> | null>(null);
-  const successfulUploadsRef = useRef<Partial<Record<CloudinaryAssetType, { contentHash: string; asset: CloudinaryUploadResult }>>>({});
-  const imageExportPromiseRef = useRef<Promise<void> | null>(null);
-  const videoExportPromiseRef = useRef<Promise<void> | null>(null);
 
   draftRef.current = draft;
   imageRef.current = photoImage;
-  imageBlobRef.current = imageBlob;
-  imageFilenameRef.current = imageFilename;
   videoBlobRef.current = videoBlob;
-  videoFilenameRef.current = videoFilename;
-  stepRef.current = step;
   languageRef.current = language;
   currentProjectIdRef.current = currentProjectId;
   createdAtRef.current = createdAt;
 
   const outputFormat = 'mp4' as const;
-
-  useEffect(() => {
-    const target = {
-      name: draft.cardName,
-      definition: draft.selfDefinition,
-      deviation: String(draft.deviationLevel),
-    };
-    const timer = window.setInterval(() => {
-      setTypedPreview((current) => {
-        const next = {
-          name: advanceTypewriter(current.name, target.name),
-          definition: advanceTypewriter(current.definition, target.definition),
-          deviation: advanceTypewriter(current.deviation, target.deviation),
-        };
-        if (next.name === target.name && next.definition === target.definition && next.deviation === target.deviation) window.clearInterval(timer);
-        return next;
-      });
-    }, 24);
-    return () => window.clearInterval(timer);
-  }, [draft.cardName, draft.deviationLevel, draft.selfDefinition]);
-
-  const cancelCloudUpload = useCallback((nextStatus?: 'waiting' | 'private') => {
-    uploadRunIdRef.current += 1;
-    uploadControllerRef.current?.abort();
-    uploadControllerRef.current = null;
-    uploadPromiseRef.current = null;
-    if (nextStatus) setCloudUploadStatus(nextStatus);
-    setCloudUploadError('');
-    setCloudUploadProgress({});
-  }, []);
-
-  const invalidateCloudUpload = useCallback(() => {
-    cancelCloudUpload('waiting');
-    successfulUploadsRef.current = {};
-    setCloudUploadResults({});
-    clearUploadId();
-  }, [cancelCloudUpload]);
-
-  const changeStep = useCallback((nextStep: DeviationWorkflowStep) => {
-    if (stepRef.current !== nextStep) setIdentityArrivalComplete(false);
-    stepRef.current = nextStep;
-    if (nextStep !== 5) cancelCloudUpload(draftRef.current.datasetVisibility === 'PRIVATE' ? 'private' : 'waiting');
-    setStep(nextStep);
-  }, [cancelCloudUpload]);
 
   const updateDraft = useCallback((patch: Partial<DeviationDraft>) => {
     const patchKeys = Object.keys(patch);
@@ -262,20 +170,11 @@ export default function DeviationId() {
       draftRef.current = next;
       return next;
     });
-    if (visibilityOnly) {
-      if (patch.datasetVisibility === 'PRIVATE') cancelCloudUpload('private');
-      else if (patch.datasetVisibility === 'PUBLIC') cancelCloudUpload('waiting');
-      return;
-    }
-    invalidateCloudUpload();
+    if (visibilityOnly) return;
     setGenerated(false);
-    imageBlobRef.current = null;
     setImageBlob(null);
-    imageFilenameRef.current = '';
     setImageFilename('');
-    videoBlobRef.current = null;
     setVideoBlob(null);
-    videoFilenameRef.current = '';
     setVideoFilename('');
     setPreviewProgress(0);
     previewTimeRef.current = 0;
@@ -283,7 +182,7 @@ export default function DeviationId() {
     videoRef.current?.pause();
     setPreviewPlaying(false);
     setError('');
-  }, [cancelCloudUpload, invalidateCloudUpload]);
+  }, []);
 
   const refreshProjects = useCallback(async () => {
     const next = await listProjects();
@@ -333,8 +232,6 @@ export default function DeviationId() {
       mountedRef.current = false;
       segmentationRequestRef.current += 1;
       exportingRef.current = false;
-      uploadRunIdRef.current += 1;
-      uploadControllerRef.current?.abort();
       personMattingRef.current?.disposePersonSegmenter();
       window.cancelAnimationFrame(animationFrameRef.current);
       window.cancelAnimationFrame(exportFrameRef.current);
@@ -433,14 +330,9 @@ export default function DeviationId() {
     }
     setGenerated(true);
     if (resetExports) {
-      invalidateCloudUpload();
-      imageBlobRef.current = null;
       setImageBlob(null);
-      imageFilenameRef.current = '';
       setImageFilename('');
-      videoBlobRef.current = null;
       setVideoBlob(null);
-      videoFilenameRef.current = '';
       setVideoFilename('');
     }
     previewTimeRef.current = 0;
@@ -450,7 +342,7 @@ export default function DeviationId() {
     setPreviewPlaying(true);
     setError('');
     setStatus('');
-  }, [invalidateCloudUpload]);
+  }, []);
 
   const handleGenerate = useCallback(async () => {
     if (!photoImage || personSegmentationStatus !== 'ready') {
@@ -464,11 +356,7 @@ export default function DeviationId() {
     }
   }, [language, personSegmentationStatus, photoImage, startPreview, t]);
 
-  const handleContinueLocal = useCallback(() => {
-    changeStep(4);
-  }, [changeStep]);
-
-  const handleInvitationOpened = useCallback(async () => {
+  const handleContinueLocal = useCallback(async () => {
     setBusy(true);
     setError('');
     try {
@@ -477,13 +365,13 @@ export default function DeviationId() {
         draftRef.current = nextDraft;
         setDraft(nextDraft);
       }
-      changeStep(2);
+      setStep(4);
     } catch (sequenceError) {
       setError(localError(sequenceError, language));
     } finally {
       setBusy(false);
     }
-  }, [changeStep, language]);
+  }, [language]);
 
   const handlePhotoChange = useCallback(async (file: File) => {
     if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
@@ -496,19 +384,13 @@ export default function DeviationId() {
     }
     setBusy(true);
     try {
-      invalidateCloudUpload();
       const isolated = await setPhoto(file, file.name);
       if (!isolated) return;
       setGenerated(false);
-      imageBlobRef.current = null;
       setImageBlob(null);
-      imageFilenameRef.current = '';
       setImageFilename('');
-      videoBlobRef.current = null;
       videoRef.current?.pause();
       setVideoBlob(null);
-      videoFilenameRef.current = '';
-      setVideoFilename('');
       playingRef.current = false;
       setPreviewPlaying(false);
       setStatus(t('PERSON DETECTED · BACKGROUND REMOVED LOCALLY'));
@@ -516,7 +398,7 @@ export default function DeviationId() {
     } finally {
       setBusy(false);
     }
-  }, [invalidateCloudUpload, language, setPhoto, t]);
+  }, [language, setPhoto, t]);
 
   const handleSaveProject = useCallback(async () => {
     if (!draftRef.current.cardName.trim()) {
@@ -561,7 +443,6 @@ export default function DeviationId() {
     setBusy(true);
     setError('');
     try {
-      invalidateCloudUpload();
       const project = await getProject(id);
       if (!project) throw new Error('This archive item is no longer available.');
       videoRef.current?.pause();
@@ -572,16 +453,12 @@ export default function DeviationId() {
       setCreatedAt(project.createdAt);
       createdAtRef.current = project.createdAt;
       setLastSavedAt(project.updatedAt);
-      imageBlobRef.current = null;
       setImageBlob(null);
-      imageFilenameRef.current = '';
       setImageFilename('');
       if (project.photoBlob) await setPhoto(project.photoBlob, 'LOCAL PHOTO');
       else await setPhoto(null, '');
       setGenerated(Boolean(project.draft.subjectId));
-      videoBlobRef.current = null;
       setVideoBlob(null);
-      videoFilenameRef.current = '';
       setVideoFilename('');
       playingRef.current = false;
       setPreviewPlaying(false);
@@ -594,7 +471,7 @@ export default function DeviationId() {
     } finally {
       setBusy(false);
     }
-  }, [invalidateCloudUpload, language, setPhoto, t]);
+  }, [language, setPhoto, t]);
 
   const handleDeleteProject = useCallback(async (id: string) => {
     if (!window.confirm(t('Delete this project from this device?'))) return;
@@ -634,7 +511,6 @@ export default function DeviationId() {
 
   const handleNewProject = useCallback(() => {
     if (!window.confirm(t('Start a new project? Unsaved changes will be cleared.'))) return;
-    invalidateCloudUpload();
     const nextDraft = createDefaultDraft();
     const nextCreatedAt = Date.now();
     draftRef.current = nextDraft;
@@ -646,13 +522,9 @@ export default function DeviationId() {
     setLastSavedAt(null);
     void setPhoto(null, '');
     setGenerated(false);
-    imageBlobRef.current = null;
     setImageBlob(null);
-    imageFilenameRef.current = '';
     setImageFilename('');
-    videoBlobRef.current = null;
     setVideoBlob(null);
-    videoFilenameRef.current = '';
     setVideoFilename('');
     playingRef.current = false;
     setPreviewPlaying(false);
@@ -661,7 +533,7 @@ export default function DeviationId() {
     videoRef.current?.pause();
     setError('');
     setStatus('');
-  }, [invalidateCloudUpload, setPhoto, t]);
+  }, [setPhoto, t]);
 
   const handleExportProject = useCallback(async () => {
     if (!draftRef.current.cardName.trim()) {
@@ -696,7 +568,6 @@ export default function DeviationId() {
     setBusy(true);
     setError('');
     try {
-      invalidateCloudUpload();
       const imported = await importProjectFile(file);
       const newKey = createProjectKey();
       const parsedDate = Date.parse(imported.createdAt);
@@ -719,14 +590,10 @@ export default function DeviationId() {
       setCreatedAt(importedCreatedAt);
       createdAtRef.current = importedCreatedAt;
       setLastSavedAt(saved.updatedAt);
-      imageBlobRef.current = null;
       setImageBlob(null);
-      imageFilenameRef.current = '';
       setImageFilename('');
       setGenerated(Boolean(imported.draft.subjectId));
-      videoBlobRef.current = null;
       setVideoBlob(null);
-      videoFilenameRef.current = '';
       setVideoFilename('');
       playingRef.current = false;
       setPreviewPlaying(false);
@@ -741,14 +608,14 @@ export default function DeviationId() {
     } finally {
       setBusy(false);
     }
-  }, [invalidateCloudUpload, language, refreshProjects, setPhoto, t]);
+  }, [language, refreshProjects, setPhoto, t]);
 
-  const handleSaveVideo = useCallback(async (download = true) => {
-    if (!imageRef.current) {
+  const handleSaveVideo = useCallback(async () => {
+    if (!photoImage) {
       setError(t('A portrait image is required to export video.'));
       return;
     }
-    if (!draftRef.current.subjectId) {
+    if (!generated || !draftRef.current.subjectId) {
       setError(t('Generate the deviation ID before exporting the video.'));
       return;
     }
@@ -767,9 +634,7 @@ export default function DeviationId() {
     setError('');
     setStatus(t('EXPORTING VIDEO…'));
     videoRef.current?.pause();
-    videoBlobRef.current = null;
     setVideoBlob(null);
-    videoFilenameRef.current = '';
     setVideoFilename('');
 
     const exportCanvas = document.createElement('canvas');
@@ -794,12 +659,14 @@ export default function DeviationId() {
       renderPersonFrame(context, exportCanvas.width, exportCanvas.height, exportDraft, imageRef.current, 0);
       videoStream = exportCanvas.captureStream(30);
       const exportTracks = [...videoStream.getVideoTracks()];
-      audioContext = newAudioContext();
-      if (!audioContext) throw new Error(t('Audio cues are unavailable in this browser.'));
-      await audioContext.resume();
-      audioDestination = audioContext.createMediaStreamDestination();
-      scheduleTechCues(audioContext, audioDestination, audioContext.currentTime + .1, duration);
-      exportTracks.push(...audioDestination.stream.getAudioTracks());
+      if (exportDraft.audio.includeTechCues) {
+        audioContext = newAudioContext();
+        if (!audioContext) throw new Error(t('Audio cues are unavailable in this browser. Turn off tech cues to export without sound.'));
+        await audioContext.resume();
+        audioDestination = audioContext.createMediaStreamDestination();
+        scheduleTechCues(audioContext, audioDestination, audioContext.currentTime + .1, duration);
+        exportTracks.push(...audioDestination.stream.getAudioTracks());
+      }
       const mixedStream = new MediaStream(exportTracks);
       const recorderOptions: MediaRecorderOptions = mimeType ? { mimeType } : {};
       recorderOptions.videoBitsPerSecond = resolution === '1080p' ? 12_000_000 : 6_000_000;
@@ -852,13 +719,11 @@ export default function DeviationId() {
       const blob = await recordingDone;
       const filename = `DEVIATION_ID_${safeFilePart(exportDraft.subjectId)}.mp4`;
       if (mountedRef.current) {
-        videoBlobRef.current = blob;
-        videoFilenameRef.current = filename;
         setVideoBlob(blob);
         setVideoFilename(filename);
         setExportProgress(1);
         setStatus(t('VIDEO READY · DOWNLOAD AVAILABLE.'));
-        if (download && stepRef.current === 5) downloadBlob(blob, filename);
+        downloadBlob(blob, filename);
       }
     } catch (exportError) {
       if (recorder && recorder.state !== 'inactive') {
@@ -877,15 +742,15 @@ export default function DeviationId() {
       if (mountedRef.current) setExporting(false);
       exportingRef.current = false;
     }
-  }, [language, outputFormat, t]);
+  }, [generated, language, outputFormat, photoImage, t]);
 
-  const handleSaveImage = useCallback(async (download = true) => {
+  const handleSaveImage = useCallback(async () => {
     const image = imageRef.current;
     if (!image) {
       setError(t('A portrait image is required to export a PNG image.'));
       return;
     }
-    if (!draftRef.current.subjectId) {
+    if (!generated || !draftRef.current.subjectId) {
       setError(t('Generate the deviation ID before exporting the image.'));
       return;
     }
@@ -897,206 +762,31 @@ export default function DeviationId() {
       const exportDraft = draftRef.current;
       const blob = await renderPostcardPng(exportDraft, image);
       const filename = `DEVIATION_ID_${safeFilePart(exportDraft.subjectId)}.png`;
-      imageBlobRef.current = blob;
-      imageFilenameRef.current = filename;
       setImageBlob(blob);
       setImageFilename(filename);
-      if (download && stepRef.current === 5) downloadBlob(blob, filename);
+      downloadBlob(blob, filename);
       setStatus(t('IMAGE READY · DOWNLOAD AVAILABLE.'));
     } catch (imageError) {
       setError(localError(imageError, language));
     } finally {
       setBusy(false);
     }
-  }, [language, t]);
-
-  const generateImageForStepFour = useCallback(() => {
-    if (imageBlobRef.current || imageExportPromiseRef.current) return;
-    const operation = handleSaveImage(false).finally(() => { imageExportPromiseRef.current = null; });
-    imageExportPromiseRef.current = operation;
-  }, [handleSaveImage]);
-
-  const generateVideoForStepFour = useCallback(() => {
-    if (videoBlobRef.current || videoExportPromiseRef.current || exportingRef.current) return;
-    const operation = handleSaveVideo(false).finally(() => { videoExportPromiseRef.current = null; });
-    videoExportPromiseRef.current = operation;
-  }, [handleSaveVideo]);
-
-  const runCloudUpload = useCallback(async () => {
-    if (stepRef.current !== 5 || draftRef.current.datasetVisibility !== 'PUBLIC') return;
-    const finishedImage = imageBlobRef.current;
-    const finishedVideo = videoBlobRef.current;
-    if (!finishedImage || !finishedVideo) {
-      setCloudUploadStatus('waiting');
-      return;
-    }
-    if (uploadPromiseRef.current) return uploadPromiseRef.current;
-
-    let submissionId: string;
-    try {
-      if (!draftRef.current.subjectId) throw new Error('A subject ID is required for the finished public submission.');
-      submissionId = createUploadId(draftRef.current.subjectId);
-    } catch (uploadIdError) {
-      const message = safeUploadMessage(uploadIdError);
-      setCloudUploadStatus('error');
-      setCloudUploadError(message);
-      uploadTrace('UPLOAD_FAILED', { message });
-      return;
-    }
-    const runId = ++uploadRunIdRef.current;
-    const controller = new AbortController();
-    uploadControllerRef.current = controller;
-    setCloudUploadStatus('uploading');
-    setCloudUploadError('');
-    setCloudUploadProgress({});
-    uploadTrace('PUBLIC_UPLOAD_START', {
-      imageReady: true,
-      videoReady: true,
-    });
-
-    const isActive = () => runId === uploadRunIdRef.current
-      && !controller.signal.aborted
-      && stepRef.current === 5
-      && draftRef.current.datasetVisibility === 'PUBLIC';
-    const operation = (async () => {
-      const uploaded: Partial<Record<CloudinaryAssetType, CloudinaryUploadResult>> = {};
-      try {
-        const uploadOne = async (
-          assetType: CloudinaryAssetType,
-          blob: Blob,
-          filename: string,
-        ) => {
-          const contentHash = await hashFinishedBlob(blob);
-          if (!isActive()) throw new DOMException('Upload cancelled.', 'AbortError');
-          const inMemory = successfulUploadsRef.current[assetType];
-          let known = inMemory?.contentHash === contentHash ? inMemory.asset : null;
-
-          if (!known) {
-            try {
-              const stored = await getCloudinaryUploadReceipt(submissionId, assetType);
-              if (
-                stored
-                && stored.contentHash === contentHash
-                && stored.filename === filename
-                && stored.bytes === blob.size
-                && stored.mimeType === blob.type
-                && stored.asset.resourceType === assetType
-                && stored.asset.assetId
-                && stored.asset.publicId
-                && stored.asset.secureUrl
-              ) {
-                known = stored.asset;
-                successfulUploadsRef.current[assetType] = { contentHash, asset: known };
-              }
-            } catch (receiptError) {
-              uploadTrace('RECEIPT_READ_FAILED', { assetType, message: safeUploadMessage(receiptError) });
-            }
-          }
-
-          if (known) {
-            uploaded[assetType] = known;
-            setCloudUploadResults((current) => ({ ...current, [assetType]: known }));
-            setCloudUploadProgress((current) => ({ ...current, [assetType]: 1 }));
-            uploadTrace(assetType === 'image' ? 'PNG_SKIPPED_ALREADY_UPLOADED' : 'VIDEO_SKIPPED_ALREADY_UPLOADED', { assetType });
-            return;
-          }
-
-          const result = await uploadFinishedAsset(
-            blob,
-            filename,
-            assetType,
-            submissionId,
-            controller.signal,
-            (progress) => {
-              if (!isActive()) return;
-              setCloudUploadProgress((current) => ({ ...current, [assetType]: Math.min(1, Math.max(0, progress)) }));
-            },
-          );
-          if (!isActive()) throw new DOMException('Upload cancelled.', 'AbortError');
-          uploaded[assetType] = result;
-          successfulUploadsRef.current[assetType] = { contentHash, asset: result };
-          setCloudUploadResults((current) => ({ ...current, [assetType]: result }));
-          setCloudUploadProgress((current) => ({ ...current, [assetType]: 1 }));
-          try {
-            await saveCloudinaryUploadReceipt({
-              submissionId,
-              assetType,
-              asset: result,
-              contentHash,
-              filename,
-              mimeType: blob.type,
-              bytes: blob.size,
-              cardName: draftRef.current.cardName,
-              subjectId: draftRef.current.subjectId,
-              deviationLevel: draftRef.current.deviationLevel,
-            });
-          } catch (receiptError) {
-            uploadTrace('RECEIPT_SAVE_FAILED', { assetType, message: safeUploadMessage(receiptError) });
-          }
-        };
-
-        await uploadOne('image', finishedImage, imageFilenameRef.current);
-        if (!isActive()) return;
-        await uploadOne('video', finishedVideo, videoFilenameRef.current);
-        if (!isActive()) return;
-        setCloudUploadStatus('complete');
-        setCloudUploadError('');
-        uploadTrace('UPLOAD_COMPLETE', { results: uploaded });
-      } catch (uploadError) {
-        if (!isActive() || (uploadError instanceof Error && uploadError.name === 'AbortError')) return;
-        const message = safeUploadMessage(uploadError);
-        setCloudUploadStatus('error');
-        setCloudUploadError(message);
-        uploadTrace('UPLOAD_FAILED', { message });
-      } finally {
-        if (runId === uploadRunIdRef.current) {
-          uploadControllerRef.current = null;
-          uploadPromiseRef.current = null;
-        }
-      }
-    })();
-    uploadPromiseRef.current = operation;
-    return operation;
-  }, []);
-
-  useEffect(() => {
-    if (step !== 5) {
-      if (cloudUploadStatus === 'uploading') {
-        cancelCloudUpload(draft.datasetVisibility === 'PRIVATE' ? 'private' : 'waiting');
-      }
-      return;
-    }
-    if (draft.datasetVisibility !== 'PUBLIC') {
-      if (cloudUploadStatus !== 'private') cancelCloudUpload('private');
-      return;
-    }
-    if (!imageBlob || !videoBlob) {
-      if (cloudUploadStatus !== 'waiting') setCloudUploadStatus('waiting');
-      return;
-    }
-    if (cloudUploadStatus === 'waiting') void runCloudUpload();
-  }, [cancelCloudUpload, cloudUploadStatus, draft.datasetVisibility, imageBlob, runCloudUpload, step, videoBlob]);
+  }, [generated, language, t]);
 
   const handleDownloadImage = useCallback(() => {
-    if (stepRef.current !== 5) return;
     if (!imageBlob || !imageFilename) return;
     downloadBlob(imageBlob, imageFilename);
   }, [imageBlob, imageFilename]);
 
   const handleDownloadVideo = useCallback(() => {
-    const blob = videoBlobRef.current;
-    const filename = videoFilenameRef.current;
-    if (!isVideoDownloadAllowed(stepRef.current, blob, filename)) return;
-    downloadBlob(blob, filename);
-  }, []);
+    if (!videoBlob || !videoFilename) return;
+    downloadBlob(videoBlob, videoFilename);
+  }, [videoBlob, videoFilename]);
 
   const handleEditProfile = useCallback(() => {
-    changeStep(2);
     editorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    window.setTimeout(() => {
-      editorRef.current?.querySelector<HTMLInputElement>('input:not([type="file"])')?.focus({ preventScroll: true });
-    }, 0);
-  }, [changeStep]);
+    editorRef.current?.querySelector<HTMLInputElement>('input')?.focus({ preventScroll: true });
+  }, []);
 
   const handlePreviewPlayback = useCallback(() => {
     if (videoBlob && videoRef.current) {
@@ -1137,91 +827,17 @@ export default function DeviationId() {
     return true;
   }, [personSegmentationStatus, t]);
 
-  const handleProfileCertified = useCallback(() => {
-    changeStep(3);
-  }, [changeStep]);
-
-  const handleIdentityArrivalComplete = useCallback(() => {
-    setIdentityArrivalComplete(true);
-  }, []);
-
-  const handleContinueDownload = useCallback(async () => {
-    if (!imageRef.current || personSegmentationStatus !== 'ready') {
+  const handleContinueDownload = useCallback(() => {
+    if (!generated) {
       setError(t('RUN PERSON SEGMENTATION BEFORE GENERATING.'));
       return;
     }
-    try {
-      if (!draftRef.current.subjectId) {
-        const nextDraft = { ...draftRef.current, subjectId: await getNextLocalSubjectId() };
-        draftRef.current = nextDraft;
-        setDraft(nextDraft);
-      }
-    } catch (subjectError) {
-      setError(localError(subjectError, language));
-      return;
-    }
-    playingRef.current = false;
-    setPreviewPlaying(false);
-    videoRef.current?.pause();
     setError('');
-    enterIdentityIssuedExports({
-      setStep: (nextStep) => changeStep(nextStep),
-      imageReady: Boolean(imageBlobRef.current),
-      videoReady: Boolean(videoBlobRef.current),
-      generateImage: generateImageForStepFour,
-      generateVideo: generateVideoForStepFour,
-    });
-  }, [changeStep, generateImageForStepFour, generateVideoForStepFour, language, personSegmentationStatus, t]);
+    setStep(5);
+  }, [generated, t]);
 
   const previewStage = Math.min(5, Math.floor(previewProgress * 5) + 1);
-  const previewVisual = step === 2
-    ? (
-      <article className="deviation-personnel-preview">
-        <div className="deviation-personnel-preview__portrait">
-          {photoImage
-            ? <img src={photoImage.src} alt={t('PERSON CUTOUT PREVIEW')} />
-            : <span>{t('PHOTO IS REQUIRED')}</span>}
-          <small>FIG. 01 / SUBJECT</small>
-        </div>
-        <div className="deviation-personnel-preview__record">
-          <div className="deviation-personnel-preview__serial">PERSONNEL RECORD · {draft.subjectId || 'PENDING'}</div>
-          <span className="deviation-personnel-preview__label">{t('CARD NAME')}</span>
-          <h3 aria-live="polite">{typedPreview.name || '—'}</h3>
-          <span className="deviation-personnel-preview__label">{t('SELF-DEFINITION')}</span>
-          <p aria-live="polite">{typedPreview.definition || '—'}</p>
-          <div className="deviation-personnel-preview__deviation">
-            <span>{t('SELF-DEVIATION CHECK')}</span>
-            <strong>{typedPreview.deviation || '—'}<small> / 100</small></strong>
-          </div>
-          <div className="deviation-personnel-preview__barcode" aria-hidden="true" />
-          <small className="deviation-personnel-preview__footer">TEMPORARY IDENTITY · NOT VERIFIED</small>
-        </div>
-      </article>
-    )
-    : videoBlob && videoUrl
-      ? <video
-          ref={videoRef}
-          className="deviation-exported-video"
-          src={videoUrl}
-          controls
-          playsInline
-          preload="metadata"
-          aria-label={t('PREVIEW VIDEO')}
-          onPlay={() => setPreviewPlaying(true)}
-          onPause={() => setPreviewPlaying(false)}
-          onEnded={() => { setPreviewPlaying(false); setPreviewProgress(1); }}
-          onTimeUpdate={(event) => {
-            const element = event.currentTarget;
-            if (element.duration) setPreviewProgress(element.currentTime / element.duration);
-          }}
-        />
-      : <canvas ref={canvasRef} className="deviation-card-canvas" width="720" height="1280" aria-label={t('Current card animation preview')} />;
-  const previewBody = (
-    <div className="deviation-canvas-wrap">
-      {previewVisual}
-      {step !== 2 && <div className="deviation-canvas-live"><i />{previewPlaying ? 'PLAYBACK / 30 FPS' : 'LOCAL RENDER / READY'}</div>}
-    </div>
-  );
+  const canExportVideo = mp4Available;
   return (
     <main className="deviation-id-page">
       <header className="deviation-page-heading">
@@ -1233,7 +849,7 @@ export default function DeviationId() {
         <div className="deviation-status-badge"><i />{t('Saved image and profile stay on this device.')}</div>
       </header>
 
-      <div className={`deviation-builder-grid${step === 1 ? ' deviation-builder-grid--invitation' : ''}`}>
+      <div className="deviation-builder-grid">
         <DeviationIdForm
           draft={draft}
           language={language}
@@ -1250,15 +866,15 @@ export default function DeviationId() {
           videoReady={Boolean(videoBlob)}
           videoFilename={videoFilename}
           exportProgress={exportProgress}
-          invitationFileId={draft.subjectId || 'PENDING'}
+          invitationFileId={draft.subjectId}
           errorMessage={error}
-          identityArrivalComplete={identityArrivalComplete}
+          identityArrivalComplete
           editorRef={editorRef}
           onDraftChange={updateDraft}
-          onStepChange={changeStep}
-          onInvitationOpened={() => { void handleInvitationOpened(); }}
+          onStepChange={setStep}
+          onInvitationOpened={() => setStep(2)}
           onContinueProfile={handleContinueProfile}
-          onProfileCertified={handleProfileCertified}
+          onProfileCertified={() => setStep(3)}
           onContinueDatasetChoice={() => { void handleContinueLocal(); }}
           onContinueDownload={handleContinueDownload}
           onPhotoChange={(file) => { void handlePhotoChange(file); }}
@@ -1271,12 +887,30 @@ export default function DeviationId() {
 
         <section className="deviation-panel deviation-preview-panel" aria-label={t('CURRENT PREVIEW')}>
           <div className="deviation-panel-heading">
-            <div><span className="deviation-kicker">{String(step).padStart(2, '0')} / {t('CURRENT PREVIEW')}</span><h2>{t(step === 2 ? 'PERSONNEL FILE PREVIEW' : 'PREVIEW VIDEO')}</h2></div>
+            <div><span className="deviation-kicker">02 / {t('CURRENT PREVIEW')}</span><h2>{t('PREVIEW VIDEO')}</h2></div>
             <span className="deviation-panel-index">{previewStage.toString().padStart(2, '0')} / 05</span>
           </div>
-          {step === 5
-            ? <IdentityIssuedStage active language={language} subjectId={draft.subjectId} onArrivalComplete={handleIdentityArrivalComplete}>{previewBody}</IdentityIssuedStage>
-            : previewBody}
+          <div className="deviation-canvas-wrap">
+            {videoBlob && videoUrl
+              ? <video
+                  ref={videoRef}
+                  className="deviation-exported-video"
+                  src={videoUrl}
+                  controls
+                  playsInline
+                  preload="metadata"
+                  aria-label={t('PREVIEW VIDEO')}
+                  onPlay={() => setPreviewPlaying(true)}
+                  onPause={() => setPreviewPlaying(false)}
+                  onEnded={() => { setPreviewPlaying(false); setPreviewProgress(1); }}
+                  onTimeUpdate={(event) => {
+                    const element = event.currentTarget;
+                    if (element.duration) setPreviewProgress(element.currentTime / element.duration);
+                  }}
+                />
+              : <canvas ref={canvasRef} className="deviation-card-canvas" width="720" height="1280" aria-label={t('Current card animation preview')} />}
+            <div className="deviation-canvas-live"><i />{previewPlaying ? 'PLAYBACK / 30 FPS' : 'LOCAL RENDER / READY'}</div>
+          </div>
           <div className="deviation-preview-progress" aria-label={t('EXPORT PROGRESS')}>
             <span style={{ width: `${Math.min(100, Math.max(0, (exporting ? exportProgress : previewProgress) * 100))}%` }} />
           </div>
@@ -1285,7 +919,7 @@ export default function DeviationId() {
             <span>{Math.round((exporting ? exportProgress : previewProgress) * 100)}%</span>
           </div>
 
-          {step >= 4 && <div className="deviation-preview-actions">
+          <div className="deviation-preview-actions">
             <button type="button" className="deviation-button deviation-button--primary" onClick={() => {
               handlePreviewPlayback();
             }} disabled={busy || exporting}>
@@ -1294,38 +928,20 @@ export default function DeviationId() {
             </button>
             <button type="button" className="deviation-button" onClick={handleRegenerate} disabled={busy || exporting || !generated}><RotateCcw size={13} />{t('REGENERATE')}</button>
             <button type="button" className="deviation-button" onClick={handleEditProfile}><ArrowUpRight size={13} />{t('EDIT PROFILE')}</button>
-          </div>}
+          </div>
 
-          {step === 5 && draft.datasetVisibility === 'PUBLIC' && (
-            <aside className="deviation-cloud-upload" aria-live="polite">
-              <div className="deviation-cloud-upload-heading">
-                <strong>{t('PUBLIC CLOUD UPLOAD')}</strong>
-                <span>{cloudUploadStatus === 'complete'
-                  ? t('CLOUD UPLOAD SUCCESSFUL · NOT PUBLISHED.')
-                  : cloudUploadStatus === 'uploading'
-                    ? t('Uploading finished postcard files…')
-                    : cloudUploadStatus === 'error'
-                      ? t('Upload incomplete. Your downloads are still available.')
-                      : t('Waiting for completed PNG and video.')}</span>
-              </div>
-              {(['image', 'video'] as const).map((assetType) => {
-                const progress = cloudUploadProgress[assetType] ?? 0;
-                const result = cloudUploadResults[assetType];
-                return (
-                  <div className="deviation-cloud-upload-row" key={assetType}>
-                    <div><span>{t(assetType === 'image' ? 'IMAGE' : 'VIDEO')}</span><small>{result?.publicId ?? (cloudUploadStatus === 'uploading' ? `${Math.round(progress * 100)}%` : '—')}</small></div>
-                    <div className="deviation-export-progress"><span style={{ width: `${Math.round(progress * 100)}%` }} /><small>{Math.round(progress * 100)}%</small></div>
-                  </div>
-                );
-              })}
-              {cloudUploadError && <p className="deviation-error-message" role="alert">{cloudUploadError}</p>}
-              {cloudUploadStatus === 'error' && (
-                <button type="button" className="deviation-button" onClick={() => { void runCloudUpload(); }}>
-                  <RotateCcw size={13} />{t('RETRY UPLOAD')}
-                </button>
-              )}
-            </aside>
-          )}
+          <div className="deviation-video-export">
+            <div className="deviation-video-export-heading"><Video size={14} /><span>{t('SAVE VIDEO')}</span><small>{draft.output.resolution.toUpperCase()} · 9:16 · {outputFormat.toUpperCase()}</small></div>
+            <button type="button" className="deviation-button deviation-button--primary deviation-export-button" onClick={() => { void handleSaveVideo(); }} disabled={exporting || busy || !generated || !canExportVideo}>
+              <Video size={14} />{t(exporting ? 'EXPORTING VIDEO…' : 'SAVE VIDEO')}
+            </button>
+            {videoBlob && (
+              <button type="button" className="deviation-button deviation-download-button" onClick={handleDownloadVideo}>
+                <ArrowDownToLine size={13} />{t('DOWNLOAD VIDEO')}
+              </button>
+            )}
+            {exporting && <div className="deviation-export-progress"><span style={{ width: `${Math.round(exportProgress * 100)}%` }} /><small>{Math.round(exportProgress * 100)}%</small></div>}
+          </div>
 
           {lastSavedAt !== null && <div className="deviation-saved-time">{t('SAVED AT')} · {new Intl.DateTimeFormat(language === 'zh' ? 'zh-TW' : 'en-US', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(lastSavedAt))}</div>}
           {status && <p className="deviation-status-message" role="status">{status}</p>}

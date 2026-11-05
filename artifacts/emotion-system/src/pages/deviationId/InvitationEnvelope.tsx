@@ -24,7 +24,7 @@ export function InvitationEnvelope({ fileId, language, onOpened }: InvitationEnv
   const openedRef = useRef(false);
   const mountedRef = useRef(false);
   const callbackRef = useRef(onOpened);
-  callbackRef.current = onOpened;
+  callbackRef.current = typeof onOpened === 'function' ? onOpened : () => {};
 
   useEffect(() => {
     mountedRef.current = true;
@@ -49,7 +49,7 @@ export function InvitationEnvelope({ fileId, language, onOpened }: InvitationEnv
     setOpened(true);
     setDragging(false);
     pointerIdRef.current = null;
-    if (mountedRef.current) callbackRef.current();
+    if (mountedRef.current && typeof callbackRef.current === 'function') callbackRef.current();
   }, []);
 
   const updateFromPointer = useCallback((event: ReactPointerEvent<HTMLButtonElement>) => {
