@@ -136,7 +136,7 @@ test('the photo pipeline uses the CPU fallback when WebGL is missing or MediaPip
   }
 });
 
-async function pageHarness({ visibility = 'PUBLIC', step = 1, generated = true, imageReady = true, videoReady = true, readReceipt, saveReceipt, upload } = {}) {
+async function pageHarness({ visibility = 'PUBLIC', step = 4, generated = true, imageReady = true, videoReady = true, readReceipt, saveReceipt, upload } = {}) {
   let cursor = 0;
   let stateCursor = 0;
   let dirty = true;
@@ -149,11 +149,11 @@ async function pageHarness({ visibility = 'PUBLIC', step = 1, generated = true, 
   let recordedAudioTracks = 0;
   const overrides = {
     0: { ...draft, datasetVisibility: visibility },
-    1: {}, 3: 'ready', 4: generated, 5: step,
-    10: imageReady ? png : null,
-    11: imageReady ? 'finished.png' : '',
-    12: videoReady ? video : null,
-    13: videoReady ? 'finished.mp4' : '',
+    2: { width: 1, height: 1 }, 4: 'ready', 5: generated, 6: step,
+    11: imageReady ? png : null,
+    12: imageReady ? 'finished.png' : '',
+    13: videoReady ? video : null,
+    14: videoReady ? 'finished.mp4' : '',
   };
   const same = (left, right) => left && right && left.length === right.length && left.every((v, i) => Object.is(v, right[i]));
   const react = {
@@ -206,11 +206,25 @@ async function pageHarness({ visibility = 'PUBLIC', step = 1, generated = true, 
     './deviationId/types': { createDefaultDraft: () => draft, createProjectKey: () => 'project', MAX_PHOTO_BYTES: 1000 },
     './deviationId/cloudinaryUpload': {
       withUploadTimeout: async (promise) => promise,
+      clearUploadId() {},
       createUploadId: () => '00000000-0000-4000-8000-000000000001',
       uploadFinishedAsset: async (...args) => {
         uploadCalls.push(args);
         return upload ? upload(...args) : asset(args[2]);
       },
+    },
+    './deviationId/uploadDiagnostics': {
+      safeUploadMessage: (error) => error instanceof Error ? error.message : String(error),
+      uploadTrace: (...args) => logs.push(args),
+    },
+    './deviationId/stepFourExports': {
+      enterStepFourExports: (options) => {
+        options.setStep(4);
+        if (!options.imageReady) options.generateImage();
+        if (!options.videoReady) options.generateVideo();
+      },
+      isVideoDownloadAllowed: (currentStep, blob, filename) =>
+        currentStep === 4 && Boolean(blob && blob.type.includes('mp4') && filename.endsWith('.mp4')),
     },
   };
   const code = await compile('src/pages/DeviationId.tsx', mocks, (source) => source
@@ -312,6 +326,12 @@ test('a receipt write failure cannot prevent the video upload', async () => {
 test('PRIVATE does not call upload or token/signing code', async () => {
   const page = await pageHarness({ visibility: 'PRIVATE' });
   assert.equal(page.uploadCalls.length, 0);
+});
+
+test('PUBLIC cannot request a signing token or upload before step 4', async () => {
+  const page = await pageHarness({ visibility: 'PUBLIC', step: 3 });
+  assert.equal(page.uploadCalls.length, 0);
+  assert.equal(page.inspect().cloudUploadStatus, 'waiting');
 });
 
 test('video downloads are blocked in steps 1–3, allowed only in step 4, then blocked after returning', async () => {
@@ -445,17 +465,17 @@ async function helperHarness({ currentUser = true, signStatuses = [200], cloudSt
   const logs = [];
   const mocks = {
     '../../auth/firebaseAuth': {
-      getFirebaseAuth: () => ({
-        authStateReady: async () => {},
-        currentUser: currentUser ? {
+      getOrCreateAnonymousUser: async () => {
+        if (!currentUser) throw new Error('Firebase anonymous authentication is unavailable.');
+        return {
           isAnonymous: true,
           getIdToken: async (refresh) => {
             tokenRefreshes.push(refresh);
             tokenAction?.();
             return 'offline-private-firebase-token';
           },
-        } : null,
-      }),
+        };
+      },
     },
   };
   const context = vm.createContext(sandbox(mocks, {
@@ -522,9 +542,9 @@ test('existing Firebase token, signing contract, separate URLs, FormData and ret
   assert.ok(!output.includes('offline-private-firebase-token') && !output.includes('offline-dummy-signature'));
 });
 
-test('no existing Firebase user produces a visible failure without logging in or signing', async () => {
+test('Firebase authentication failure is visible and prevents signing', async () => {
   const helper = await helperHarness({ currentUser: false });
-  await assert.rejects(helper.upload(), /No sign-in was started/);
+  await assert.rejects(helper.upload(), /Firebase anonymous authentication is unavailable/);
   assert.equal(helper.fetches.length, 0);
   assert.equal(helper.xhrs.length, 0);
   assert.match(JSON.stringify(helper.logs), /TOKEN_FAILED/);
@@ -535,6 +555,13 @@ test('Worker 403 preserves HTTP status and never sends Cloudinary bytes', async 
   await assert.rejects(helper.upload(), /HTTP 403: Test UID not allowed/);
   assert.equal(helper.xhrs.length, 0);
   assert.match(JSON.stringify(helper.logs), /SIGN_FAILED/);
+});
+
+test('Worker 429 does not retry automatically', async () => {
+  const helper = await helperHarness({ signStatuses: [429] });
+  await assert.rejects(helper.upload(), /HTTP 429/);
+  assert.equal(helper.fetches.length, 1);
+  assert.equal(helper.xhrs.length, 0);
 });
 
 test('Worker 401 refreshes only the existing token, once', async () => {
@@ -583,7 +610,7 @@ test('actual API proxy forwards exact contract, token and Origin; PRIVATE is rej
   }));
   vm.runInContext(await compile('../api-server/src/routes/uploads.ts', mocks), context);
   const body = {
-    submissionId: '00000000-0000-4000-8000-000000000001', assetType: 'image',
+    submissionId: 'subject_2026-A1', assetType: 'image',
     mimeType: 'image/png', bytes: png.size, publicConsent: true,
   };
   const req = {

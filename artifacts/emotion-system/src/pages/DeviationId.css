@@ -566,6 +566,13 @@
 .deviation-archive-no-image { display: grid; height: 100%; place-content: center; justify-items: center; gap: 9px; color: #608985; font: 7px var(--app-font-mono); }
 .deviation-archive-note { margin: 14px 0 0; color: #607b77; font: 7px/1.7 var(--app-font-mono); }
 .deviation-footer { display: flex; justify-content: space-between; gap: 12px; margin-top: 18px; border-top: 1px solid rgba(91, 221, 215, .2); padding-top: 12px; color: #587772; font: 7px var(--app-font-mono); letter-spacing: .08em; }
+.deviation-cloud-upload { display: grid; gap: 10px; margin-top: 13px; border: 1px solid rgba(91, 221, 215, .25); background: rgba(2, 14, 17, .72); padding: 12px; }
+.deviation-cloud-upload-heading { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 7px; color: #8bcac2; font: 7px var(--app-font-mono); letter-spacing: .06em; }
+.deviation-cloud-upload-heading strong { color: #b7f1e9; font-size: 8px; }
+.deviation-cloud-upload-row { display: grid; gap: 5px; }
+.deviation-cloud-upload-row > div:first-child { display: flex; justify-content: space-between; gap: 8px; color: #83aaa4; font: 7px var(--app-font-mono); }
+.deviation-cloud-upload-row small { overflow: hidden; max-width: 72%; color: #5d8983; text-align: right; text-overflow: ellipsis; white-space: nowrap; }
+.deviation-cloud-upload .deviation-error-message { margin: 0; }
 
 @media (max-width: 1050px) {
   .deviation-id-page { width: calc(100% - 56px); }

@@ -21,7 +21,7 @@ router.post("/upload/sign", async (req, res): Promise<void> => {
     : assetType === "video" && (mimeType === "video/webm" || mimeType === "video/mp4");
   if (
     typeof submissionId !== "string"
-    || !/^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/i.test(submissionId)
+    || !/^[A-Za-z0-9_-]{8,128}$/.test(submissionId)
     || (assetType !== "image" && assetType !== "video")
     || !validMime
     || typeof bytes !== "number"

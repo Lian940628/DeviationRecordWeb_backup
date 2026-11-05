@@ -1,4 +1,4 @@
-import { getFirebaseAuth } from '../../auth/firebaseAuth';
+import { getOrCreateAnonymousUser } from '../../auth/firebaseAuth';
 import { safeUploadMessage, uploadTrace } from './uploadDiagnostics';
 
 export type CloudinaryAssetType = 'image' | 'video';
@@ -135,11 +135,9 @@ async function getSignedUpload(
   for (let attempt = 0; attempt < 2; attempt++) {
     let token: string;
     try {
-      const auth = getFirebaseAuth();
-      await withUploadTimeout(auth.authStateReady(), 15_000, 'Firebase Auth initialization timed out.');
       signal.throwIfAborted();
-      const user = auth.currentUser;
-      if (!user) throw new Error('There is no existing Firebase session. No sign-in was started.');
+      const user = await withUploadTimeout(getOrCreateAnonymousUser(), 15_000, 'Firebase Auth initialization timed out.');
+      signal.throwIfAborted();
       if (!user.isAnonymous) throw new Error('The saved Firebase session is not anonymous.');
       token = await withUploadTimeout(user.getIdToken(forceRefresh || attempt > 0), 15_000, 'Firebase token retrieval timed out.');
       signal.throwIfAborted();
