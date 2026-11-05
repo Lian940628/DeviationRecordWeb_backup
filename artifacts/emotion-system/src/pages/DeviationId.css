@@ -8,33 +8,28 @@
     #02080b;
 }
 
-body.deviation-id-invitation-active {
-  overflow: hidden;
-}
-body.deviation-id-invitation-active .deviation-id-shell > .topbar,
 body.deviation-id-invitation-active .identity-verification-error {
   display: none !important;
 }
 
 .deviation-id-page--invitation {
   position: relative;
-  width: 100%;
-  min-height: 100dvh;
-  margin: 0;
-  padding: 0;
+  width: min(1440px, calc(100% - 96px));
+  min-height: 0;
+  margin: 0 auto;
+  padding: 26px 0 42px;
   overflow: visible;
   animation: none;
 }
-.deviation-id-page--invitation > .deviation-page-heading { display: none; }
 .deviation-id-page--invitation .deviation-builder-grid {
   display: block;
   width: 100%;
-  min-height: 100dvh;
+  min-height: 0;
   margin: 0;
 }
 .deviation-id-page--invitation .deviation-editor {
-  position: static;
-  min-height: 100dvh;
+  position: relative;
+  min-height: 0;
   border: 0;
   padding: 0;
   background: transparent;
@@ -44,10 +39,9 @@ body.deviation-id-invitation-active .identity-verification-error {
 .deviation-id-page--invitation .deviation-editor::after,
 .deviation-id-page--invitation .deviation-panel-heading,
 .deviation-id-page--invitation .deviation-workflow-steps,
-.deviation-id-page--invitation .deviation-preview-panel,
-.deviation-id-page--invitation .deviation-error-message { display: none; }
+.deviation-id-page--invitation .deviation-preview-panel { display: none; }
 .deviation-id-page--invitation .deviation-workflow-content { display: block; }
-.deviation-id-page--invitation .deviation-invitation-step { min-height: 100dvh; }
+.deviation-id-page--invitation .deviation-invitation-step { min-height: 0; }
 
 .deviation-id-page {
   position: relative;
@@ -721,6 +715,7 @@ body.deviation-id-invitation-active .identity-verification-error {
 
 @media (max-width: 1050px) {
   .deviation-id-page { width: calc(100% - 56px); }
+  .deviation-id-page--invitation { width: calc(100% - 56px); }
   .deviation-builder-grid { grid-template-columns: minmax(0, 1fr) minmax(280px, 340px); }
   .deviation-editor { padding: 15px; }
   .deviation-archive-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -728,6 +723,7 @@ body.deviation-id-invitation-active .identity-verification-error {
 
 @media (max-width: 760px) {
   .deviation-id-page { width: calc(100% - 36px); padding: 24px 0 38px; }
+  .deviation-id-page--invitation { width: calc(100% - 36px); padding: 24px 0 34px; }
   .deviation-page-heading { align-items: flex-start; flex-direction: column; gap: 10px; }
   .deviation-status-badge { margin: 0; }
   .deviation-builder-grid { display: flex; flex-direction: column; }
@@ -743,6 +739,7 @@ body.deviation-id-invitation-active .identity-verification-error {
 
 @media (max-width: 460px) {
   .deviation-id-page { width: calc(100% - 24px); }
+  .deviation-id-page--invitation { width: calc(100% - 24px); }
   .deviation-editor { padding: 13px 11px; }
   .deviation-personnel-preview { min-height: 360px; grid-template-columns: minmax(0, .7fr) minmax(0, 1fr); }
   .deviation-personnel-preview__record { padding: 13px 10px; }

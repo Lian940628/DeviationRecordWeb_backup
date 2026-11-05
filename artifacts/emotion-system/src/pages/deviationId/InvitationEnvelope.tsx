@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from 'react';
+import type { KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from 'react';
 import type { AppLanguage } from '../../i18n';
 import { deviationText as tx } from './copy';
 import './DeviationIdNarrative.css';
@@ -9,13 +9,6 @@ export interface InvitationEnvelopeProps {
   language: AppLanguage;
   onOpened?: () => void;
 }
-
-type SceneStyle = CSSProperties & {
-  '--cut-progress': string;
-  '--cut-dash-offset': string;
-  '--tear-lift': string;
-  '--flap-angle': string;
-};
 
 export function InvitationEnvelope({ fileId, language, onOpened }: InvitationEnvelopeProps) {
   const t = (value: string) => tx(language, value);
@@ -38,6 +31,7 @@ export function InvitationEnvelope({ fileId, language, onOpened }: InvitationEnv
   const frameRef = useRef<number | null>(null);
   const grabOffsetRef = useRef({ x: 0, y: 0 });
   const knifeAngleRef = useRef(-4);
+  const lastPathProjectionRef = useRef<number | null>(null);
   const callbackRef = useRef(onOpened);
   const completionTimerRef = useRef<number | null>(null);
   callbackRef.current = onOpened;
@@ -85,7 +79,15 @@ export function InvitationEnvelope({ fileId, language, onOpened }: InvitationEnv
       pointerIdRef.current = null;
       if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
       if (completionTimerRef.current !== null) window.clearTimeout(completionTimerRef.current);
-      if (audioContextRef.current) void audioContextRef.current.close();
+      const audioContext = audioContextRef.current;
+      audioContextRef.current = null;
+      if (audioContext && audioContext.state !== 'closed') {
+        try {
+          void audioContext.close().catch(() => undefined);
+        } catch {
+          // The browser may have closed the context while this component was unmounting.
+        }
+      }
     };
   }, []);
 
@@ -111,6 +113,8 @@ export function InvitationEnvelope({ fileId, language, onOpened }: InvitationEnv
       sceneRef.current.style.setProperty('--cut-progress', `${next}%`);
       sceneRef.current.style.setProperty('--cut-dash-offset', `${1000 - next * 10}`);
       sceneRef.current.style.setProperty('--tear-lift', `${Math.min(9, next * 0.09)}px`);
+      const tearWidth = (envelopeRef.current?.offsetWidth ?? 0) * 0.79 * next / 100;
+      sceneRef.current.style.setProperty('--tear-width', `${tearWidth}px`);
       sceneRef.current.style.setProperty('--flap-angle', `${Math.min(18, next * 0.18)}deg`);
       const meter = sceneRef.current.querySelector<HTMLElement>('.di-story-envelope__meter');
       meter?.setAttribute('aria-valuenow', String(Math.round(next)));
@@ -140,7 +144,7 @@ export function InvitationEnvelope({ fileId, language, onOpened }: InvitationEnv
     const matrix = tip.getScreenCTM();
     const seamMatrix = seam.getScreenCTM();
     if (!matrix || !seamMatrix) return;
-    const tipPoint = new DOMPoint(5, 24).matrixTransform(matrix);
+    let tipPoint = new DOMPoint(5, 24).matrixTransform(matrix);
     const length = seam.getTotalLength();
     const start = seam.getPointAtLength(0);
     const end = seam.getPointAtLength(length);
@@ -149,7 +153,25 @@ export function InvitationEnvelope({ fileId, language, onOpened }: InvitationEnv
     const vectorX = screenEnd.x - screenStart.x;
     const vectorY = screenEnd.y - screenStart.y;
     const lengthSquared = vectorX * vectorX + vectorY * vectorY;
-    const projection = ((tipPoint.x - screenStart.x) * vectorX + (tipPoint.y - screenStart.y) * vectorY) / lengthSquared;
+    let projection = ((tipPoint.x - screenStart.x) * vectorX + (tipPoint.y - screenStart.y) * vectorY) / lengthSquared;
+    let distanceToStart = Math.hypot(tipPoint.x - screenStart.x, tipPoint.y - screenStart.y);
+    const distanceToEnd = Math.hypot(tipPoint.x - screenEnd.x, tipPoint.y - screenEnd.y);
+    const snapPoint = progressRef.current === 0 && projection <= 0.04 && distanceToStart <= 32
+      ? screenStart
+      : progressRef.current > 0 && projection >= 0.96 && distanceToEnd <= 32
+        ? screenEnd
+        : null;
+    if (snapPoint) {
+      const adjustedLeft = left + snapPoint.x - tipPoint.x;
+      const adjustedTop = top + snapPoint.y - tipPoint.y;
+      knife.style.left = `${adjustedLeft}px`;
+      knife.style.top = `${adjustedTop}px`;
+      const snappedMatrix = tip.getScreenCTM();
+      if (snappedMatrix) {
+        tipPoint = new DOMPoint(5, 24).matrixTransform(snappedMatrix);
+        projection = ((tipPoint.x - screenStart.x) * vectorX + (tipPoint.y - screenStart.y) * vectorY) / lengthSquared;
+      }
+    }
     const clampedProjection = Math.max(0, Math.min(1, projection));
     const distance = Math.hypot(
       tipPoint.x - (screenStart.x + clampedProjection * vectorX),
@@ -157,12 +179,18 @@ export function InvitationEnvelope({ fileId, language, onOpened }: InvitationEnv
     );
     const withinPath = projection >= 0 && projection <= 1 && distance <= 25;
     sceneRef.current?.classList.toggle('is-aligned', withinPath);
-    if (!withinPath) return;
+    if (!withinPath) {
+      lastPathProjectionRef.current = null;
+      return;
+    }
 
     const next = projection * 100;
     const current = progressRef.current;
     const atStart = current === 0 && next <= 5;
-    if (atStart || next >= current) {
+    const resumingAtCut = current > 0 && lastPathProjectionRef.current === null && next <= current + 1;
+    const continuousRightwardCut = lastPathProjectionRef.current !== null && next >= current;
+    lastPathProjectionRef.current = projection;
+    if (atStart || resumingAtCut || continuousRightwardCut) {
       if (next > current && Date.now() - lastScratchAtRef.current > 110) {
         lastScratchAtRef.current = Date.now();
         playPaperSound('cut');
@@ -173,6 +201,14 @@ export function InvitationEnvelope({ fileId, language, onOpened }: InvitationEnv
 
   const updatePointer = useCallback((event: ReactPointerEvent<HTMLButtonElement>) => {
     if (pointerIdRef.current !== event.pointerId || openedRef.current) return;
+    const previous = pendingPointerRef.current;
+    if (previous) {
+      const deltaX = event.clientX - previous.x;
+      const deltaY = event.clientY - previous.y;
+      if (Math.hypot(deltaX, deltaY) > 1.5) {
+        knifeAngleRef.current = Math.max(-16, Math.min(16, Math.atan2(deltaY, deltaX) * 180 / Math.PI));
+      }
+    }
     pendingPointerRef.current = { x: event.clientX, y: event.clientY };
     if (frameRef.current === null) frameRef.current = requestAnimationFrame(processPointerFrame);
   }, [processPointerFrame]);
@@ -191,6 +227,7 @@ export function InvitationEnvelope({ fileId, language, onOpened }: InvitationEnv
     if (grabOffset.x < bounds.width * 0.14) return;
     grabOffsetRef.current = grabOffset;
     pointerIdRef.current = event.pointerId;
+    lastPathProjectionRef.current = null;
     event.currentTarget.classList.add('is-held');
     setDragging(true);
     event.currentTarget.setPointerCapture(event.pointerId);
@@ -206,9 +243,33 @@ export function InvitationEnvelope({ fileId, language, onOpened }: InvitationEnv
       processPointerFrame();
     }
     pointerIdRef.current = null;
+    lastPathProjectionRef.current = null;
     setDragging(false);
     event.currentTarget.classList.remove('is-held');
     sceneRef.current?.classList.remove('is-aligned');
+  };
+
+  const positionKnifeAtProjection = (projection: number) => {
+    const stage = stageRef.current;
+    const seam = seamPathRef.current;
+    const knife = knifeRef.current;
+    const seamMatrix = seam?.getScreenCTM();
+    if (!stage || !seam || !knife || !seamMatrix) return;
+    const stageBounds = stage.getBoundingClientRect();
+    const point = seam.getPointAtLength(seam.getTotalLength() * Math.max(0, Math.min(1, projection)));
+    const screenPoint = new DOMPoint(point.x, point.y).matrixTransform(seamMatrix);
+    knifeAngleRef.current = 0;
+    knife.style.left = `${screenPoint.x - stageBounds.left}px`;
+    knife.style.top = `${screenPoint.y - stageBounds.top}px`;
+    knife.style.transform = 'translate(-50%, -50%) rotate(0deg)';
+    const tip = bladeTipRef.current;
+    const tipMatrix = tip?.getScreenCTM();
+    if (tip && tipMatrix) {
+      const currentTip = new DOMPoint(5, 24).matrixTransform(tipMatrix);
+      knife.style.left = `${parseFloat(knife.style.left) + screenPoint.x - currentTip.x}px`;
+      knife.style.top = `${parseFloat(knife.style.top) + screenPoint.y - currentTip.y}px`;
+    }
+    sceneRef.current?.classList.add('is-aligned');
   };
 
   const handleKeyboard = (event: ReactKeyboardEvent<HTMLButtonElement>) => {
@@ -219,26 +280,27 @@ export function InvitationEnvelope({ fileId, language, onOpened }: InvitationEnv
         keyboardRef.current = true;
         setDragging(true);
         sceneRef.current?.classList.add('is-cutting');
+        positionKnifeAtProjection(progressRef.current / 100);
       } else {
-        setCutProgress(progressRef.current + 10);
+        const next = Math.min(100, progressRef.current + 8);
+        positionKnifeAtProjection(next / 100);
+        playPaperSound('cut');
+        setCutProgress(next);
         if (progressRef.current >= 100) setDragging(false);
       }
     } else if (event.key === 'ArrowRight' && keyboardRef.current) {
       event.preventDefault();
-      setCutProgress(progressRef.current + 8);
+      const next = Math.min(100, progressRef.current + 8);
+      positionKnifeAtProjection(next / 100);
+      playPaperSound('cut');
+      setCutProgress(next);
       if (progressRef.current >= 100) setDragging(false);
     } else if (event.key === 'Escape' && keyboardRef.current) {
       keyboardRef.current = false;
       setDragging(false);
       sceneRef.current?.classList.remove('is-cutting');
+      sceneRef.current?.classList.remove('is-aligned');
     }
-  };
-
-  const style: SceneStyle = {
-    '--cut-progress': '0%',
-    '--cut-dash-offset': '1000',
-    '--tear-lift': '0px',
-    '--flap-angle': '0deg',
   };
 
   const handleScenePointerMove = (event: ReactPointerEvent<HTMLElement>) => {
@@ -254,7 +316,6 @@ export function InvitationEnvelope({ fileId, language, onOpened }: InvitationEnv
     <section
       ref={sceneRef}
       className={`di-story-envelope${opened ? ' is-opening' : ''}${dragging ? ' is-cutting' : ''}`}
-      style={style}
       aria-label={t('Invitation envelope')}
       onPointerMove={handleScenePointerMove}
     >
@@ -297,6 +358,47 @@ export function InvitationEnvelope({ fileId, language, onOpened }: InvitationEnv
           <div className="di-story-envelope__thickness" aria-hidden="true" />
         </div>
         <div className="di-story-envelope__stage-note" aria-hidden="true">A PLACE HAS BEEN HELD FOR YOU</div>
+        <button
+          ref={knifeRef}
+          type="button"
+          className={`di-story-envelope__opener${dragging ? ' is-held' : ''}`}
+          aria-label={t('Pick up the letter opener and cut the seal from left to right. Press Enter, then use Arrow Right to cut by keyboard.')}
+          aria-describedby="di-story-envelope-help"
+          disabled={opened}
+          onPointerDown={handlePointerDown}
+          onPointerMove={updatePointer}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerUp}
+          onLostPointerCapture={() => {
+            pointerIdRef.current = null;
+            sceneRef.current?.classList.remove('is-aligned');
+            if (mountedRef.current) setDragging(false);
+          }}
+          onKeyDown={handleKeyboard}
+        >
+          <svg viewBox="0 0 280 48" aria-hidden="true">
+            <defs>
+              <linearGradient id="opener-steel" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stopColor="#f2ffff" />
+                <stop offset=".18" stopColor="#627d82" />
+                <stop offset=".36" stopColor="#d7ebec" />
+                <stop offset=".56" stopColor="#778f92" />
+                <stop offset=".78" stopColor="#d1e5e5" />
+                <stop offset="1" stopColor="#31484e" />
+              </linearGradient>
+              <linearGradient id="opener-handle" x1="0" y1="0" x2="0" y2="1">
+                <stop stopColor="#d6ffff" /><stop offset=".4" stopColor="#4f8585" /><stop offset=".72" stopColor="#a4ceca" /><stop offset="1" stopColor="#34575b" />
+              </linearGradient>
+            </defs>
+            <path className="di-opener-shadow" d="M4 24 184 14l8 4 9-11 7 2 3-6 7 7 12 1 5 6 20 4-20 5-5 7-13 1-6 9-8-7-8 3-8-4Z" />
+            <path className="di-opener-blade" d="M5 24 183 17 195 21 183 29Z" fill="url(#opener-steel)" />
+            <path className="di-opener-highlight" d="m13 23 165-5" />
+            <path className="di-opener-guard" d="m183 17 13 4 8-13 7 2 3-6 7 7 12 1 5 6 20 6-20 5-5 7-13 1-6 9-8-7-8 3-8-4 5-9Z" fill="url(#opener-handle)" />
+            <circle cx="221" cy="24" r="3.4" fill="#315458" stroke="#d9ffff" strokeWidth="1.2" />
+            <circle ref={bladeTipRef} cx="5" cy="24" r="2" fill="transparent" />
+          </svg>
+          <span className="di-story-envelope__pickup">PICK UP</span>
+        </button>
       </div>
 
       <div className="di-story-envelope__guidance" aria-live="polite">
@@ -306,47 +408,6 @@ export function InvitationEnvelope({ fileId, language, onOpened }: InvitationEnv
       <div className="di-story-envelope__meter" role="progressbar" aria-label={t('Invitation opening progress')} aria-valuemin={0} aria-valuemax={100} aria-valuenow={0}>
         <span />
       </div>
-      <button
-        ref={knifeRef}
-        type="button"
-        className={`di-story-envelope__opener${dragging ? ' is-held' : ''}`}
-        aria-label={t('Pick up the letter opener and cut the seal from left to right. Press Enter, then use Arrow Right to cut by keyboard.')}
-        aria-describedby="di-story-envelope-help"
-        disabled={opened}
-        onPointerDown={handlePointerDown}
-        onPointerMove={updatePointer}
-        onPointerUp={handlePointerUp}
-        onPointerCancel={handlePointerUp}
-        onLostPointerCapture={() => {
-          pointerIdRef.current = null;
-          sceneRef.current?.classList.remove('is-aligned');
-          if (mountedRef.current) setDragging(false);
-        }}
-        onKeyDown={handleKeyboard}
-      >
-        <svg viewBox="0 0 280 48" aria-hidden="true">
-          <defs>
-            <linearGradient id="opener-steel" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0" stopColor="#f2ffff" />
-              <stop offset=".18" stopColor="#627d82" />
-              <stop offset=".36" stopColor="#d7ebec" />
-              <stop offset=".56" stopColor="#778f92" />
-              <stop offset=".78" stopColor="#d1e5e5" />
-              <stop offset="1" stopColor="#31484e" />
-            </linearGradient>
-            <linearGradient id="opener-handle" x1="0" y1="0" x2="0" y2="1">
-              <stop stopColor="#d6ffff" /><stop offset=".4" stopColor="#4f8585" /><stop offset=".72" stopColor="#a4ceca" /><stop offset="1" stopColor="#34575b" />
-            </linearGradient>
-          </defs>
-          <path className="di-opener-shadow" d="M4 24 184 14l8 4 9-11 7 2 3-6 7 7 12 1 5 6 20 4-20 5-5 7-13 1-6 9-8-7-8 3-8-4Z" />
-          <path className="di-opener-blade" d="M5 24 183 17 195 21 183 29Z" fill="url(#opener-steel)" />
-          <path className="di-opener-highlight" d="m13 23 165-5" />
-          <path className="di-opener-guard" d="m183 17 13 4 8-13 7 2 3-6 7 7 12 1 5 6 20 6-20 5-5 7-13 1-6 9-8-7-8 3-8-4 5-9Z" fill="url(#opener-handle)" />
-          <circle cx="221" cy="24" r="3.4" fill="#315458" stroke="#d9ffff" strokeWidth="1.2" />
-          <circle ref={bladeTipRef} cx="5" cy="24" r="2" fill="transparent" />
-        </svg>
-        <span className="di-story-envelope__pickup">PICK UP</span>
-      </button>
       <p className="di-story-envelope__assist" id="di-story-envelope-help">{t('Keyboard: focus the letter opener, press Enter to begin, then Arrow Right until the seal is cut. Escape pauses.')}</p>
     </section>
   );
