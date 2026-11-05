@@ -310,6 +310,13 @@ function Experience() {
                 </button>
                 <button type="button" className="text-button" onClick={stopCamera} disabled={!camera.stream} data-testid="button-stop-camera" aria-label={t('Stop camera')}><VideoOff size={15} strokeWidth={1.6} /><span className="button-label">{t('STOP CAMERA')}</span></button>
               </div>
+              <label className="camera-source-control">
+                <span className="section-label">{t('Camera source')}</span>
+                <select id="camera-device" className="setting-select camera-source-select" value={camera.selectedDevice} onChange={(event) => camera.selectDevice(event.target.value)} disabled={!camera.devices.length || camera.isStarting} data-testid="select-camera-device" aria-label={t('Select camera device')}>
+                  {camera.devices.length === 0 ? <option value="">{camera.permissionGranted ? t('No camera available') : t('Camera names appear after access')}</option> : camera.devices.map((device, index) => <option value={device.deviceId} key={device.deviceId || index}>{device.label}</option>)}
+                </select>
+                <small>{camera.stream ? t('Switches immediately while live.') : t('Applied when camera starts.')}</small>
+              </label>
               <button type="button" className="secondary-button" onClick={toggleFullscreen} data-testid="button-fullscreen" aria-label={t(isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen')}><Expand size={13} aria-hidden="true" /> &nbsp; {t(isFullscreen ? 'Exit fullscreen' : 'FULLSCREEN')}</button>
             </div>
             <div className={`status-note${camera.status === 'error' ? ' error' : camera.status === 'live' ? ' success' : ''}`} role="status" aria-live="polite" data-testid="status-camera-message">
@@ -325,13 +332,6 @@ function Experience() {
               <div className="panel-section">
                 <div className="stats-row"><span className="section-label">{t('Frame rate')}</span><span className="stat-unit">FPS</span></div>
                 <div className="stats-row"><span className="stat-value" data-testid="text-fps-value">{camera.stream ? camera.fps : '—'}</span><span className="stat-unit">{camera.stream ? t('LIVE ESTIMATE') : t('AWAITING CAMERA')}</span></div>
-              </div>
-              <div className="panel-section">
-                <label className="section-label" htmlFor="camera-device">{t('Camera source')}</label>
-                <select id="camera-device" className="setting-select" value={camera.selectedDevice} onChange={(event) => camera.selectDevice(event.target.value)} disabled={!camera.devices.length || camera.isStarting} data-testid="select-camera-device" aria-label={t('Select camera device')}>
-                  {camera.devices.length === 0 ? <option value="">{camera.permissionGranted ? t('No camera available') : t('Camera names appear after access')}</option> : camera.devices.map((device, index) => <option value={device.deviceId} key={device.deviceId || index}>{device.label}</option>)}
-                </select>
-                <p className="select-note">{camera.stream ? t('Select a camera to switch immediately. Built-in and connected cameras are listed by device name.') : camera.permissionGranted ? t('Choose a source, then press START CAMERA to apply it.') : t('Device names may be hidden until you grant camera access.')}</p>
               </div>
               <div className="panel-section" style={{ borderBottom: 0, paddingBottom: 0 }}>
                 <span className="section-label">{t('What this work does')}</span>

@@ -96,6 +96,8 @@ const TRADITIONAL_CHINESE: Record<string, string> = {
   'Choose a source, then press START CAMERA to apply it.': '選擇來源後，按「啟動攝影機」套用。',
   'Select a camera to switch immediately. Built-in and connected cameras are listed by device name.': '選擇攝影機即可立即切換；內建與已連接的外接攝影機會依裝置名稱列出。',
   'Device names may be hidden until you grant camera access.': '授權攝影機前，裝置名稱可能不會顯示。',
+  'Switches immediately while live.': '攝影機啟用時會立即切換。',
+  'Applied when camera starts.': '按下啟動攝影機時套用。',
   'What this work does': '作品如何運作',
   'People and facial signals are processed locally. Expression labels are heuristic estimates, not readings of a person’s inner emotional state.':
     '人物與臉部訊號只在本機處理。表情標籤是啟發式估計，不代表對個人內在情緒的判讀。',

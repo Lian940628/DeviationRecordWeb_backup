@@ -488,6 +488,34 @@ button:focus-visible, a:focus-visible, select:focus-visible { outline-color: #c9
   .ambient-particle { animation: none; }
 }
 
+.camera-source-control {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  width: min(230px, 23vw);
+  min-width: 170px;
+}
+.camera-source-control .section-label { margin: 0; }
+.camera-source-select { height: 40px; }
+.camera-source-control small {
+  color: #91aaa0;
+  font: 8px/1.4 var(--app-font-mono);
+  letter-spacing: .04em;
+}
+@media (max-width: 900px) {
+  .camera-source-control { width: min(210px, 30vw); }
+}
+@media (max-width: 600px) {
+  .experience-shell .preview-actions { flex-wrap: wrap; }
+  .experience-shell .camera-source-control {
+    order: 3;
+    flex: 1 0 100%;
+    width: 100%;
+    min-width: 0;
+  }
+  .experience-shell .preview-actions > .secondary-button { order: 2; margin-left: auto; }
+}
+
 .site-nav {
   display: flex;
   align-items: center;
