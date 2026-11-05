@@ -400,7 +400,6 @@ export function InvitationEnvelope({ fileId, language, onOpened }: InvitationEnv
       onPointerMove={handleScenePointerMove}
     >
       <div className="di-story-envelope__atmosphere" aria-hidden="true" />
-      <p className="di-story-envelope__whisper">{t('The park is waiting. Your name is not yet known.')}</p>
 
       <div className="di-story-envelope__stage" ref={stageRef}>
         <div className="di-story-envelope__shadow" aria-hidden="true" />
@@ -497,13 +496,6 @@ export function InvitationEnvelope({ fileId, language, onOpened }: InvitationEnv
         </button>
       </div>
 
-      <div className="di-story-envelope__guidance" aria-live="polite">
-        <span>{opened ? t('THE SEAL IS BROKEN · YOUR FILE IS WITHDRAWN') : dragging ? t('FOLLOW THE STRAIGHT SEAL · KEEP THE TIP ALIGNED') : t('PICK UP THE OPENER · ALIGN AT THE LEFT EDGE')}</span>
-        <small>{t('HOLD AND DRAG · TOUCH SUPPORTED · ENTER, THEN ARROW RIGHT TO CUT')}</small>
-      </div>
-      <div className="di-story-envelope__meter" role="progressbar" aria-label={t('Invitation opening progress')} aria-valuemin={0} aria-valuemax={100} aria-valuenow={0}>
-        <span />
-      </div>
       <p className="di-story-envelope__assist" id="di-story-envelope-help">{t('Keyboard: focus the letter opener, press Enter to begin, then Arrow Right until the seal is cut. Escape pauses.')}</p>
     </section>
   );

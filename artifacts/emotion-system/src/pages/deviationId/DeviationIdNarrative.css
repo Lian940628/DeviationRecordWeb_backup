@@ -1066,7 +1066,25 @@
 @keyframes di-postmark-release {
   to { opacity: 0; transform: translate(16px, -18px) scale(.75) rotate(12deg); filter: blur(2px); }
 }
+.deviation-id-page--invitation .di-story-envelope {
+  min-height: calc(100dvh - 10px);
+  padding: 12px 12px 20px;
+}
+.deviation-id-page--invitation .di-story-envelope__stage {
+  width: min(82vw, 960px);
+}
+.deviation-id-page--invitation .di-story-envelope__stage-note,
+.deviation-id-page--invitation .di-story-envelope__whisper,
+.deviation-id-page--invitation .di-story-envelope__guidance,
+.deviation-id-page--invitation .di-story-envelope__meter {
+  display: none;
+}
 @media (max-width: 600px) {
+  .deviation-id-page--invitation .di-story-envelope {
+    min-height: calc(100dvh - 10px);
+    padding: 8px 8px 14px;
+  }
+  .deviation-id-page--invitation .di-story-envelope__stage { width: min(94vw, 720px); }
   .di-story-envelope { padding: 28px 12px 38px; }
   .di-story-envelope__whisper { margin-bottom: 31px; }
   .di-story-envelope__stage { width: min(92vw, 620px); min-width: 0; transform: none; }

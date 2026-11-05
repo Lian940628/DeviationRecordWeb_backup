@@ -109,6 +109,7 @@ export default function DeviationId() {
   const [personSegmentationStatus, setPersonSegmentationStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
   const [generated, setGenerated] = useState(false);
   const [step, setStep] = useState<DeviationWorkflowStep>(1);
+  const [transitioningToProfile, setTransitioningToProfile] = useState(false);
   const [previewPlaying, setPreviewPlaying] = useState(false);
   const [previewProgress, setPreviewProgress] = useState(0);
   const [exportProgress, setExportProgress] = useState(0);
@@ -131,6 +132,7 @@ export default function DeviationId() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const editorRef = useRef<HTMLElement | null>(null);
+  const stepTransitionTimerRef = useRef<number | null>(null);
   const draftRef = useRef(draft);
   const imageRef = useRef(photoImage);
   const videoBlobRef = useRef(videoBlob);
@@ -160,13 +162,12 @@ export default function DeviationId() {
   currentProjectIdRef.current = currentProjectId;
   createdAtRef.current = createdAt;
 
-  const outputFormat = 'mp4' as const;
-
   useEffect(() => {
-    if (step !== 1) return undefined;
-    document.body.classList.add('deviation-id-invitation-active');
+    document.body.classList.toggle('deviation-id-invitation-active', step === 1);
     return () => document.body.classList.remove('deviation-id-invitation-active');
   }, [step]);
+
+  const outputFormat = 'mp4' as const;
 
   const updateDraft = useCallback((patch: Partial<DeviationDraft>) => {
     const patchKeys = Object.keys(patch);
@@ -237,6 +238,10 @@ export default function DeviationId() {
     return () => {
       mountedRef.current = false;
       segmentationRequestRef.current += 1;
+      if (stepTransitionTimerRef.current !== null) {
+        window.clearTimeout(stepTransitionTimerRef.current);
+        stepTransitionTimerRef.current = null;
+      }
       exportingRef.current = false;
       personMattingRef.current?.disposePersonSegmenter();
       window.cancelAnimationFrame(animationFrameRef.current);
@@ -842,6 +847,20 @@ export default function DeviationId() {
     setStep(5);
   }, [generated, t]);
 
+  const handleInvitationOpened = useCallback(() => {
+    if (stepTransitionTimerRef.current !== null) {
+      window.clearTimeout(stepTransitionTimerRef.current);
+    }
+    setTransitioningToProfile(true);
+    stepTransitionTimerRef.current = window.setTimeout(() => {
+      setStep(2);
+      stepTransitionTimerRef.current = window.setTimeout(() => {
+        stepTransitionTimerRef.current = null;
+        setTransitioningToProfile(false);
+      }, 560);
+    }, 260);
+  }, []);
+
   const previewStage = Math.min(5, Math.floor(previewProgress * 5) + 1);
   const canExportVideo = mp4Available;
   return (
@@ -878,7 +897,7 @@ export default function DeviationId() {
           editorRef={editorRef}
           onDraftChange={updateDraft}
           onStepChange={setStep}
-          onInvitationOpened={() => setStep(2)}
+          onInvitationOpened={handleInvitationOpened}
           onContinueProfile={handleContinueProfile}
           onProfileCertified={() => setStep(3)}
           onContinueDatasetChoice={() => { void handleContinueLocal(); }}
@@ -961,6 +980,19 @@ export default function DeviationId() {
         <span>PROJECT FILE V3 · NO ACCOUNT · NO SYNC</span>
         <span>DEVIATION RECORD</span>
       </footer>
+      {transitioningToProfile && (
+        <div
+          className="deviation-step-transition"
+          aria-hidden="true"
+          onAnimationEnd={() => {
+            if (stepTransitionTimerRef.current !== null) {
+              window.clearTimeout(stepTransitionTimerRef.current);
+              stepTransitionTimerRef.current = null;
+            }
+            setTransitioningToProfile(false);
+          }}
+        />
+      )}
     </main>
   );
 }
