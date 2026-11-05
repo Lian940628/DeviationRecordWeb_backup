@@ -328,10 +328,10 @@ function Experience() {
               </div>
               <div className="panel-section">
                 <label className="section-label" htmlFor="camera-device">{t('Camera source')}</label>
-                <select id="camera-device" className="setting-select" value={camera.selectedDevice} onChange={(event) => camera.setSelectedDevice(event.target.value)} disabled={!camera.devices.length} data-testid="select-camera-device" aria-label={t('Select camera device')}>
+                <select id="camera-device" className="setting-select" value={camera.selectedDevice} onChange={(event) => camera.selectDevice(event.target.value)} disabled={!camera.devices.length || camera.isStarting} data-testid="select-camera-device" aria-label={t('Select camera device')}>
                   {camera.devices.length === 0 ? <option value="">{camera.permissionGranted ? t('No camera available') : t('Camera names appear after access')}</option> : camera.devices.map((device, index) => <option value={device.deviceId} key={device.deviceId || index}>{device.label}</option>)}
                 </select>
-                <p className="select-note">{camera.permissionGranted ? t('Choose a source, then press START CAMERA to apply it.') : t('Device names may be hidden until you grant camera access.')}</p>
+                <p className="select-note">{camera.stream ? t('Select a camera to switch immediately. Built-in and connected cameras are listed by device name.') : camera.permissionGranted ? t('Choose a source, then press START CAMERA to apply it.') : t('Device names may be hidden until you grant camera access.')}</p>
               </div>
               <div className="panel-section" style={{ borderBottom: 0, paddingBottom: 0 }}>
                 <span className="section-label">{t('What this work does')}</span>

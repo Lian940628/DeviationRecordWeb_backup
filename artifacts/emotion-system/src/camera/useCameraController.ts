@@ -131,8 +131,9 @@ export function useCameraController() {
   }, [stopTracks]);
 
   // This function is called only from the explicit START CAMERA control.
-  const startCamera = useCallback(async () => {
+  const startCamera = useCallback(async (deviceIdOverride?: string) => {
     if (startingRef.current) return false;
+    const requestedDeviceId = deviceIdOverride ?? selectedDevice;
     if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
       setStatus('error');
       setMessage('Camera access needs a secure page (HTTPS or localhost) and a browser with camera support.');
@@ -152,7 +153,7 @@ export function useCameraController() {
         width: { ideal: 1280 },
         height: { ideal: 720 },
         aspectRatio: { ideal: 16 / 9 },
-        ...(selectedDevice ? { deviceId: { exact: selectedDevice } } : {}),
+        ...(requestedDeviceId ? { deviceId: { exact: requestedDeviceId } } : {}),
       };
       const nextStream = await navigator.mediaDevices.getUserMedia({ video: videoConstraints, audio: false });
       if (!mountedRef.current) {
@@ -179,6 +180,13 @@ export function useCameraController() {
     }
   }, [refreshDevices, selectedDevice, stopTracks]);
 
+  const selectDevice = useCallback((deviceId: string) => {
+    setSelectedDevice(deviceId);
+    if (deviceId && deviceId !== selectedDevice && streamRef.current) {
+      void startCamera(deviceId);
+    }
+  }, [selectedDevice, startCamera]);
+
   const stopCamera = useCallback(() => {
     stopTracks(streamRef.current);
     streamRef.current = null;
@@ -193,7 +201,7 @@ export function useCameraController() {
     || stream?.getVideoTracks()[0]?.getSettings().facingMode === 'user';
 
   return {
-    videoRef, stream, devices, selectedDevice, setSelectedDevice, status, message, fps,
+    videoRef, stream, devices, selectedDevice, setSelectedDevice, selectDevice, status, message, fps,
     permissionGranted, mirrored, startCamera, stopCamera, isStarting,
     secureSupported: typeof window !== 'undefined' && window.isSecureContext && !!navigator.mediaDevices?.getUserMedia,
   };

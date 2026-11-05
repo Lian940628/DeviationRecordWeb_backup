@@ -94,6 +94,7 @@ const TRADITIONAL_CHINESE: Record<string, string> = {
   'No camera available': '沒有可用的攝影機',
   'Camera names appear after access': '授權後顯示攝影機名稱',
   'Choose a source, then press START CAMERA to apply it.': '選擇來源後，按「啟動攝影機」套用。',
+  'Select a camera to switch immediately. Built-in and connected cameras are listed by device name.': '選擇攝影機即可立即切換；內建與已連接的外接攝影機會依裝置名稱列出。',
   'Device names may be hidden until you grant camera access.': '授權攝影機前，裝置名稱可能不會顯示。',
   'What this work does': '作品如何運作',
   'People and facial signals are processed locally. Expression labels are heuristic estimates, not readings of a person’s inner emotional state.':
