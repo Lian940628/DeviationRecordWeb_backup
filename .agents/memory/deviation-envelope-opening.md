@@ -15,8 +15,8 @@ description: Visual direction, geometry, and transition invariants for DEVIATION
 
 **How to apply:** Keep instructional copy outside the envelope; use graphic-only marks on it, make the opener's interactive area easier to hit than its visible handle, and keep ambient animation and scan effects lightweight.
 
-**Visual update:** The current envelope direction is a wordless, dark metallic teal form against a vertically pleated black-teal curtain, with restrained cyan edge glow, the abstract postage graphic at upper-right, and a small hollow chrome-ring accent at center (not a wax crest). Preserve the existing float, scan, circuit, and letter-opener effects.
+**Visual update:** The current envelope direction is a wordless, dark metallic teal form against a vertically pleated black-teal curtain, with restrained cyan edge glow and the abstract postage graphic at upper-right. Keep the envelope scaled to fit without clipping; do not place a seal or circular ornament at its center. Preserve the existing float, scan, circuit, and letter-opener effects.
 
-**Why:** The user asked for the Step 01 envelope to take cues from a cinematic teal curtain-and-metal reference while keeping the existing effects and prior no-text requirement.
+**Why:** The user asked for the Step 01 envelope to take cues from a cinematic teal curtain-and-metal reference while keeping the existing effects, then clarified the envelope was too large and explicitly requested removal of its center ring/seal.
 
-**How to apply:** Keep future envelope refinements within this material and lighting direction; do not add printed words or remove the upper-right graphic mark.
+**How to apply:** Keep future envelope refinements within this material and lighting direction; do not add printed words or a center seal, or remove the upper-right graphic mark.

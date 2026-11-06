@@ -412,7 +412,6 @@ export function InvitationEnvelope({ fileId, language, onOpened }: InvitationEnv
         <div ref={envelopeRef} className="di-story-envelope__object">
           <div className="di-story-envelope__body">
             <div className="di-story-envelope__paper-grain" />
-            <div className="di-story-envelope__chrome-ring" aria-hidden="true" />
             <svg className="di-story-envelope__circuit" viewBox="0 0 1000 600" preserveAspectRatio="none" aria-hidden="true">
               <g className="di-story-envelope__circuit-lines">
                 <path d="M0 70h110l30 30h132l24 24h93M1000 106h-92l-26 26h-118l-35 35h-86M0 492h104l25-25h126l40-40h84M1000 456h-110l-34-34H720l-26-26h-96M0 286h72l22-22h74M1000 308h-76l-25 25h-72" />
