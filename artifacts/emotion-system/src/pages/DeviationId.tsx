@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowDownToLine, ArrowUpRight, Play, RotateCcw, Square, Video } from 'lucide-react';
 import { useAppLanguage } from '../i18n';
+import { MatrixRain } from '../components/ui/matrix-rain';
 import { DeviationIdForm } from './deviationId/DeviationIdForm';
 import { deviationText as tx } from './deviationId/copy';
 import {
@@ -109,6 +110,7 @@ export default function DeviationId() {
   const [personSegmentationStatus, setPersonSegmentationStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
   const [generated, setGenerated] = useState(false);
   const [step, setStep] = useState<DeviationWorkflowStep>(1);
+  const [matrixTransitionVisible, setMatrixTransitionVisible] = useState(false);
   const [previewPlaying, setPreviewPlaying] = useState(false);
   const [previewProgress, setPreviewProgress] = useState(0);
   const [exportProgress, setExportProgress] = useState(0);
@@ -144,6 +146,7 @@ export default function DeviationId() {
   const personMattingRef = useRef<{ disposePersonSegmenter: () => void } | null>(null);
   const segmentationRequestRef = useRef(0);
   const animationFrameRef = useRef(0);
+  const matrixTransitionTimerRef = useRef<number | null>(null);
   const exportFrameRef = useRef(0);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const exportStreamRef = useRef<MediaStream | null>(null);
@@ -836,10 +839,40 @@ export default function DeviationId() {
     setStep(5);
   }, [generated, t]);
 
+  const handleInvitationOpened = useCallback(() => {
+    setStep(2);
+    setMatrixTransitionVisible(true);
+    if (matrixTransitionTimerRef.current !== null) {
+      window.clearTimeout(matrixTransitionTimerRef.current);
+    }
+    matrixTransitionTimerRef.current = window.setTimeout(() => {
+      matrixTransitionTimerRef.current = null;
+      setMatrixTransitionVisible(false);
+    }, 4000);
+  }, []);
+
+  useEffect(() => () => {
+    if (matrixTransitionTimerRef.current !== null) {
+      window.clearTimeout(matrixTransitionTimerRef.current);
+    }
+  }, []);
+
   const previewStage = Math.min(5, Math.floor(previewProgress * 5) + 1);
   const canExportVideo = mp4Available;
   return (
     <main className={`deviation-id-page${step === 1 ? ' deviation-id-page--invitation' : ''}`}>
+      {matrixTransitionVisible && (
+        <div className="deviation-matrix-transition" aria-hidden="true">
+          <MatrixRain
+            className="deviation-matrix-transition__rain"
+            variant="cyan"
+            fixedColor="#66f6e1"
+            fontSize={18}
+            speed={42}
+            transparent
+          />
+        </div>
+      )}
       <header className="deviation-page-heading">
         <div>
           <div className="deviation-kicker">EMOTION / SYSTEM · LOCAL IDENTITY RECORD</div>
@@ -872,7 +905,7 @@ export default function DeviationId() {
           editorRef={editorRef}
           onDraftChange={updateDraft}
           onStepChange={setStep}
-          onInvitationOpened={() => setStep(2)}
+          onInvitationOpened={handleInvitationOpened}
           onContinueProfile={handleContinueProfile}
           onProfileCertified={() => setStep(3)}
           onContinueDatasetChoice={() => { void handleContinueLocal(); }}

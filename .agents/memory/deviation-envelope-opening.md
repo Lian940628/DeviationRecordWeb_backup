@@ -20,3 +20,9 @@ description: Visual direction, geometry, and transition invariants for DEVIATION
 **Why:** The user asked for the Step 01 envelope to take cues from a cinematic teal curtain-and-metal reference while keeping the existing effects, then clarified the envelope was too large and explicitly requested removal of its center ring/seal.
 
 **How to apply:** Keep future envelope refinements within this material and lighting direction; do not add printed words or a center seal, or remove the upper-right graphic mark.
+
+**Transition direction:** When the invitation completes and advances from Step 01 to Step 02, use a four-second cyan Matrix Rain code overlay; it must be decorative, non-blocking, and limited to that transition.
+
+**Why:** The user specifically requested the Matrix Rain effect for the Step 01 → Step 02 transition.
+
+**How to apply:** Trigger it only after the envelope-opening sequence completes, let Step 02 appear beneath it, keep the canvas scoped to those four seconds, and clean it up afterward so it does not affect other steps or camera/rendering performance.
