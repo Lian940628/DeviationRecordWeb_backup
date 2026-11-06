@@ -56,6 +56,7 @@ interface DecryptedTextProps extends HTMLAttributes<HTMLSpanElement> {
   sequential?: boolean;
   revealDirection?: 'start' | 'end' | 'center' | 'random';
   useOriginalCharsOnly?: boolean;
+  allowCjkLineBreaks?: boolean;
   characters?: string;
   className?: string;
   parentClassName?: string;
@@ -155,6 +156,7 @@ export default function DecryptedText({
   sequential = false,
   revealDirection = 'start',
   useOriginalCharsOnly = false,
+  allowCjkLineBreaks = false,
   characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz!@#$%^&*()_+',
   className = '',
   parentClassName = '',
@@ -577,20 +579,42 @@ export default function DecryptedText({
   const groups = useMemo(() => {
     const result: Group[] = [];
     let word: { key: number; letters: number[] } | null = null;
+    let previousCjkGroup: { key: number; letters: number[] } | null = null;
+    const isCjkLetter = (char: string) => /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u.test(char);
+    const isCjkPunctuation = (char: string) => /[,，。！？；：、…—–「」『』（）［］【】《》〈〉]/u.test(char);
+
     chars.forEach((char, index) => {
       if (isSpace(char)) {
         result.push(char);
         word = null;
+        previousCjkGroup = null;
         return;
       }
+
+      if (allowCjkLineBreaks && isCjkLetter(char)) {
+        const cjkGroup = { key: index, letters: [index] };
+        result.push(cjkGroup);
+        previousCjkGroup = cjkGroup;
+        word = null;
+        return;
+      }
+
+      if (allowCjkLineBreaks && previousCjkGroup && isCjkPunctuation(char)) {
+        previousCjkGroup.letters.push(index);
+        word = null;
+        return;
+      }
+
       if (!word) {
         word = { key: index, letters: [] };
         result.push(word);
       }
       word.letters.push(index);
+      previousCjkGroup = null;
     });
+
     return result;
-  }, [chars]);
+  }, [allowCjkLineBreaks, chars]);
 
   const tinted = Boolean(scrambleColor);
   const fading = effect === 'fade';

@@ -22,3 +22,9 @@ For homepage text animation, keep the DOM heading only for layout, accessibility
 **Why:** The user explicitly wants the animated Canvas title to remain visible and the non-animated duplicate removed. Hiding the DOM before the asynchronous canvases are ready caused a blank heading.
 
 **How to apply:** Read the title's computed font metrics after its local font loads, position the canvases absolutely, and hide the DOM text only after both canvases have rendered. Keep the Canvas visible while idle and do not change global font rules.
+
+Keep a visible gap between the “Deviation” and “Record” title segments. During viewport changes, show the DOM heading as fallback until both Fuzzy Text canvases have rebuilt for the latest metrics; test desktop-to-mobile-to-desktop resizing in one session.
+
+**Why:** The user reported the N/R seam colliding and the title disappearing after resizing or on phones.
+
+**How to apply:** Treat stale or default-sized canvases as not ready. Re-check layout after each responsive metric change before hiding the fallback.

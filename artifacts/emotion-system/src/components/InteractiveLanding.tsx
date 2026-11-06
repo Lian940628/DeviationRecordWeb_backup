@@ -225,7 +225,7 @@ export default function InteractiveLanding({ header, language = 'en' }: Interact
         canvas.getBoundingClientRect().height > 0
       ));
       if (rendered) {
-        const signature = [...canvases].map((canvas) =>
+        const signature = Array.from(canvases ?? []).map((canvas) =>
           `${canvas.width}x${canvas.height}:${canvas.style.width}:${canvas.style.height}`
         ).join('|');
         // Require the canvas dimensions to remain stable for two frames before hiding the DOM fallback.
@@ -527,26 +527,25 @@ export default function InteractiveLanding({ header, language = 'en' }: Interact
           <div className="ir-landing__text" lang={language === 'zh' ? 'zh-TW' : 'en'}>
             {paragraphs.map((paragraph) => (
               <p key={paragraph}>
-                {language === 'en' ? (
-                  <DecryptedText
-                    text={paragraph}
-                    animateOn="hover"
-                    effect="fade"
-                    sequential
-                    revealDirection="start"
-                    speed={60}
-                    maxIterations={6}
-                    hoverRadius={50}
-                    scrambleColor="#2bb673"
-                    loop={false}
-                    loopDelay={2000}
-                    useOriginalCharsOnly={false}
-                    characters="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz!@#$%^&*()_+"
-                    className="revealed"
-                    encryptedClassName="encrypted"
-                    clickMode="once"
-                  />
-                ) : paragraph}
+                <DecryptedText
+                  text={paragraph}
+                  animateOn="hover"
+                  effect="fade"
+                  sequential
+                  revealDirection="start"
+                  speed={60}
+                  maxIterations={6}
+                  hoverRadius={50}
+                  scrambleColor="#2bb673"
+                  loop={false}
+                  loopDelay={2000}
+                  useOriginalCharsOnly={false}
+                  allowCjkLineBreaks={language === 'zh'}
+                  characters="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz!@#$%^&*()_+"
+                  className="revealed"
+                  encryptedClassName="encrypted"
+                  clickMode="once"
+                />
               </p>
             ))}
           </div>

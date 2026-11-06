@@ -831,13 +831,15 @@ export default function DeviationId() {
   }, [personSegmentationStatus, t]);
 
   const handleContinueDownload = useCallback(() => {
-    if (!generated) {
+    if (!draftRef.current.subjectId || !imageRef.current || personSegmentationStatus !== 'ready') {
       setError(t('RUN PERSON SEGMENTATION BEFORE GENERATING.'));
       return;
     }
+    // A preview is optional; Step 05 can generate its export files directly.
+    setGenerated(true);
     setError('');
     setStep(5);
-  }, [generated, t]);
+  }, [personSegmentationStatus, t]);
 
   const handleInvitationOpened = useCallback(() => {
     setStep(2);
