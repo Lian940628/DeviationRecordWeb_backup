@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, type CSSProperties, type Poin
 import { Link } from 'wouter';
 import type { AppLanguage } from '../i18n';
 import bannerImage from '../dashboard/deviation-record-banner.webp';
+import FuzzyText from './ui/FuzzyText';
 import './interactiveLanding.css';
 
 type InteractiveLandingProps = {
@@ -20,6 +21,20 @@ type CodeTrace = {
   x: number;
   y: number;
   text: string;
+};
+
+type FuzzyTitleMetrics = {
+  fontSize: number;
+  fontWeight: string;
+  fontFamily: string;
+  letterSpacingPrimary: number;
+  letterSpacingSecondary: number;
+  colorPrimary: string;
+  colorSecondary: string;
+  primaryLeft: number;
+  secondaryLeft: number;
+  top: number;
+  textTransform: string;
 };
 
 const CODE_SNIPPETS = ['0xDEVIATION', 'if (signal)', 'drift += 0.018', 'mem://offset', 'while (seen)', 'Δ perception', 'return noise'];
@@ -54,11 +69,201 @@ export default function InteractiveLanding({ header, language = 'en' }: Interact
   const previousPointer = useRef<{ x: number; y: number } | null>(null);
   const signalTimeouts = useRef<number[]>([]);
   const traceTimeouts = useRef<number[]>([]);
+  const titleRef = useRef<HTMLHeadingElement>(null);
+  const titleSecondaryRef = useRef<HTMLSpanElement>(null);
+  const fuzzyLayerRef = useRef<HTMLSpanElement>(null);
+  const fuzzyPointerFrame = useRef(0);
+  const fuzzyPointerPosition = useRef<{ x: number; y: number; pointerType: string; pointerId: number } | null>(null);
+  const fuzzyHoverRef = useRef(false);
   const [signals, setSignals] = useState<Signal[]>([]);
   const [codeTrail, setCodeTrail] = useState<CodeTrace[]>([]);
   const [pointerEnabled, setPointerEnabled] = useState(false);
   const [motionAllowed, setMotionAllowed] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(false);
+  const [fuzzyMetrics, setFuzzyMetrics] = useState<FuzzyTitleMetrics | null>(null);
+  const [fuzzyIntroActive, setFuzzyIntroActive] = useState(false);
+  const [fuzzyHoverActive, setFuzzyHoverActive] = useState(false);
+
+  const dispatchFuzzyPointer = useCallback((
+    eventType: 'pointermove' | 'pointerleave',
+    point: { x: number; y: number; pointerType: string; pointerId: number },
+  ) => {
+    const canvases = fuzzyLayerRef.current?.querySelectorAll('canvas');
+    if (!canvases?.length) return;
+    canvases.forEach((canvas) => {
+      const forwarded = typeof PointerEvent !== 'undefined'
+        ? new PointerEvent(eventType, {
+            clientX: point.x,
+            clientY: point.y,
+            pointerType: point.pointerType,
+            pointerId: point.pointerId,
+            isPrimary: true,
+          })
+        : new MouseEvent(eventType, { clientX: point.x, clientY: point.y });
+      canvas.dispatchEvent(forwarded);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!motionAllowed || reducedMotion) {
+      setFuzzyMetrics(null);
+      setFuzzyIntroActive(false);
+      setFuzzyHoverActive(false);
+      fuzzyHoverRef.current = false;
+      return;
+    }
+
+    const title = titleRef.current;
+    const secondary = titleSecondaryRef.current;
+    const textNode = title?.firstChild;
+    if (!title || !secondary || !textNode || textNode.nodeType !== Node.TEXT_NODE) return;
+
+    let cancelled = false;
+    let introTimer = 0;
+    let measureFrame = 0;
+    let fontReady = false;
+    const fontStyle = window.getComputedStyle(title);
+    const initialFontSize = Number.parseFloat(fontStyle.fontSize);
+    const fontDescriptor = `${fontStyle.fontWeight} ${initialFontSize}px "Azonix"`;
+    let resizeObserver: ResizeObserver | undefined;
+
+    const updateMetrics = () => {
+      if (cancelled || !fontReady) return;
+      const currentTitle = titleRef.current;
+      const currentSecondary = titleSecondaryRef.current;
+      const currentTextNode = currentTitle?.firstChild;
+      if (!currentTitle || !currentSecondary || !currentTextNode || currentTextNode.nodeType !== Node.TEXT_NODE) return;
+
+      const primaryRange = document.createRange();
+      primaryRange.setStart(currentTextNode, 0);
+      primaryRange.setEnd(currentTextNode, currentTextNode.textContent?.length ?? 0);
+      const primaryRect = primaryRange.getBoundingClientRect();
+      const secondaryRange = document.createRange();
+      secondaryRange.selectNodeContents(currentSecondary);
+      const secondaryRect = secondaryRange.getBoundingClientRect();
+      const titleRect = currentTitle.getBoundingClientRect();
+      const titleStyle = window.getComputedStyle(currentTitle);
+      const secondaryStyle = window.getComputedStyle(currentSecondary);
+      const fontSize = Number.parseFloat(titleStyle.fontSize);
+      const parsedLineHeight = Number.parseFloat(titleStyle.lineHeight);
+      const lineHeight = Number.isFinite(parsedLineHeight) ? parsedLineHeight : fontSize * 1.1;
+      const primaryLetterSpacing = Number.parseFloat(titleStyle.letterSpacing);
+      const secondaryLetterSpacing = Number.parseFloat(secondaryStyle.letterSpacing);
+
+      // React Bits reserves fuzzRange + 20px + 5px inset on the left for horizontal slices.
+      const canvasInkPadding = 30 + 20 + 5;
+      setFuzzyMetrics({
+        fontSize,
+        fontWeight: titleStyle.fontWeight,
+        fontFamily: titleStyle.fontFamily,
+        letterSpacingPrimary: Number.isFinite(primaryLetterSpacing) ? primaryLetterSpacing : 0,
+        letterSpacingSecondary: Number.isFinite(secondaryLetterSpacing) ? secondaryLetterSpacing : 0,
+        colorPrimary: titleStyle.color,
+        colorSecondary: secondaryStyle.color,
+        primaryLeft: primaryRect.left - titleRect.left - canvasInkPadding,
+        secondaryLeft: secondaryRect.left - titleRect.left - canvasInkPadding,
+        top: primaryRect.top - titleRect.top + Math.max(0, (lineHeight - fontSize) / 2),
+        textTransform: titleStyle.textTransform,
+      });
+    };
+
+    const scheduleMeasure = () => {
+      window.cancelAnimationFrame(measureFrame);
+      measureFrame = window.requestAnimationFrame(updateMetrics);
+    };
+
+    const initialize = async () => {
+      try {
+        await document.fonts.load(fontDescriptor, 'DeviationRecord');
+        await document.fonts.ready;
+      } catch {
+        return;
+      }
+      if (cancelled || !document.fonts.check(fontDescriptor, 'DeviationRecord')) return;
+
+      fontReady = true;
+      updateMetrics();
+      setFuzzyIntroActive(true);
+      introTimer = window.setTimeout(() => setFuzzyIntroActive(false), 1400);
+      resizeObserver = new ResizeObserver(scheduleMeasure);
+      resizeObserver.observe(title);
+      window.addEventListener('resize', scheduleMeasure);
+    };
+
+    void initialize();
+    return () => {
+      cancelled = true;
+      window.clearTimeout(introTimer);
+      window.cancelAnimationFrame(measureFrame);
+      resizeObserver?.disconnect();
+      window.removeEventListener('resize', scheduleMeasure);
+      if (fuzzyPointerFrame.current) window.cancelAnimationFrame(fuzzyPointerFrame.current);
+    };
+  }, [motionAllowed, reducedMotion]);
+
+  const handleFuzzyTitlePointerMove = useCallback((event: ReactPointerEvent<HTMLHeadingElement>) => {
+    if (!motionAllowed || reducedMotion || !fuzzyMetrics || (event.pointerType !== 'mouse' && event.pointerType !== 'pen')) return;
+    const title = titleRef.current;
+    const secondary = titleSecondaryRef.current;
+    const textNode = title?.firstChild;
+    if (!title || !secondary || !textNode || textNode.nodeType !== Node.TEXT_NODE) return;
+
+    const primaryRange = document.createRange();
+    primaryRange.setStart(textNode, 0);
+    primaryRange.setEnd(textNode, textNode.textContent?.length ?? 0);
+    const primaryRect = primaryRange.getBoundingClientRect();
+    const secondaryRange = document.createRange();
+    secondaryRange.selectNodeContents(secondary);
+    const secondaryRect = secondaryRange.getBoundingClientRect();
+    const overText = [primaryRect, secondaryRect].some((rect) =>
+      event.clientX >= rect.left && event.clientX <= rect.right &&
+      event.clientY >= rect.top && event.clientY <= rect.bottom,
+    );
+
+    if (!overText) {
+      if (fuzzyHoverRef.current) {
+        fuzzyHoverRef.current = false;
+        setFuzzyHoverActive(false);
+        dispatchFuzzyPointer('pointerleave', {
+          x: event.clientX,
+          y: event.clientY,
+          pointerType: event.pointerType,
+          pointerId: event.pointerId,
+        });
+      }
+      return;
+    }
+
+    if (!fuzzyHoverRef.current) {
+      fuzzyHoverRef.current = true;
+      setFuzzyHoverActive(true);
+    }
+    fuzzyPointerPosition.current = {
+      x: event.clientX,
+      y: event.clientY,
+      pointerType: event.pointerType,
+      pointerId: event.pointerId,
+    };
+    if (!fuzzyPointerFrame.current) {
+      fuzzyPointerFrame.current = window.requestAnimationFrame(() => {
+        fuzzyPointerFrame.current = 0;
+        const point = fuzzyPointerPosition.current;
+        if (point) dispatchFuzzyPointer('pointermove', point);
+      });
+    }
+  }, [dispatchFuzzyPointer, fuzzyMetrics, motionAllowed, reducedMotion]);
+
+  const handleFuzzyTitlePointerLeave = useCallback((event: ReactPointerEvent<HTMLHeadingElement>) => {
+    if (!fuzzyHoverRef.current) return;
+    fuzzyHoverRef.current = false;
+    setFuzzyHoverActive(false);
+    dispatchFuzzyPointer('pointerleave', {
+      x: event.clientX,
+      y: event.clientY,
+      pointerType: event.pointerType,
+      pointerId: event.pointerId,
+    });
+  }, [dispatchFuzzyPointer]);
 
   useEffect(() => {
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -188,8 +393,80 @@ export default function InteractiveLanding({ header, language = 'en' }: Interact
           ))}
         </div>
         <div className="ir-landing__content">
-          <h1 className="ir-landing__title" id="ir-landing-title">
-            Deviation<span>Record</span>
+          <h1
+            ref={titleRef}
+            className={`ir-landing__title${fuzzyIntroActive ? ' is-fuzzy-intro' : ''}`}
+            id="ir-landing-title"
+            data-testid="text-home-title"
+            onPointerMove={handleFuzzyTitlePointerMove}
+            onPointerLeave={handleFuzzyTitlePointerLeave}
+          >
+            Deviation<span ref={titleSecondaryRef} className="ir-landing__title-secondary">Record</span>
+            {fuzzyMetrics ? (
+              <span
+                ref={fuzzyLayerRef}
+                className={`ir-landing__fuzzy-layer${fuzzyIntroActive || fuzzyHoverActive ? ' is-visible' : ''}`}
+                aria-hidden="true"
+                style={{
+                  '--ir-fuzzy-primary-left': `${fuzzyMetrics.primaryLeft}px`,
+                  '--ir-fuzzy-secondary-left': `${fuzzyMetrics.secondaryLeft}px`,
+                  '--ir-fuzzy-top': `${fuzzyMetrics.top}px`,
+                } as CSSProperties}
+              >
+                <FuzzyText
+                  fontFamily={fuzzyMetrics.fontFamily}
+                  fontSize={fuzzyMetrics.fontSize}
+                  fontWeight={fuzzyMetrics.fontWeight}
+                  color={fuzzyMetrics.colorPrimary}
+                  colorSplit={0}
+                  trigger="hover"
+                  direction="horizontal"
+                  baseIntensity={0.06}
+                  hoverIntensity={0.58}
+                  fuzzRange={30}
+                  sliceSize={1}
+                  fps={60}
+                  transitionDuration={14}
+                  intro
+                  introDuration={1400}
+                  letterSpacing={fuzzyMetrics.letterSpacingPrimary}
+                  enableHover
+                  clickEffect={false}
+                  glitchMode={false}
+                  glitchInterval={2000}
+                  glitchDuration={200}
+                  className="ir-landing__fuzzy-canvas ir-landing__fuzzy-canvas--primary"
+                >
+                  {fuzzyMetrics.textTransform === 'uppercase' ? 'DEVIATION' : 'Deviation'}
+                </FuzzyText>
+                <FuzzyText
+                  fontFamily={fuzzyMetrics.fontFamily}
+                  fontSize={fuzzyMetrics.fontSize}
+                  fontWeight={fuzzyMetrics.fontWeight}
+                  color={fuzzyMetrics.colorSecondary}
+                  colorSplit={0}
+                  trigger="hover"
+                  direction="horizontal"
+                  baseIntensity={0.06}
+                  hoverIntensity={0.58}
+                  fuzzRange={30}
+                  sliceSize={1}
+                  fps={60}
+                  transitionDuration={14}
+                  intro
+                  introDuration={1400}
+                  letterSpacing={fuzzyMetrics.letterSpacingSecondary}
+                  enableHover
+                  clickEffect={false}
+                  glitchMode={false}
+                  glitchInterval={2000}
+                  glitchDuration={200}
+                  className="ir-landing__fuzzy-canvas ir-landing__fuzzy-canvas--secondary"
+                >
+                  {fuzzyMetrics.textTransform === 'uppercase' ? 'RECORD' : 'Record'}
+                </FuzzyText>
+              </span>
+            ) : null}
           </h1>
           <div className="ir-landing__text" lang={language === 'zh' ? 'zh-TW' : 'en'}>
             {paragraphs.map((paragraph) => <p key={paragraph}>{paragraph}</p>)}

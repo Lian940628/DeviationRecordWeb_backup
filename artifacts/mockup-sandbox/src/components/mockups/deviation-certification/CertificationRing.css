@@ -1,0 +1,218 @@
+.stamp-preview--ring {
+  position: relative;
+  display: grid;
+  min-height: 100vh;
+  overflow: hidden;
+  place-items: center;
+  background:
+    radial-gradient(ellipse 56% 48% at 50% 48%, rgba(0, 108, 103, .22), transparent 73%),
+    radial-gradient(ellipse at center, #031416 0%, #01090c 67%, #010609 100%);
+}
+
+.ring-stage {
+  position: relative;
+  display: grid;
+  width: 100%;
+  min-height: 100vh;
+  overflow: hidden;
+  place-items: center;
+  isolation: isolate;
+}
+
+.ring-stage__scanlines {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  opacity: .16;
+  background:
+    repeating-linear-gradient(0deg, transparent 0 3px, rgba(116, 255, 241, .07) 4px, transparent 5px 8px),
+    radial-gradient(ellipse at 50% 50%, transparent 32%, rgba(0, 0, 0, .74) 100%);
+}
+
+.cert-ring {
+  position: relative;
+  width: min(76vw, 68vh, 590px);
+  aspect-ratio: 1;
+  color: #83fff0;
+  filter: drop-shadow(0 0 17px rgba(26, 246, 225, .35));
+}
+
+.cert-ring::before,
+.cert-ring::after {
+  position: absolute;
+  z-index: -1;
+  inset: 5%;
+  border: 1px solid rgba(81, 255, 236, .12);
+  border-radius: 50%;
+  content: "";
+  box-shadow: inset 0 0 48px rgba(16, 247, 222, .09), 0 0 42px rgba(9, 225, 210, .07);
+}
+
+.cert-ring::after {
+  inset: 13%;
+  border-style: dashed;
+  border-color: rgba(109, 255, 243, .18);
+  transform: rotate(-9deg);
+}
+
+.cert-ring__engraving {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.cert-ring__track {
+  fill: none;
+  stroke: rgba(99, 255, 239, .48);
+  stroke-width: 1.15;
+}
+
+.cert-ring__track--outer {
+  stroke: rgba(127, 255, 242, .18);
+  stroke-width: 2;
+}
+
+.cert-ring__track--bright {
+  stroke: rgba(119, 255, 241, .78);
+  stroke-width: 5;
+  filter: drop-shadow(0 0 7px rgba(40, 255, 232, .88));
+}
+
+.cert-ring__track--inner {
+  stroke: rgba(103, 255, 239, .47);
+}
+
+.cert-ring__ticks {
+  fill: none;
+  stroke: rgba(136, 255, 243, .64);
+  stroke-width: 13;
+  stroke-dasharray: 1 14;
+  opacity: .78;
+}
+
+.cert-ring__curve {
+  fill: #cbfff7;
+  font: 500 17px/1 "IBM Plex Mono", monospace;
+  letter-spacing: .35em;
+  text-shadow: 0 0 11px rgba(63, 255, 235, .9);
+}
+
+.cert-ring__curve--lower {
+  font-size: 14px;
+  letter-spacing: .19em;
+}
+
+.cert-ring__axis,
+.cert-ring__calibration {
+  fill: none;
+  stroke: rgba(101, 255, 241, .54);
+  stroke-width: 1;
+}
+
+.cert-ring__calibration {
+  stroke: rgba(159, 255, 247, .8);
+  stroke-width: 1.5;
+}
+
+.cert-ring__cross {
+  position: absolute;
+  top: 36%;
+  color: rgba(160, 255, 246, .84);
+  font: 300 21px/1 "IBM Plex Mono", monospace;
+  text-shadow: 0 0 13px rgba(53, 255, 233, .85);
+}
+
+.cert-ring__cross--left { left: 23%; }
+.cert-ring__cross--right { right: 23%; }
+
+.cert-ring__banner {
+  position: absolute;
+  z-index: 2;
+  top: 50%;
+  left: -13%;
+  display: grid;
+  width: 126%;
+  min-height: 25%;
+  place-items: center;
+  clip-path: polygon(3.5% 0, 96.5% 0, 100% 17%, 100% 83%, 96.5% 100%, 3.5% 100%, 0 83%, 0 17%);
+  background:
+    linear-gradient(110deg, rgba(82, 255, 237, .96), rgba(214, 255, 250, .8) 49%, rgba(44, 238, 223, .95));
+  box-shadow: 0 0 34px rgba(56, 255, 234, .86);
+  transform: translateY(-50%);
+}
+
+.cert-ring__banner::before {
+  position: absolute;
+  inset: 2px;
+  z-index: -1;
+  clip-path: inherit;
+  background:
+    linear-gradient(180deg, rgba(17, 78, 78, .96), rgba(1, 24, 28, .99) 46%, rgba(5, 49, 51, .97));
+  content: "";
+}
+
+.cert-ring__banner::after {
+  position: absolute;
+  inset: 8px 3.5%;
+  border: 1px solid rgba(134, 255, 244, .34);
+  clip-path: polygon(3.5% 0, 96.5% 0, 100% 17%, 100% 83%, 96.5% 100%, 3.5% 100%, 0 83%, 0 17%);
+  content: "";
+}
+
+.cert-ring__banner span {
+  position: relative;
+  z-index: 1;
+  color: #d9fffa;
+  font: 700 clamp(24px, 5.7vw, 53px)/1 "Orbitron", "IBM Plex Mono", monospace;
+  font-style: italic;
+  letter-spacing: .07em;
+  text-align: center;
+  text-shadow: 0 0 3px #fff, 0 0 15px rgba(126, 255, 244, .9), 0 0 35px rgba(20, 249, 223, .76);
+  white-space: nowrap;
+}
+
+.cert-ring__barcode {
+  position: absolute;
+  top: 68%;
+  left: 50%;
+  display: flex;
+  height: 17px;
+  gap: 4px;
+  opacity: .78;
+  transform: translateX(-50%);
+}
+
+.cert-ring__barcode i {
+  display: block;
+  width: 1px;
+  height: 100%;
+  background: #9ffff5;
+  box-shadow: 0 0 5px rgba(104, 255, 241, .8);
+}
+
+.cert-ring__barcode i:nth-child(3n) { width: 3px; }
+.cert-ring__barcode i:nth-child(4n) { height: 70%; align-self: end; }
+.cert-ring__barcode i:nth-child(5n) { width: 2px; }
+
+.cert-ring__spark {
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #effffb;
+  box-shadow: 0 0 7px 3px rgba(75, 255, 238, .9), 0 0 24px 8px rgba(46, 255, 234, .43);
+}
+
+.cert-ring__spark--one { top: 11%; right: 17%; }
+.cert-ring__spark--two { bottom: 12%; left: 18%; width: 4px; height: 4px; }
+
+@media (max-width: 520px) {
+  .cert-ring { width: min(86vw, 64vh); }
+  .cert-ring__curve { font-size: 21px; }
+  .cert-ring__curve--lower { font-size: 17px; }
+  .cert-ring__banner span { font-size: clamp(19px, 5.4vw, 28px); letter-spacing: .045em; }
+  .cert-ring__cross--left { left: 17%; }
+  .cert-ring__cross--right { right: 17%; }
+}

@@ -719,6 +719,41 @@
   .ir-landing__particle { animation: none !important; }
 }
 
+/* Keep the original DOM heading as the layout and idle-state source of truth. */
+.ir-landing__title { position: relative; }
+
+.ir-landing__title.is-fuzzy-intro {
+  color: transparent;
+  text-shadow: none;
+  -webkit-text-stroke-color: transparent;
+}
+
+.ir-landing__title.is-fuzzy-intro .ir-landing__title-secondary {
+  color: transparent;
+  -webkit-text-stroke-color: transparent;
+}
+
+.ir-landing__title .ir-landing__fuzzy-layer {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  display: none;
+  pointer-events: none;
+}
+
+.ir-landing__title .ir-landing__fuzzy-layer.is-visible { display: block; }
+
+.ir-landing__fuzzy-canvas {
+  position: absolute;
+  top: var(--ir-fuzzy-top, 0px);
+  display: block;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.ir-landing__fuzzy-canvas--primary { left: var(--ir-fuzzy-primary-left, -55px); }
+.ir-landing__fuzzy-canvas--secondary { left: var(--ir-fuzzy-secondary-left, -55px); }
+
 .ir-landing__actions {
   display: grid;
   grid-template-columns: repeat(2, minmax(190px, max-content));
