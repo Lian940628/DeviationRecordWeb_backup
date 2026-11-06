@@ -395,7 +395,7 @@ export default function InteractiveLanding({ header, language = 'en' }: Interact
         <div className="ir-landing__content">
           <h1
             ref={titleRef}
-            className={`ir-landing__title${fuzzyIntroActive ? ' is-fuzzy-intro' : ''}`}
+            className="ir-landing__title"
             id="ir-landing-title"
             data-testid="text-home-title"
             onPointerMove={handleFuzzyTitlePointerMove}

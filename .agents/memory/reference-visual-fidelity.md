@@ -16,3 +16,9 @@ Home should show DeviationRecord and only the first supplied Chinese exhibition 
 **Why:** The user named 偏差紀錄 and described it as a precise system carrying personal misalignment, memory/perception errors, and emotional noise. They corrected the overall palette to blue-green, requested Azonix with translucent homepage lettering, and asked for animated backgrounds and cursor effects on every page.
 
 **How to apply:** Compare reference footage and site output before claiming a visual match. Preserve dark negative space, scene-derived information, and separate dot/contour logic. Keep analytical charts tied to actual local session data, and label the animated body illustration as a schematic rather than pose data.
+
+For homepage text animation, keep the original DOM heading as the layout and idle-state source. Overlay Fuzzy Text without hiding the DOM while fonts or canvases initialize; after intro or pointer leave, the unchanged DOM title remains visible.
+
+**Why:** Hiding the title before the asynchronous canvas was ready caused a blank heading in the preview.
+
+**How to apply:** Read the title's computed font metrics after its local font loads, position the canvas absolutely, and hide only the overlay when idle. Do not change global font rules.

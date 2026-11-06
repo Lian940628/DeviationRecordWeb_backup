@@ -722,17 +722,6 @@
 /* Keep the original DOM heading as the layout and idle-state source of truth. */
 .ir-landing__title { position: relative; }
 
-.ir-landing__title.is-fuzzy-intro {
-  color: transparent;
-  text-shadow: none;
-  -webkit-text-stroke-color: transparent;
-}
-
-.ir-landing__title.is-fuzzy-intro .ir-landing__title-secondary {
-  color: transparent;
-  -webkit-text-stroke-color: transparent;
-}
-
 .ir-landing__title .ir-landing__fuzzy-layer {
   position: absolute;
   z-index: 2;
