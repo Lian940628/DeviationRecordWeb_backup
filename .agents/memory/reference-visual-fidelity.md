@@ -17,8 +17,8 @@ Home should show DeviationRecord and only the first supplied Chinese exhibition 
 
 **How to apply:** Compare reference footage and site output before claiming a visual match. Preserve dark negative space, scene-derived information, and separate dot/contour logic. Keep analytical charts tied to actual local session data, and label the animated body illustration as a schematic rather than pose data.
 
-For homepage text animation, keep the original DOM heading as the layout and idle-state source. Overlay Fuzzy Text without hiding the DOM while fonts or canvases initialize; after intro or pointer leave, the unchanged DOM title remains visible.
+For homepage text animation, keep the DOM heading only for layout, accessibility, and loading-failure fallback. Once both Fuzzy Text canvases have drawn, hide the DOM's visual paint and keep the animated Canvas text visible continuously; hover may intensify it but must not control whether it is shown.
 
-**Why:** Hiding the title before the asynchronous canvas was ready caused a blank heading in the preview.
+**Why:** The user explicitly wants the animated Canvas title to remain visible and the non-animated duplicate removed. Hiding the DOM before the asynchronous canvases are ready caused a blank heading.
 
-**How to apply:** Read the title's computed font metrics after its local font loads, position the canvas absolutely, and hide only the overlay when idle. Do not change global font rules.
+**How to apply:** Read the title's computed font metrics after its local font loads, position the canvases absolutely, and hide the DOM text only after both canvases have rendered. Keep the Canvas visible while idle and do not change global font rules.

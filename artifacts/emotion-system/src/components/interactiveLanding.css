@@ -658,7 +658,7 @@
   font-family: "Azonix", var(--app-font-display), sans-serif;
   font-size: clamp(32px, 6.6vw, 96px);
   font-weight: 400;
-  letter-spacing: .045em;
+  letter-spacing: .1em;
   line-height: 1.1;
   text-transform: uppercase;
   text-shadow: 0 0 28px rgba(39, 215, 222, .32);
@@ -705,7 +705,7 @@
 @media (max-width: 600px) {
   .ir-landing__title {
     font-size: clamp(21px, 6.45vw, 28px);
-    letter-spacing: .025em;
+    letter-spacing: .075em;
   }
 }
 
@@ -719,18 +719,30 @@
   .ir-landing__particle { animation: none !important; }
 }
 
-/* Keep the original DOM heading as the layout and idle-state source of truth. */
+/* Keep the DOM heading for layout/accessibility; the Canvas is the visible animated title. */
 .ir-landing__title { position: relative; }
+
+.ir-landing__title.is-fuzzy-canvas-ready {
+  color: transparent;
+  text-shadow: none;
+  -webkit-text-stroke-color: transparent;
+}
+
+.ir-landing__title.is-fuzzy-canvas-ready .ir-landing__title-secondary {
+  color: transparent;
+  -webkit-text-stroke-color: transparent;
+}
 
 .ir-landing__title .ir-landing__fuzzy-layer {
   position: absolute;
   z-index: 2;
   inset: 0;
-  display: none;
+  display: block;
+  opacity: 0;
   pointer-events: none;
 }
 
-.ir-landing__title .ir-landing__fuzzy-layer.is-visible { display: block; }
+.ir-landing__title .ir-landing__fuzzy-layer.is-ready { opacity: 1; }
 
 .ir-landing__fuzzy-canvas {
   position: absolute;

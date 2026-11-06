@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, type CSSProperties, type Poin
 import { Link } from 'wouter';
 import type { AppLanguage } from '../i18n';
 import bannerImage from '../dashboard/deviation-record-banner.webp';
+import DecryptedText from './ui/DecryptedText';
 import FuzzyText from './ui/FuzzyText';
 import './interactiveLanding.css';
 
@@ -81,8 +82,7 @@ export default function InteractiveLanding({ header, language = 'en' }: Interact
   const [motionAllowed, setMotionAllowed] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(false);
   const [fuzzyMetrics, setFuzzyMetrics] = useState<FuzzyTitleMetrics | null>(null);
-  const [fuzzyIntroActive, setFuzzyIntroActive] = useState(false);
-  const [fuzzyHoverActive, setFuzzyHoverActive] = useState(false);
+  const [fuzzyCanvasReady, setFuzzyCanvasReady] = useState(false);
 
   const dispatchFuzzyPointer = useCallback((
     eventType: 'pointermove' | 'pointerleave',
@@ -105,21 +105,12 @@ export default function InteractiveLanding({ header, language = 'en' }: Interact
   }, []);
 
   useEffect(() => {
-    if (!motionAllowed || reducedMotion) {
-      setFuzzyMetrics(null);
-      setFuzzyIntroActive(false);
-      setFuzzyHoverActive(false);
-      fuzzyHoverRef.current = false;
-      return;
-    }
-
     const title = titleRef.current;
     const secondary = titleSecondaryRef.current;
     const textNode = title?.firstChild;
     if (!title || !secondary || !textNode || textNode.nodeType !== Node.TEXT_NODE) return;
 
     let cancelled = false;
-    let introTimer = 0;
     let measureFrame = 0;
     let fontReady = false;
     const fontStyle = window.getComputedStyle(title);
@@ -183,8 +174,6 @@ export default function InteractiveLanding({ header, language = 'en' }: Interact
 
       fontReady = true;
       updateMetrics();
-      setFuzzyIntroActive(true);
-      introTimer = window.setTimeout(() => setFuzzyIntroActive(false), 1400);
       resizeObserver = new ResizeObserver(scheduleMeasure);
       resizeObserver.observe(title);
       window.addEventListener('resize', scheduleMeasure);
@@ -193,13 +182,30 @@ export default function InteractiveLanding({ header, language = 'en' }: Interact
     void initialize();
     return () => {
       cancelled = true;
-      window.clearTimeout(introTimer);
       window.cancelAnimationFrame(measureFrame);
       resizeObserver?.disconnect();
       window.removeEventListener('resize', scheduleMeasure);
       if (fuzzyPointerFrame.current) window.cancelAnimationFrame(fuzzyPointerFrame.current);
     };
-  }, [motionAllowed, reducedMotion]);
+  }, []);
+
+  useEffect(() => {
+    if (!fuzzyMetrics || fuzzyCanvasReady) return;
+    let frame = 0;
+    let attempts = 0;
+    const waitForCanvas = () => {
+      const canvases = fuzzyLayerRef.current?.querySelectorAll('canvas');
+      const rendered = Boolean(canvases?.length === 2 && [...canvases].every((canvas) => canvas.width > 0 && canvas.height > 0));
+      if (rendered) {
+        // Allow the first canvas paint to land before hiding the original text fallback.
+        frame = window.requestAnimationFrame(() => setFuzzyCanvasReady(true));
+      } else if (attempts++ < 120) {
+        frame = window.requestAnimationFrame(waitForCanvas);
+      }
+    };
+    frame = window.requestAnimationFrame(waitForCanvas);
+    return () => window.cancelAnimationFrame(frame);
+  }, [fuzzyCanvasReady, fuzzyMetrics]);
 
   const handleFuzzyTitlePointerMove = useCallback((event: ReactPointerEvent<HTMLHeadingElement>) => {
     if (!motionAllowed || reducedMotion || !fuzzyMetrics || (event.pointerType !== 'mouse' && event.pointerType !== 'pen')) return;
@@ -223,7 +229,11 @@ export default function InteractiveLanding({ header, language = 'en' }: Interact
     if (!overText) {
       if (fuzzyHoverRef.current) {
         fuzzyHoverRef.current = false;
-        setFuzzyHoverActive(false);
+        if (fuzzyPointerFrame.current) {
+          window.cancelAnimationFrame(fuzzyPointerFrame.current);
+          fuzzyPointerFrame.current = 0;
+        }
+        fuzzyPointerPosition.current = null;
         dispatchFuzzyPointer('pointerleave', {
           x: event.clientX,
           y: event.clientY,
@@ -236,7 +246,6 @@ export default function InteractiveLanding({ header, language = 'en' }: Interact
 
     if (!fuzzyHoverRef.current) {
       fuzzyHoverRef.current = true;
-      setFuzzyHoverActive(true);
     }
     fuzzyPointerPosition.current = {
       x: event.clientX,
@@ -256,7 +265,11 @@ export default function InteractiveLanding({ header, language = 'en' }: Interact
   const handleFuzzyTitlePointerLeave = useCallback((event: ReactPointerEvent<HTMLHeadingElement>) => {
     if (!fuzzyHoverRef.current) return;
     fuzzyHoverRef.current = false;
-    setFuzzyHoverActive(false);
+    if (fuzzyPointerFrame.current) {
+      window.cancelAnimationFrame(fuzzyPointerFrame.current);
+      fuzzyPointerFrame.current = 0;
+    }
+    fuzzyPointerPosition.current = null;
     dispatchFuzzyPointer('pointerleave', {
       x: event.clientX,
       y: event.clientY,
@@ -395,7 +408,7 @@ export default function InteractiveLanding({ header, language = 'en' }: Interact
         <div className="ir-landing__content">
           <h1
             ref={titleRef}
-            className="ir-landing__title"
+            className={`ir-landing__title${fuzzyCanvasReady ? ' is-fuzzy-canvas-ready' : ''}`}
             id="ir-landing-title"
             data-testid="text-home-title"
             onPointerMove={handleFuzzyTitlePointerMove}
@@ -405,7 +418,7 @@ export default function InteractiveLanding({ header, language = 'en' }: Interact
             {fuzzyMetrics ? (
               <span
                 ref={fuzzyLayerRef}
-                className={`ir-landing__fuzzy-layer${fuzzyIntroActive || fuzzyHoverActive ? ' is-visible' : ''}`}
+                className={`ir-landing__fuzzy-layer${fuzzyCanvasReady ? ' is-ready' : ''}`}
                 aria-hidden="true"
                 style={{
                   '--ir-fuzzy-primary-left': `${fuzzyMetrics.primaryLeft}px`,
@@ -469,7 +482,30 @@ export default function InteractiveLanding({ header, language = 'en' }: Interact
             ) : null}
           </h1>
           <div className="ir-landing__text" lang={language === 'zh' ? 'zh-TW' : 'en'}>
-            {paragraphs.map((paragraph) => <p key={paragraph}>{paragraph}</p>)}
+            {paragraphs.map((paragraph) => (
+              <p key={paragraph}>
+                {language === 'en' ? (
+                  <DecryptedText
+                    text={paragraph}
+                    animateOn="hover"
+                    effect="fade"
+                    sequential
+                    revealDirection="start"
+                    speed={60}
+                    maxIterations={6}
+                    hoverRadius={50}
+                    scrambleColor="#2bb673"
+                    loop={false}
+                    loopDelay={2000}
+                    useOriginalCharsOnly={false}
+                    characters="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz!@#$%^&*()_+"
+                    className="revealed"
+                    encryptedClassName="encrypted"
+                    clickMode="once"
+                  />
+                ) : paragraph}
+              </p>
+            ))}
           </div>
           <div className="ir-landing__actions">
             <Link className="ir-landing__action ir-landing__action--live" href="/experience" data-testid="link-home-live-interaction">
