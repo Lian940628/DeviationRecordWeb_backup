@@ -38,6 +38,17 @@ type FuzzyTitleMetrics = {
   textTransform: string;
 };
 
+const fuzzyCanvasMetricsChanged = (previous: FuzzyTitleMetrics | null, next: FuzzyTitleMetrics) =>
+  !previous ||
+  previous.fontSize !== next.fontSize ||
+  previous.fontWeight !== next.fontWeight ||
+  previous.fontFamily !== next.fontFamily ||
+  previous.letterSpacingPrimary !== next.letterSpacingPrimary ||
+  previous.letterSpacingSecondary !== next.letterSpacingSecondary ||
+  previous.colorPrimary !== next.colorPrimary ||
+  previous.colorSecondary !== next.colorSecondary ||
+  previous.textTransform !== next.textTransform;
+
 const CODE_SNIPPETS = ['0xDEVIATION', 'if (signal)', 'drift += 0.018', 'mem://offset', 'while (seen)', 'Δ perception', 'return noise'];
 
 const PARTICLES = [
@@ -83,6 +94,7 @@ export default function InteractiveLanding({ header, language = 'en' }: Interact
   const [reducedMotion, setReducedMotion] = useState(false);
   const [fuzzyMetrics, setFuzzyMetrics] = useState<FuzzyTitleMetrics | null>(null);
   const [fuzzyCanvasReady, setFuzzyCanvasReady] = useState(false);
+  const fuzzyMetricsRef = useRef<FuzzyTitleMetrics | null>(null);
 
   const dispatchFuzzyPointer = useCallback((
     eventType: 'pointermove' | 'pointerleave',
@@ -143,7 +155,7 @@ export default function InteractiveLanding({ header, language = 'en' }: Interact
 
       // React Bits reserves fuzzRange + 20px + 5px inset on the left for horizontal slices.
       const canvasInkPadding = 30 + 20 + 5;
-      setFuzzyMetrics({
+      const nextMetrics: FuzzyTitleMetrics = {
         fontSize,
         fontWeight: titleStyle.fontWeight,
         fontFamily: titleStyle.fontFamily,
@@ -155,7 +167,16 @@ export default function InteractiveLanding({ header, language = 'en' }: Interact
         secondaryLeft: secondaryRect.left - titleRect.left - canvasInkPadding,
         top: primaryRect.top - titleRect.top + Math.max(0, (lineHeight - fontSize) / 2),
         textTransform: titleStyle.textTransform,
-      });
+      };
+      if (fuzzyCanvasMetricsChanged(fuzzyMetricsRef.current, nextMetrics)) {
+        setFuzzyCanvasReady(false);
+        fuzzyLayerRef.current?.querySelectorAll('canvas').forEach((canvas) => {
+          canvas.style.width = '';
+          canvas.style.height = '';
+        });
+      }
+      fuzzyMetricsRef.current = nextMetrics;
+      setFuzzyMetrics(nextMetrics);
     };
 
     const scheduleMeasure = () => {
@@ -195,10 +216,32 @@ export default function InteractiveLanding({ header, language = 'en' }: Interact
     let attempts = 0;
     const waitForCanvas = () => {
       const canvases = fuzzyLayerRef.current?.querySelectorAll('canvas');
-      const rendered = Boolean(canvases?.length === 2 && [...canvases].every((canvas) => canvas.width > 0 && canvas.height > 0));
+      const rendered = Boolean(canvases?.length === 2 && [...canvases].every((canvas) =>
+        canvas.width > 0 &&
+        canvas.height > 0 &&
+        canvas.style.width !== '' &&
+        canvas.style.height !== '' &&
+        canvas.getBoundingClientRect().width > 0 &&
+        canvas.getBoundingClientRect().height > 0
+      ));
       if (rendered) {
-        // Allow the first canvas paint to land before hiding the original text fallback.
-        frame = window.requestAnimationFrame(() => setFuzzyCanvasReady(true));
+        const signature = [...canvases].map((canvas) =>
+          `${canvas.width}x${canvas.height}:${canvas.style.width}:${canvas.style.height}`
+        ).join('|');
+        // Require the canvas dimensions to remain stable for two frames before hiding the DOM fallback.
+        frame = window.requestAnimationFrame(() => {
+          const currentCanvases = fuzzyLayerRef.current?.querySelectorAll('canvas');
+          const currentSignature = currentCanvases?.length === 2
+            ? [...currentCanvases].map((canvas) =>
+                `${canvas.width}x${canvas.height}:${canvas.style.width}:${canvas.style.height}`
+              ).join('|')
+            : '';
+          if (currentSignature === signature) {
+            frame = window.requestAnimationFrame(() => setFuzzyCanvasReady(true));
+          } else if (attempts++ < 120) {
+            frame = window.requestAnimationFrame(waitForCanvas);
+          }
+        });
       } else if (attempts++ < 120) {
         frame = window.requestAnimationFrame(waitForCanvas);
       }

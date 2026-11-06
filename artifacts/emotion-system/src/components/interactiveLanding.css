@@ -670,6 +670,8 @@
   -webkit-text-stroke: .4px rgba(116, 239, 230, .72);
 }
 
+.ir-landing__title-secondary { margin-left: .16em; }
+
 .ir-landing__action {
   border-color: rgba(59, 219, 219, .82);
   background: rgba(2, 45, 52, .58);
