@@ -13,6 +13,7 @@ import { deviationText as tx } from './copy';
 import type { DeviationDraft } from './types';
 import { InvitationEnvelope } from './InvitationEnvelope';
 import { CertificationStamp } from './CertificationStamp';
+import { playCertificationImpact } from './certificationAudio';
 
 export type DeviationWorkflowStep = 1 | 2 | 3 | 4 | 5;
 
@@ -104,7 +105,10 @@ export function DeviationIdForm({
   };
   const submitForCertification = () => {
     if (!canContinueProfile || stampActive) return;
-    if (onContinueProfile()) setStampActive(true);
+    if (onContinueProfile()) {
+      playCertificationImpact();
+      setStampActive(true);
+    }
   };
   const handleStepChange = (nextStep: DeviationWorkflowStep) => {
     if (nextStep <= 2) setStampActive(false);
@@ -200,15 +204,21 @@ export function DeviationIdForm({
           </label>
 
           <div className="deviation-workflow-actions deviation-certification-actions">
-            <CertificationStamp active={stampActive} language={language} onComplete={() => {
-              setStampActive(false);
-              if (typeof onProfileCertified === 'function') onProfileCertified();
-              else onStepChange(3);
-            }} />
-            <button type="button" className="deviation-button deviation-button--primary" onClick={submitForCertification} disabled={busy || !canContinueProfile || stampActive}>
+            <button type="button" className="deviation-button deviation-button--primary" data-testid="button-submit-certification" onClick={submitForCertification} disabled={busy || !canContinueProfile || stampActive}>
               {t(stampActive ? 'CERTIFYING…' : 'SUBMIT FOR CERTIFICATION')}<ArrowRight size={14} />
             </button>
           </div>
+          {stampActive && (
+            <CertificationStamp
+              active
+              language={language}
+              onComplete={() => {
+                setStampActive(false);
+                if (typeof onProfileCertified === 'function') onProfileCertified();
+                else onStepChange(3);
+              }}
+            />
+          )}
         </div>
       )}
 

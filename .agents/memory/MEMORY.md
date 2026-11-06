@@ -13,3 +13,4 @@
 - [Cloudflare Worker origin checks](cloudflare-worker-origin-allowlist.md) — the identity Worker requires an explicitly allow-listed Origin, including on server-to-server verification requests.
 - [Cloud upload receipts](cloud-upload-local-receipts.md) — local receipt storage is best-effort and must not block consenting visitors' finished-asset uploads.
 - [Invitation envelope style and cutting](deviation-envelope-opening.md) — keep the envelope wordless with an upper-right mark; track the blade tip on the top lip and advance on animation events.
+- [DEVIATION ID certification flow](deviation-id-certification-flow.md) — STEP 02 has no idle stamp; a valid submit triggers a centered glowing certification impact before STEP 03.
