@@ -831,50 +831,18 @@ export default function DeviationId() {
   }, [personSegmentationStatus, t]);
 
   const handleContinueDownload = useCallback(() => {
-    if (!draftRef.current.subjectId || !imageRef.current || personSegmentationStatus !== 'ready') {
+    if (!generated) {
       setError(t('RUN PERSON SEGMENTATION BEFORE GENERATING.'));
       return;
     }
-    // A preview is optional; Step 05 can generate its export files directly.
-    setGenerated(true);
     setError('');
     setStep(5);
-  }, [personSegmentationStatus, t]);
-
-  const handleInvitationOpened = useCallback(() => {
-    setStep(2);
-    setMatrixTransitionVisible(true);
-    if (matrixTransitionTimerRef.current !== null) {
-      window.clearTimeout(matrixTransitionTimerRef.current);
-    }
-    matrixTransitionTimerRef.current = window.setTimeout(() => {
-      matrixTransitionTimerRef.current = null;
-      setMatrixTransitionVisible(false);
-    }, 4000);
-  }, []);
-
-  useEffect(() => () => {
-    if (matrixTransitionTimerRef.current !== null) {
-      window.clearTimeout(matrixTransitionTimerRef.current);
-    }
-  }, []);
+  }, [generated, t]);
 
   const previewStage = Math.min(5, Math.floor(previewProgress * 5) + 1);
   const canExportVideo = mp4Available;
   return (
     <main className={`deviation-id-page${step === 1 ? ' deviation-id-page--invitation' : ''}`}>
-      {matrixTransitionVisible && (
-        <div className="deviation-matrix-transition" aria-hidden="true">
-          <MatrixRain
-            className="deviation-matrix-transition__rain"
-            variant="cyan"
-            fixedColor="#66f6e1"
-            fontSize={18}
-            speed={42}
-            transparent
-          />
-        </div>
-      )}
       <header className="deviation-page-heading">
         <div>
           <div className="deviation-kicker">EMOTION / SYSTEM · LOCAL IDENTITY RECORD</div>
@@ -907,7 +875,7 @@ export default function DeviationId() {
           editorRef={editorRef}
           onDraftChange={updateDraft}
           onStepChange={setStep}
-          onInvitationOpened={handleInvitationOpened}
+          onInvitationOpened={() => setStep(2)}
           onContinueProfile={handleContinueProfile}
           onProfileCertified={() => setStep(3)}
           onContinueDatasetChoice={() => { void handleContinueLocal(); }}
